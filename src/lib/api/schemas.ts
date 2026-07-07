@@ -49,7 +49,8 @@ function omitPlainSecretField<
 export const ProviderRuntimeConfigSchema = z
   .object({
     type: z.enum(["Anthropic", "OpenAI", "Gemini", "OpenAI Compatible"]),
-    source: z.literal("server-default").optional(),
+    source: z.enum(["server-default", "server-provider"]).optional(),
+    providerId: z.string().max(200).optional(),
     apiKey: z.unknown().optional(),
     apiKeySecret: EncryptedSecretEnvelopeSchema.optional(),
     baseUrl: z.string().max(2_048).optional(),

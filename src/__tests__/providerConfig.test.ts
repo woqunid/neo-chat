@@ -4,6 +4,7 @@ import {
   PROVIDER_MODEL_LIMITS,
 } from "../config/limits";
 import {
+  DEFAULT_PROVIDER_NAME,
   migrateCoreSettingsState,
   normalizeModelProvider,
   normalizeModelProviders,
@@ -52,6 +53,21 @@ describe("provider config normalization", () => {
 
     expect(provider?.models).toEqual(["model-a"]);
     expect(provider?.modelsList).toEqual([]);
+  });
+
+  it("allows provider name to be empty while editing", () => {
+    const provider = normalizeModelProvider(
+      { id: "A", name: "" },
+      { name: "Existing Provider" },
+    );
+
+    expect(provider?.name).toBe("");
+  });
+
+  it("uses the default provider name when no name is present", () => {
+    const provider = normalizeModelProvider({ id: "A" });
+
+    expect(provider?.name).toBe(DEFAULT_PROVIDER_NAME);
   });
 
   it("accepts OpenAI Compatible as a provider type", () => {

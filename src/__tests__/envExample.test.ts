@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const REQUIRED_ENV_KEYS = [
   "ACCESS_PASSWORD",
+  "PROVIDER_ADMIN_PASSWORD",
+  "PROVIDER_ADMIN_SESSION_MAX_AGE_SECONDS",
   "BYOK_PRIVATE_KEY_PEM",
   "BYOK_KEY_ID",
   "BYOK_ALLOW_EPHEMERAL_KEY",
@@ -13,6 +15,7 @@ const REQUIRED_ENV_KEYS = [
   "RATE_LIMIT_STORE",
   "DOCUMENT_PARSE_JOB_STORE",
   "PLUGIN_REGISTRY_STORE",
+  "MODEL_PROVIDER_STORE",
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
   "NEXT_PUBLIC_SITE_URL",
@@ -74,9 +77,11 @@ function scanDirectProcessEnvKeys(): Set<string> {
     "src/lib/byok/server.ts",
     "src/lib/defaultConfig/server.ts",
     "src/lib/security/accessControl.ts",
+    "src/lib/security/providerAdminAccess.ts",
     "src/lib/security/deployment.ts",
     "src/lib/security/requestGuards.ts",
     "src/lib/security/rateLimitStore.ts",
+    "src/lib/providers/serverRegistry.ts",
     "src/lib/plugin/serverRegistry.ts",
     "src/lib/api/docParseJobs.ts",
     "src/lib/seo.ts",
@@ -139,6 +144,7 @@ describe(".env.example", () => {
       "RATE_LIMIT_STORE",
       "DOCUMENT_PARSE_JOB_STORE",
       "PLUGIN_REGISTRY_STORE",
+      "MODEL_PROVIDER_STORE",
       "UPSTASH_REDIS_REST_URL",
       "UPSTASH_REDIS_REST_TOKEN",
     ]) {

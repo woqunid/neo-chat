@@ -36,9 +36,11 @@ the browser.
 
 ## Access Control
 
-| Variable          | Purpose                                                                           |
-| ----------------- | --------------------------------------------------------------------------------- |
-| `ACCESS_PASSWORD` | Optional deployment-level password gate. This is not an account or tenant system. |
+| Variable                                 | Purpose                                                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ACCESS_PASSWORD`                        | Optional deployment-level password gate. This is not an account or tenant system.                          |
+| `PROVIDER_ADMIN_PASSWORD`                | Password for the hidden `/superadmin` provider management page. Leave empty to disable that admin surface. |
+| `PROVIDER_ADMIN_SESSION_MAX_AGE_SECONDS` | Lifetime for the `/superadmin` verification cookie, in seconds. Defaults to `1800`.                        |
 
 ## BYOK Server Key
 
@@ -68,18 +70,19 @@ that removes client-supplied forwarded headers.
 
 ## Shared Stores
 
-| Variable                   | Purpose                                                                                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_STORE`         | Store for rate-limit state. Use `upstash` for hosted or multi-instance deployments.                   |
-| `DOCUMENT_PARSE_JOB_STORE` | Store for document parsing jobs. Use `upstash` for hosted or multi-instance deployments.              |
-| `PLUGIN_REGISTRY_STORE`    | Store for server-registered plugin manifests. Use `upstash` for hosted or multi-instance deployments. |
-| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST endpoint used by shared stores.                                                    |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token used by shared stores.                                                       |
+| Variable                   | Purpose                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_STORE`         | Store for rate-limit state. Use `upstash` for hosted or multi-instance deployments.                     |
+| `DOCUMENT_PARSE_JOB_STORE` | Store for document parsing jobs. Use `upstash` for hosted or multi-instance deployments.                |
+| `PLUGIN_REGISTRY_STORE`    | Store for server-registered plugin manifests. Use `upstash` for hosted or multi-instance deployments.   |
+| `MODEL_PROVIDER_STORE`     | Store for `/superadmin` global model providers. Use `upstash` for hosted or multi-instance deployments. |
+| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST endpoint used by shared stores.                                                      |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token used by shared stores.                                                         |
 
-All three stores may use in-memory state for one local process. Hosted,
-Cloudflare Workers, and multi-instance Docker deployments should use `upstash`
-for all three so rate limits, document parse jobs, and plugin execution
-registry lookups survive across instances.
+These stores may use in-memory state for one local process. Hosted, Cloudflare
+Workers, and multi-instance Docker deployments should use `upstash` so rate
+limits, document parse jobs, plugin registry lookups, and `/superadmin` model
+provider settings survive across instances.
 
 ## Public URLs
 
