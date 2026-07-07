@@ -43,6 +43,21 @@ describe("search compatibility", () => {
     expect(getSearchCompatibilityErrorMessage(result)).toContain("external");
   });
 
+  it("blocks model built-in search when model metadata explicitly disables it", () => {
+    expect(
+      getSearchCompatibility({
+        searchProvider: "google",
+        modelProviderType: "Gemini",
+        modelBuiltInSearch: false,
+      }),
+    ).toEqual({
+      enabled: false,
+      mode: "unavailable",
+      provider: "google",
+      reason: "model_builtin_search_unsupported",
+    });
+  });
+
   it("requires API keys for external hosted search providers", () => {
     expect(
       getSearchCompatibility({

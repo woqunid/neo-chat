@@ -39,5 +39,6 @@
   "capAudio": "音频",
   "capReasoning": "推理",
   "capFunctionCalling": "函数调用",
+  "capBuiltInSearch": "内置联网",
   "modelCapabilitiesAria": "模型能力"
 }

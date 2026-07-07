@@ -18,5 +18,6 @@
   "capVision": "视觉",
   "capAudio": "音频",
   "capReasoning": "推理",
-  "capToolCall": "工具调用"
+  "capToolCall": "工具调用",
+  "capBuiltInSearch": "内置联网"
 }

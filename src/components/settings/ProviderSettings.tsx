@@ -13,6 +13,7 @@ import {
   Mic,
   Lightbulb,
   Wrench,
+  Globe,
   ExternalLink,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -300,6 +301,15 @@ const ProviderSettings = () => {
         label: t("capFunctionCalling"),
         className:
           "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800",
+      });
+    }
+    if (meta.built_in_search) {
+      capabilities.push({
+        key: "search",
+        icon: Globe,
+        label: t("capBuiltInSearch"),
+        className:
+          "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
       });
     }
 

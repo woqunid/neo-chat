@@ -132,6 +132,7 @@ const ChatApp = () => {
       deleteSession,
       updateSessionTitle,
       updateSessionInstruction,
+      updateSessionConfig,
       updateSessionCompression,
       updateSessionMemoryContext,
       toggleSessionPin,
@@ -2165,9 +2166,14 @@ const ChatApp = () => {
                   selectedModel={selectedModel}
                   onSelectModel={setModel}
                   isSearchEnabled={chatConfig.useSearch}
-                  onToggleSearch={() =>
-                    setChatConfig({ useSearch: !chatConfig.useSearch })
-                  }
+                  onSearchEnabledChange={(enabled) => {
+                    setChatConfig({ useSearch: enabled });
+                    if (currentSessionId) {
+                      updateSessionConfig(currentSessionId, {
+                        useSearch: enabled,
+                      });
+                    }
+                  }}
                 />
               </div>
             </div>

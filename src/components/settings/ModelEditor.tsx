@@ -9,6 +9,7 @@ import {
   Mic,
   Lightbulb,
   Wrench,
+  Globe,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSettingsStore, formatModelName } from "@/store/core/settingsStore";
@@ -77,6 +78,7 @@ const ModelEditor = ({
     audio: initialMeta.modalities?.input?.includes("audio") || false,
     reasoning: initialMeta.reasoning || false,
     tool_call: initialMeta.tool_call || false,
+    built_in_search: initialMeta.built_in_search ?? true,
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [idCopyStatus, setIdCopyStatus] = useState<CopyStatus>("idle");
@@ -119,6 +121,7 @@ const ModelEditor = ({
       attachment: capabilities.attachment,
       reasoning: capabilities.reasoning,
       tool_call: capabilities.tool_call,
+      built_in_search: capabilities.built_in_search,
       modalities: {
         ...initialMeta.modalities,
         input: [
@@ -141,6 +144,7 @@ const ModelEditor = ({
       audio: suggestion.modalities?.input?.includes("audio") || false,
       reasoning: suggestion.reasoning || false,
       tool_call: suggestion.tool_call || false,
+      built_in_search: suggestion.built_in_search ?? true,
     });
     setShowSuggestions(false);
   };
@@ -349,6 +353,15 @@ const ModelEditor = ({
                   setCapabilities({ ...capabilities, tool_call: v })
                 }
                 colorClass="bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300"
+              />
+              <CapabilityIconToggle
+                label={t("capBuiltInSearch")}
+                icon={Globe}
+                checked={capabilities.built_in_search}
+                onChange={(v: boolean) =>
+                  setCapabilities({ ...capabilities, built_in_search: v })
+                }
+                colorClass="bg-cyan-50 border-cyan-200 text-cyan-600 dark:bg-cyan-900/20 dark:border-cyan-800 dark:text-cyan-300"
               />
             </div>
           </div>

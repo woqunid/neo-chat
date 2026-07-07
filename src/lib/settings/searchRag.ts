@@ -111,10 +111,12 @@ export const getSearchCompatibility = ({
   searchProvider,
   searchConfig,
   modelProviderType,
+  modelBuiltInSearch,
 }: {
   searchProvider: SearchProviderID;
   searchConfig?: SearchServiceConfig;
   modelProviderType?: ProviderType;
+  modelBuiltInSearch?: boolean;
 }): SearchCompatibilityResult => {
   if (!modelProviderType) {
     return {
@@ -126,6 +128,15 @@ export const getSearchCompatibility = ({
   }
 
   if (searchProvider === "google") {
+    if (modelBuiltInSearch === false) {
+      return {
+        enabled: false,
+        mode: "unavailable",
+        provider: searchProvider,
+        reason: "model_builtin_search_unsupported",
+      };
+    }
+
     if (modelProviderType === "Gemini") {
       return {
         enabled: true,

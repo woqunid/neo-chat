@@ -18,5 +18,6 @@
   "capVision": "画像認識 (Vision)",
   "capAudio": "音声認識 (Audio)",
   "capReasoning": "推論 (Reasoning)",
-  "capToolCall": "ツール呼び出し (Tool Call)"
+  "capToolCall": "ツール呼び出し (Tool Call)",
+  "capBuiltInSearch": "内蔵検索"
 }

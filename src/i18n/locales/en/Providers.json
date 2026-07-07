@@ -39,5 +39,6 @@
   "capAudio": "Audio",
   "capReasoning": "Reasoning",
   "capFunctionCalling": "Function Calling",
+  "capBuiltInSearch": "Built-in Search",
   "modelCapabilitiesAria": "Model capabilities"
 }

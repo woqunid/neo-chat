@@ -178,12 +178,16 @@ export function resolveEffectiveChatContext(
     activePlugins,
   } = options;
 
+  const { modelName } = parseModelString(selectedModel);
+  const selectedModelMetadata =
+    customModelMetadata[modelName] || modelMetadata[modelName];
   const searchConfig =
     search.provider === "google" ? undefined : search.configs[search.provider];
   const searchCompatibility = getSearchCompatibility({
     searchProvider: search.provider,
     searchConfig,
     modelProviderType: provider?.type,
+    modelBuiltInSearch: selectedModelMetadata?.built_in_search,
   });
   const modelCapabilities = getModelCapabilities({
     selectedModel,

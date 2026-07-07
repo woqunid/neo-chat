@@ -100,7 +100,7 @@ interface MessageInputProps {
   selectedModel?: string;
   onSelectModel?: (model: string) => void;
   isSearchEnabled?: boolean;
-  onToggleSearch?: () => void;
+  onSearchEnabledChange?: (enabled: boolean) => void;
   variant?: MessageInputVariant;
 }
 
@@ -130,7 +130,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       selectedModel = "",
       onSelectModel,
       isSearchEnabled = false,
-      onToggleSearch,
+      onSearchEnabledChange,
       variant = "default",
     },
     ref,
@@ -358,13 +358,23 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         search.provider === "google"
           ? undefined
           : search.configs[search.provider];
+      const { modelName } = parseModelString(selectedModel);
+      const selectedMetadata =
+        customModelMetadata[modelName] || modelMetadata[modelName];
 
       return getSearchCompatibility({
         searchProvider: search.provider,
         searchConfig,
         modelProviderType: selectedModelProvider?.type,
+        modelBuiltInSearch: selectedMetadata?.built_in_search,
       });
-    }, [search, selectedModelProvider?.type]);
+    }, [
+      customModelMetadata,
+      modelMetadata,
+      search,
+      selectedModel,
+      selectedModelProvider?.type,
+    ]);
 
     const getSearchUnavailableMessage = (
       reason: SearchCompatibilityReason | undefined,
@@ -398,18 +408,16 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               provider: getSearchProviderLabel(searchCompatibility.provider),
             });
 
-    const searchTooltip = !searchCompatibility.enabled
+    const isSearchUnavailable = !searchCompatibility.enabled;
+    const isSearchEnableBlocked = !isSearchEnabled && isSearchUnavailable;
+    const searchTooltip = isSearchEnableBlocked
       ? getSearchUnavailableMessage(searchCompatibility.reason)
       : isSearchEnabled
         ? t("disableSearchWithMode", { mode: searchModeLabel })
         : t("enableSearchWithMode", { mode: searchModeLabel });
 
     const handleSearchToggle = () => {
-      if (!searchCompatibility.enabled) {
-        setErrorMsg(getSearchUnavailableMessage(searchCompatibility.reason));
-        return;
-      }
-      onToggleSearch?.();
+      onSearchEnabledChange?.(!isSearchEnabled);
     };
 
     const currentSession = useMemo(
@@ -1533,13 +1541,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             )}
 
             {/* Search Button */}
-            {onToggleSearch && (
+            {onSearchEnabledChange && (
               <div>
                 <Tooltip content={searchTooltip} position="top">
                   <button
                     type="button"
                     aria-label={
-                      !searchCompatibility.enabled
+                      isSearchEnableBlocked
                         ? getSearchUnavailableMessage(
                             searchCompatibility.reason,
                           )
@@ -1547,16 +1555,13 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                           ? t("disableSearchAria")
                           : t("enableSearchAria")
                     }
-                    aria-disabled={!searchCompatibility.enabled || undefined}
-                    aria-pressed={
-                      isSearchEnabled && searchCompatibility.enabled
-                    }
+                    aria-pressed={isSearchEnabled}
                     className={`${iconButtonBaseClass} transition-colors ${iconButtonFocusClass} ${
-                      isSearchEnabled && searchCompatibility.enabled
-                        ? "text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                        : !searchCompatibility.enabled
+                      isSearchEnabled
+                        ? isSearchUnavailable
                           ? "text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                          : "text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent/50"
+                          : "text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        : "text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent/50"
                     }`}
                     onClick={handleSearchToggle}
                     disabled={isInputBusy}

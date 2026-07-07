@@ -110,6 +110,7 @@ export function normalizeModelMetadata(
     "attachment",
     "reasoning",
     "tool_call",
+    "built_in_search",
     "temperature",
     "structured_output",
     "open_weights",

@@ -18,5 +18,6 @@
   "capVision": "Vision",
   "capAudio": "Audio",
   "capReasoning": "Reasoning",
-  "capToolCall": "Tool Call"
+  "capToolCall": "Tool Call",
+  "capBuiltInSearch": "Built-in Search"
 }

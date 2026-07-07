@@ -510,6 +510,7 @@ export const streamChatResponse = async (
     searchProvider: search.provider,
     searchConfig,
     modelProviderType: provider.type,
+    modelBuiltInSearch: resolveModelMetadata(modelName)?.built_in_search,
   });
   const outputBlockBuilder = createMessageOutputBlockBuilder();
   const emitOutputBlocks = () => {
