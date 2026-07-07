@@ -26,7 +26,9 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("UserMessageEditor");
     expect(messageItem).toContain("enableRoleBasedMessagePosition");
     expect(messageItem).toContain("isRightAlignedUserMessage");
-    expect(messageItem).toContain("md:flex-row-reverse");
+    expect(messageItem).toContain("flex-row-reverse");
+    expect(messageItem).toContain("messageBodyLayoutClass");
+    expect(messageItem).toContain("rounded-2xl");
     expect(messageItem).toContain("PencilSparkles");
     expect(messageItem).toContain('t("polishUserMessageShort")');
     expect(messageItem).not.toContain("text-amber-500");

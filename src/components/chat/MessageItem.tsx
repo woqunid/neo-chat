@@ -1105,18 +1105,21 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const usesRoleBasedPosition = system.enableRoleBasedMessagePosition;
   const isRightAlignedUserMessage =
     usesRoleBasedPosition && message.role === "user";
-  const messageLayoutClass = usesRoleBasedPosition
-    ? isRightAlignedUserMessage
-      ? "items-end md:flex-row-reverse md:items-start"
-      : "items-start"
-    : "";
+  const messageDirectionClass = isRightAlignedUserMessage
+    ? "flex-row-reverse"
+    : "flex-col md:flex-row";
+  const messageLayoutClass = usesRoleBasedPosition ? "items-start" : "";
   const headerContainerLayoutClass = isRightAlignedUserMessage
-    ? "flex-row-reverse md:flex-row"
-    : "";
+    ? "w-auto justify-start"
+    : "w-full md:w-auto justify-between md:justify-start";
   const headerLayoutClass = isRightAlignedUserMessage ? "flex-row-reverse" : "";
-  const contentLayoutClass = usesRoleBasedPosition
-    ? "w-full max-w-[92%] md:w-fit md:max-w-[min(82%,42rem)]"
+  const contentLayoutClass = isRightAlignedUserMessage
+    ? "flex w-fit max-w-[min(82%,42rem)] flex-col items-end"
     : "flex-1";
+  const messageBodyLayoutClass = isRightAlignedUserMessage
+    ? "w-fit max-w-full self-end rounded-2xl bg-gray-100 px-3 py-2 text-left dark:bg-muted"
+    : "";
+  const footerLayoutClass = isRightAlignedUserMessage ? "self-end" : "";
 
   const handleAttachmentClick = (index: number) => {
     if (!message.attachments) return;
@@ -1369,11 +1372,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
         )}
 
       <div
-        className={`message-item group relative flex flex-col md:flex-row gap-2 md:gap-3 rounded-md transition-[background-color,border-color] duration-200 border border-transparent px-3 py-3 bg-gray-50/0 hover:bg-gray-50/80 dark:hover:bg-muted/40 ${messageLayoutClass}`}
+        className={`message-item group relative flex ${messageDirectionClass} gap-2 md:gap-3 rounded-md transition-[background-color,border-color] duration-200 border border-transparent px-3 py-3 bg-gray-50/0 hover:bg-gray-50/80 dark:hover:bg-muted/40 ${messageLayoutClass}`}
       >
         {/* Avatar & Header Section */}
         <div
-          className={`flex items-center w-full md:w-auto justify-between md:justify-start gap-2 md:block md:shrink-0 md:mt-0.5 select-none ${headerContainerLayoutClass}`}
+          className={`flex items-center gap-2 md:block md:shrink-0 md:mt-0.5 select-none ${headerContainerLayoutClass}`}
         >
           <div className={`flex items-center gap-2 ${headerLayoutClass}`}>
             {message.role === "model" ? (
@@ -1397,18 +1400,22 @@ const MessageItem: React.FC<MessageItemProps> = ({
                 />
               </div>
             )}
-            <span className="text-sm font-medium text-gray-700 dark:text-foreground md:hidden">
-              {message.role === "model"
-                ? message.model || t("model")
-                : t("user")}
-            </span>
+            {!isRightAlignedUserMessage && (
+              <span className="text-sm font-medium text-gray-700 dark:text-foreground md:hidden">
+                {message.role === "model"
+                  ? message.model || t("model")
+                  : t("user")}
+              </span>
+            )}
           </div>
 
-          <Tooltip content={t("sentTime")} position="left">
-            <span className="text-[10px] text-gray-400 dark:text-muted-foreground/70 font-normal md:hidden">
-              {timeString}
-            </span>
-          </Tooltip>
+          {!isRightAlignedUserMessage && (
+            <Tooltip content={t("sentTime")} position="left">
+              <span className="text-[10px] text-gray-400 dark:text-muted-foreground/70 font-normal md:hidden">
+                {timeString}
+              </span>
+            </Tooltip>
+          )}
         </div>
 
         {/* Content Area */}
@@ -1516,15 +1523,17 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   />
                 </div>
               ) : (
-                <MessageOutputRenderer
-                  message={message}
-                  displayedContent={displayedContent}
-                  isTyping={isTyping}
-                  isThinking={isThinking}
-                  isErrorMessage={isErrorMessage}
-                  searchSources={sources}
-                  onFileClick={handleFileClick}
-                />
+                <div className={messageBodyLayoutClass}>
+                  <MessageOutputRenderer
+                    message={message}
+                    displayedContent={displayedContent}
+                    isTyping={isTyping}
+                    isThinking={isThinking}
+                    isErrorMessage={isErrorMessage}
+                    searchSources={sources}
+                    onFileClick={handleFileClick}
+                  />
+                </div>
               )}
             </>
           )}
@@ -1541,7 +1550,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
           {/* Footer / Toolbar */}
           {!isEditing && !isTyping && (
-            <div className="flex items-center justify-between mt-1 h-6 opacity-100 md:opacity-40 md:group-hover:opacity-100 transition-opacity duration-200">
+            <div
+              className={`flex items-center justify-between mt-1 h-6 opacity-100 md:opacity-40 md:group-hover:opacity-100 transition-opacity duration-200 ${footerLayoutClass}`}
+            >
               <div className="flex items-center text-xs text-gray-400 dark:text-muted-foreground/70 select-none [&>span:not(:last-child)]:after:content-['·'] [&>span:not(:last-child)]:after:mx-1 [&>span:not(:last-child)]:after:text-gray-300 dark:[&>span:not(:last-child)]:after:text-border">
                 <span className="hidden md:inline hover:text-gray-600 dark:hover:text-foreground/85 transition-colors cursor-default">
                   <Tooltip
