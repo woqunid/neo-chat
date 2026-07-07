@@ -26,6 +26,7 @@ import Tooltip from "../ui/Tooltip";
 import ModelEditor from "./ModelEditor";
 import { SecretInput } from "./SettingsUI";
 import { PROVIDER_CONFIG_LIMITS } from "@/config/limits";
+import { DEFAULT_PROVIDER_NAME } from "@/lib/providers/config";
 import {
   getResponseErrorMessage,
   readJsonResponseOrThrow,
@@ -404,6 +405,13 @@ const ProviderSettings = () => {
                           name: e.target.value,
                         })
                       }
+                      onBlur={() => {
+                        if (!currentProvider.name.trim()) {
+                          updateProvider(currentProvider.id, {
+                            name: DEFAULT_PROVIDER_NAME,
+                          });
+                        }
+                      }}
                       className="w-full px-3 py-2 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-[border-color,box-shadow] text-gray-800 dark:text-foreground"
                     />
                   </div>

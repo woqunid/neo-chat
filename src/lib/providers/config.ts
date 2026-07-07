@@ -11,6 +11,8 @@ import {
   isProviderType,
 } from "./providerTypes";
 
+export const DEFAULT_PROVIDER_NAME = "Provider";
+
 function trimString(value: unknown, maxChars: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxChars) : "";
 }
@@ -77,13 +79,14 @@ export function normalizeModelProvider(
   const type = normalizeProviderType(raw.type || fallback?.type);
   const models = normalizeModelList(raw.models);
   const modelsList = normalizeModelList(raw.modelsList || raw.models);
+  const name =
+    typeof raw.name === "string"
+      ? trimString(raw.name, PROVIDER_CONFIG_LIMITS.maxProviderNameChars)
+      : fallback?.name || DEFAULT_PROVIDER_NAME;
 
   return {
     id,
-    name:
-      trimString(raw.name, PROVIDER_CONFIG_LIMITS.maxProviderNameChars) ||
-      fallback?.name ||
-      "Provider",
+    name,
     type,
     baseUrl: trimString(raw.baseUrl, PROVIDER_CONFIG_LIMITS.maxBaseUrlChars),
     apiKey: trimString(raw.apiKey, PROVIDER_CONFIG_LIMITS.maxApiKeyChars),
