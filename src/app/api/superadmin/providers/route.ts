@@ -5,7 +5,6 @@ import {
   readJsonRequestBody,
 } from "@/lib/api/middleware";
 import { PROVIDER_CONFIG_LIMITS } from "@/config/limits";
-import { assertProviderAdminRequest } from "@/lib/security/providerAdminAccess";
 import {
   createServerProviderId,
   listServerModelProviders,
@@ -50,9 +49,8 @@ function mergeProvider(
   };
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    await assertProviderAdminRequest(request);
     const providers = await listServerModelProviders();
     return NextResponse.json({
       providers: providers.map(toPublicModelProvider),
@@ -64,7 +62,6 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await assertProviderAdminRequest(request);
     const body = AdminProvidersSchema.parse(await readJsonRequestBody(request));
     const existing = new Map(
       (await listServerModelProviders()).map((provider) => [

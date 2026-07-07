@@ -36,11 +36,9 @@ the browser.
 
 ## Access Control
 
-| Variable                                 | Purpose                                                                                                    |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `ACCESS_PASSWORD`                        | Optional deployment-level password gate. This is not an account or tenant system.                          |
-| `PROVIDER_ADMIN_PASSWORD`                | Password for the hidden `/superadmin` provider management page. Leave empty to disable that admin surface. |
-| `PROVIDER_ADMIN_SESSION_MAX_AGE_SECONDS` | Lifetime for the `/superadmin` verification cookie, in seconds. Defaults to `1800`.                        |
+| Variable          | Purpose                                                                           |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `ACCESS_PASSWORD` | Optional deployment-level password gate. This is not an account or tenant system. |
 
 ## BYOK Server Key
 

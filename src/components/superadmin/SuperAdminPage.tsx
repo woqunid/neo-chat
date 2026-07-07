@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PasswordGate from "./PasswordGate";
 import ProviderEditor from "./ProviderEditor";
 import ProviderList from "./ProviderList";
 import type { AdminProvider } from "./types";
@@ -37,33 +36,17 @@ function serializeModels(models: string[]): string {
 }
 
 export default function SuperAdminPage() {
-  const [password, setPassword] = useState("");
-  const [verified, setVerified] = useState(false);
-  const [configured, setConfigured] = useState(true);
   const [providers, setProviders] = useState<AdminProvider[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [modelsText, setModelsText] = useState("");
-  const [status, setStatus] = useState("正在检查管理员会话…");
+  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
   const selected = providers[selectedIndex] || null;
-  const canSubmitPassword = password.trim().length > 0 && !busy;
 
   useEffect(() => {
-    fetch("/api/superadmin/session", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => {
-        setConfigured(Boolean(data.enabled));
-        setVerified(Boolean(data.verified));
-        setStatus(data.enabled ? "" : "未配置 PROVIDER_ADMIN_PASSWORD。");
-      })
-      .catch(() => setStatus("管理员会话检查失败。"));
-  }, []);
-
-  useEffect(() => {
-    if (!verified) return;
     void loadProviders();
-  }, [verified]);
+  }, []);
 
   useEffect(() => {
     setModelsText(serializeModels(selected?.models || []));
@@ -82,27 +65,6 @@ export default function SuperAdminPage() {
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "加载失败");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verifyPassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSubmitPassword) return;
-    setBusy(true);
-    try {
-      const response = await fetch("/api/superadmin/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!response.ok) throw new Error(await readError(response, "验证失败"));
-      setPassword("");
-      setVerified(true);
-      setStatus("");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "验证失败");
     } finally {
       setBusy(false);
     }
@@ -174,20 +136,6 @@ export default function SuperAdminPage() {
     setSelectedIndex(0);
     setStatus("已从列表移除，保存后生效。");
   };
-
-  if (!configured || !verified) {
-    return (
-      <PasswordGate
-        password={password}
-        status={status}
-        busy={busy}
-        configured={configured}
-        canSubmit={canSubmitPassword}
-        onPasswordChange={setPassword}
-        onSubmit={verifyPassword}
-      />
-    );
-  }
 
   return (
     <main className="min-h-dvh bg-background text-foreground">

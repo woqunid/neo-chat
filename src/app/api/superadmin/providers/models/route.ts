@@ -5,7 +5,6 @@ import {
   readJsonRequestBody,
 } from "@/lib/api/middleware";
 import { PROVIDER_CONFIG_LIMITS } from "@/config/limits";
-import { assertProviderAdminRequest } from "@/lib/security/providerAdminAccess";
 import {
   getServerModelProvider,
   toModelProviderRuntime,
@@ -27,7 +26,6 @@ const AdminFetchModelsSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await assertProviderAdminRequest(request);
     const body = AdminFetchModelsSchema.parse(
       await readJsonRequestBody(request),
     );

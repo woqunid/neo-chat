@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const REQUIRED_ENV_KEYS = [
   "ACCESS_PASSWORD",
-  "PROVIDER_ADMIN_PASSWORD",
-  "PROVIDER_ADMIN_SESSION_MAX_AGE_SECONDS",
   "BYOK_PRIVATE_KEY_PEM",
   "BYOK_KEY_ID",
   "BYOK_ALLOW_EPHEMERAL_KEY",
@@ -77,7 +75,6 @@ function scanDirectProcessEnvKeys(): Set<string> {
     "src/lib/byok/server.ts",
     "src/lib/defaultConfig/server.ts",
     "src/lib/security/accessControl.ts",
-    "src/lib/security/providerAdminAccess.ts",
     "src/lib/security/deployment.ts",
     "src/lib/security/requestGuards.ts",
     "src/lib/security/rateLimitStore.ts",
