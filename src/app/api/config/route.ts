@@ -1,6 +1,8 @@
 import { createApiSuccessResponse } from "../../../lib/api/responses";
-import { getPublicServerConfig } from "../../../lib/defaultConfig/server";
+import { getPublicServerConfigWithManagedProviders } from "../../../lib/defaultConfig/server";
 
 export async function GET() {
-  return createApiSuccessResponse(getPublicServerConfig());
+  return createApiSuccessResponse(
+    await getPublicServerConfigWithManagedProviders(),
+  );
 }

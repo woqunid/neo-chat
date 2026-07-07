@@ -21,9 +21,14 @@ import type {
 } from "../../types";
 import {
   PublicServerConfig,
+  type PublicModelProviderConfig,
   PublicDeploymentStoreState,
   SERVER_DEFAULT_PROVIDER_ID,
 } from "./shared";
+import {
+  listServerModelProviders,
+  toPublicModelProviderConfig,
+} from "../providers/serverRegistry";
 import { isProviderType } from "../providers/providerTypes";
 import { normalizeModelMetadata } from "../providers/metadata";
 import { getDeploymentMode } from "../security/deployment";
@@ -595,5 +600,28 @@ export function getPublicServerConfig(): PublicServerConfig {
       pluginRegistryStore: getPublicStoreState("PLUGIN_REGISTRY_STORE"),
     },
     ...(system ? { system } : {}),
+  };
+}
+
+function getLegacyPublicModelProvider(
+  config: PublicServerConfig,
+): PublicModelProviderConfig | null {
+  return config.modelProvider.available ? config.modelProvider : null;
+}
+
+export async function getPublicServerConfigWithManagedProviders(): Promise<PublicServerConfig> {
+  const config = getPublicServerConfig();
+  const managedProviders = (await listServerModelProviders())
+    .filter((provider) => provider.enabled)
+    .map(toPublicModelProviderConfig)
+    .filter((provider) => provider.available);
+  const legacyProvider = getLegacyPublicModelProvider(config);
+
+  return {
+    ...config,
+    modelProviders: [
+      ...(legacyProvider ? [legacyProvider] : []),
+      ...managedProviders,
+    ],
   };
 }

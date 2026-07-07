@@ -8,6 +8,7 @@ import {
 import { ModelProvider, DefaultModels } from "@/types";
 import { pruneUnavailableDefaultModels } from "@/lib/utils/defaultModels";
 import {
+  PublicModelProviderConfig,
   PublicServerConfig,
   SERVER_DEFAULT_PROVIDER_ID,
 } from "@/lib/defaultConfig/shared";
@@ -90,6 +91,29 @@ function mergeServerDefaultModels(
   );
 }
 
+function getPublicModelProviders(
+  config: PublicServerConfig,
+): PublicModelProviderConfig[] {
+  if (config.modelProviders?.length) return config.modelProviders;
+  return config.modelProvider.available ? [config.modelProvider] : [];
+}
+
+function toServerModelProvider(
+  config: PublicModelProviderConfig,
+): ModelProvider | null {
+  return normalizeModelProvider({
+    id: config.id,
+    name: config.name,
+    type: config.type,
+    baseUrl: "default",
+    apiKey: "",
+    enabled: true,
+    models: config.models,
+    modelsList: config.models,
+    isServerDefault: true,
+  });
+}
+
 interface CoreSettingsState {
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
@@ -162,15 +186,16 @@ export const useCoreSettingsStore = create<CoreSettingsState>()(
 
       updateProvider: (id, updates) => {
         set((state) => {
-          const safeUpdates =
-            id === SERVER_DEFAULT_PROVIDER_ID
-              ? { ...updates, enabled: true }
-              : updates;
-          const providers = state.providers.map((p) =>
-            p.id === id
-              ? normalizeModelProvider({ ...p, ...safeUpdates }, p) || p
-              : p,
-          );
+          const providers = state.providers.map((p) => {
+            if (p.id !== id) return p;
+            if (p.isServerDefault && id !== SERVER_DEFAULT_PROVIDER_ID)
+              return p;
+            const safeUpdates =
+              id === SERVER_DEFAULT_PROVIDER_ID
+                ? { ...updates, enabled: true }
+                : updates;
+            return normalizeModelProvider({ ...p, ...safeUpdates }, p) || p;
+          });
           return {
             providers,
             defaultModels: pruneUnavailableDefaultModels(
@@ -221,9 +246,9 @@ export const useCoreSettingsStore = create<CoreSettingsState>()(
           const userProviders = state.providers.filter(
             (provider) => !provider.isServerDefault,
           );
-          const providerModels = config.modelProvider.models;
+          const publicProviders = getPublicModelProviders(config);
 
-          if (!config.modelProvider.available) {
+          if (publicProviders.length === 0) {
             return {
               providers: userProviders,
               defaultModels: pruneUnavailableDefaultModels(
@@ -233,29 +258,10 @@ export const useCoreSettingsStore = create<CoreSettingsState>()(
             };
           }
 
-          const defaultProvider = normalizeModelProvider({
-            id: SERVER_DEFAULT_PROVIDER_ID,
-            name: config.modelProvider.name,
-            type: config.modelProvider.type,
-            baseUrl: "default",
-            apiKey: "",
-            enabled: true,
-            models: providerModels,
-            modelsList: providerModels,
-            isServerDefault: true,
-          });
-
-          if (!defaultProvider) {
-            return {
-              providers: userProviders,
-              defaultModels: pruneUnavailableDefaultModels(
-                state.defaultModels,
-                userProviders,
-              ),
-            };
-          }
-
-          const providers = [defaultProvider, ...userProviders];
+          const serverProviders = publicProviders
+            .map(toServerModelProvider)
+            .filter((provider): provider is ModelProvider => Boolean(provider));
+          const providers = [...serverProviders, ...userProviders];
 
           return {
             providers,

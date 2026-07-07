@@ -6,7 +6,10 @@ import {
 } from "./shared";
 import { arrayBufferToBytes, bytesToBase64Url } from "./encoding";
 import type { ModelProvider, SearchServiceConfig } from "../../types";
-import { SERVER_DEFAULT_PROVIDER_ID } from "../defaultConfig/shared";
+import {
+  SERVER_DEFAULT_PROVIDER_ID,
+  SERVER_PROVIDER_ID_PREFIX,
+} from "../defaultConfig/shared";
 import {
   resolveProviderApiKey,
   resolveSearchApiKey,
@@ -154,6 +157,15 @@ export async function encryptSecret(
 
 export async function buildProviderRuntimeConfig(provider: ModelProvider) {
   if (provider.isServerDefault || provider.id === SERVER_DEFAULT_PROVIDER_ID) {
+    if (provider.id.startsWith(SERVER_PROVIDER_ID_PREFIX)) {
+      return {
+        type: provider.type,
+        name: provider.name,
+        source: "server-provider" as const,
+        providerId: provider.id,
+      };
+    }
+
     return {
       type: provider.type,
       name: provider.name,

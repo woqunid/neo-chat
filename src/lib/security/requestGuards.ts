@@ -23,6 +23,8 @@ const DEFAULT_RATE_LIMIT: RateLimitRule = {
 
 const RATE_LIMIT_RULES: Array<[RegExp, RateLimitRule]> = [
   [/^\/api\/access\/verify$/, { windowMs: 60_000, maxRequests: 10 }],
+  [/^\/api\/superadmin\/verify$/, { windowMs: 60_000, maxRequests: 10 }],
+  [/^\/api\/superadmin(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],
   [/^\/api\/chat(?:\/|$)/, { windowMs: 60_000, maxRequests: 60 }],
   [/^\/api\/search$/, { windowMs: 60_000, maxRequests: 30 }],
   [/^\/api\/rag(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],

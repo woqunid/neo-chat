@@ -559,6 +559,7 @@ const ProviderSettings = () => {
                         type="checkbox"
                         className="sr-only peer"
                         checked={currentProvider.enabled}
+                        disabled={isServerDefaultProvider}
                         onChange={() =>
                           updateProvider(currentProvider.id, {
                             enabled: !currentProvider.enabled,

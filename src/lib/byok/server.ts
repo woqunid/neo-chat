@@ -9,6 +9,10 @@ import {
 import { base64UrlToBytes } from "./encoding";
 import type { ProviderRuntimeConfig } from "../security/urlPolicy";
 import { getDefaultProviderRuntimeConfig } from "../defaultConfig/server";
+import {
+  getServerModelProvider,
+  toModelProviderRuntime,
+} from "../providers/serverRegistry";
 import { getSpkiKeyId, parsePkcs8RsaPrivateKeyPem } from "./pem";
 
 interface ByokKeyMaterial extends ByokPublicKeyResponse {
@@ -185,6 +189,12 @@ export async function resolveProviderRuntimeConfig(
     const defaultProvider = getDefaultProviderRuntimeConfig();
     if (!defaultProvider) return provider;
     return defaultProvider;
+  }
+
+  if (provider.source === "server-provider") {
+    const serverProvider = await getServerModelProvider(provider.providerId);
+    if (!serverProvider || !serverProvider.enabled) return provider;
+    return toModelProviderRuntime(serverProvider);
   }
 
   const apiKey = await decryptOptionalSecret(

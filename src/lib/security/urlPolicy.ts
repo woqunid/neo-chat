@@ -1,5 +1,8 @@
 import type { EncryptedSecretEnvelope } from "../byok/shared";
-import type { ServerDefaultProviderSource } from "../defaultConfig/shared";
+import type {
+  ServerDefaultProviderSource,
+  ServerManagedProviderSource,
+} from "../defaultConfig/shared";
 import type { ProviderType } from "../../types";
 import { HostedProxyBlockedError } from "../errors";
 import {
@@ -44,7 +47,8 @@ export interface ValidatedOutboundRequest {
 
 export interface ProviderRuntimeConfig {
   type: ProviderType;
-  source?: ServerDefaultProviderSource;
+  source?: ServerDefaultProviderSource | ServerManagedProviderSource;
+  providerId?: string;
   apiKey?: string;
   apiKeySecret?: EncryptedSecretEnvelope;
   baseUrl?: string;

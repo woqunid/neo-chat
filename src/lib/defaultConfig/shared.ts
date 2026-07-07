@@ -9,21 +9,28 @@ import type {
 } from "../../types";
 
 export const SERVER_DEFAULT_PROVIDER_ID = "SERVER_DEFAULT";
+export const SERVER_PROVIDER_ID_PREFIX = "SERVER_PROVIDER:";
 export const SERVER_DEFAULT_SEARCH_PROVIDER_ID = "default";
 
 export type ServerDefaultProviderSource = "server-default";
+export type ServerManagedProviderSource = "server-provider";
 export type PublicDeploymentStoreState = "memory" | "shared" | "missing";
 
+export interface PublicModelProviderConfig {
+  available: boolean;
+  id: string;
+  name: string;
+  type: ProviderType;
+  models: string[];
+  modelMetadata: Record<string, ModelMetadata>;
+  defaultModels: Partial<DefaultModels>;
+}
+
 export interface PublicServerConfig {
-  modelProvider: {
-    available: boolean;
+  modelProvider: PublicModelProviderConfig & {
     id: typeof SERVER_DEFAULT_PROVIDER_ID;
-    name: string;
-    type: ProviderType;
-    models: string[];
-    modelMetadata: Record<string, ModelMetadata>;
-    defaultModels: Partial<DefaultModels>;
   };
+  modelProviders?: PublicModelProviderConfig[];
   search: {
     available: boolean;
   };
