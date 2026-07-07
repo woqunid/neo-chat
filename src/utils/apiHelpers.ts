@@ -9,6 +9,7 @@ import {
   getProviderApiKey,
   getSafeUrlPolicy,
   normalizeProviderBaseUrl,
+  type ProviderRuntimeConfig,
 } from "@/lib/security/urlPolicy";
 import { assertOutboundUrlAllowed } from "@/lib/security/safeFetch";
 import { logDevError } from "../lib/utils/devLogger";
@@ -16,11 +17,7 @@ import { logDevError } from "../lib/utils/devLogger";
 /**
  * Provider 配置接口
  */
-export interface ProviderConfig {
-  type: "OpenAI" | "Gemini" | "OpenAI Compatible";
-  apiKey?: string;
-  baseUrl?: string;
-}
+export type ProviderConfig = ProviderRuntimeConfig;
 
 /**
  * 获取有效的 Base URL

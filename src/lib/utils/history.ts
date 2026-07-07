@@ -4,6 +4,7 @@
 
 import { Message } from "@/types";
 import {
+  convertAttachmentsToAnthropic,
   convertAttachmentsToGemini,
   convertAttachmentsToOpenAI,
   convertAttachmentsToOpenAIResponses,
@@ -180,6 +181,73 @@ export function prepareOpenAIResponsesInput(messages: Message[]) {
         }
       }
     }
+  }
+
+  return result;
+}
+
+function createAnthropicTextBlock(text: string) {
+  return { type: "text", text };
+}
+
+function createAnthropicUserContent(msg: Message) {
+  const content: any[] = [];
+  if (msg.content) content.push(createAnthropicTextBlock(msg.content));
+  if (msg.attachments?.length) {
+    content.push(...convertAttachmentsToAnthropic(msg.attachments));
+  }
+  return content.length > 0 ? content : [createAnthropicTextBlock(" ")];
+}
+
+function createAnthropicToolUseBlocks(
+  toolCalls: NonNullable<Message["toolCalls"]>,
+) {
+  return toolCalls.map((tc) => ({
+    type: "tool_use",
+    id: tc.id,
+    name: tc.name,
+    input: tc.args ?? {},
+  }));
+}
+
+function createAnthropicToolResultBlocks(
+  toolCalls: NonNullable<Message["toolCalls"]>,
+) {
+  return toolCalls
+    .filter((tc) => tc.result !== undefined)
+    .map((tc) => ({
+      type: "tool_result",
+      tool_use_id: tc.id,
+      content:
+        typeof tc.result === "string" ? tc.result : JSON.stringify(tc.result),
+      is_error: tc.isError === true || tc.status === "error",
+    }));
+}
+
+export function prepareAnthropicMessages(messages: Message[]) {
+  const result: any[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      result.push({ role: "user", content: createAnthropicUserContent(msg) });
+      continue;
+    }
+
+    const content: any[] = msg.content
+      ? [createAnthropicTextBlock(msg.content)]
+      : [];
+    if (msg.toolCalls?.length) {
+      content.push(...createAnthropicToolUseBlocks(msg.toolCalls));
+      result.push({ role: "assistant", content });
+
+      const toolResults = createAnthropicToolResultBlocks(msg.toolCalls);
+      if (toolResults.length > 0) {
+        result.push({ role: "user", content: toolResults });
+      }
+      continue;
+    }
+
+    if (content.length > 0) result.push({ role: "assistant", content });
   }
 
   return result;

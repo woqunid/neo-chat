@@ -26,7 +26,7 @@ It is designed for people who want the power of modern AI workspaces without giv
 
 ## Features
 
-- Multi-provider chat with Gemini, OpenAI, and OpenAI-compatible endpoints.
+- Multi-provider chat with Gemini, Anthropic, OpenAI, and OpenAI-compatible endpoints.
 - Local-first sessions, branches, pinned chats, workspaces, workspace files, and assistant instructions.
 - Assistant presets from the LobeHub agent registry plus local custom assistants.
 - Text-only Skills with localized public catalogs, install/uninstall flows, local edits, custom skills, auto-selection, and workspace presets.
@@ -222,7 +222,7 @@ UPSTASH_REDIS_REST_TOKEN="..."
 Default model provider:
 
 ```bash
-DEFAULT_PROVIDER_TYPE="Gemini"
+DEFAULT_PROVIDER_TYPE="Gemini" # Gemini, Anthropic, OpenAI, or OpenAI Compatible
 DEFAULT_PROVIDER_NAME="Google Gemini"
 DEFAULT_PROVIDER_BASE_URL=""
 DEFAULT_PROVIDER_API_KEY="provider-key"

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { ProviderRuntimeConfigSchema } from "../lib/api/schemas";
 
 describe("provider runtime schema", () => {
-  it("accepts Gemini, OpenAI, and OpenAI Compatible provider types", () => {
+  it("accepts supported provider types", () => {
+    expect(ProviderRuntimeConfigSchema.parse({ type: "Anthropic" }).type).toBe(
+      "Anthropic",
+    );
     expect(ProviderRuntimeConfigSchema.parse({ type: "Gemini" }).type).toBe(
       "Gemini",
     );

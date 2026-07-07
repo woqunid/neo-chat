@@ -26,7 +26,7 @@ Neo Chat 是一个可自托管、本地优先的 AI 对话应用，基于 Next.j
 
 ## 功能特性
 
-- 支持 Gemini、OpenAI 和 OpenAI-compatible endpoint 的多供应商对话。
+- 支持 Gemini、Anthropic、OpenAI 和 OpenAI-compatible endpoint 的多供应商对话。
 - 本地优先的会话、分支、置顶对话、工作区、工作区文件和助理指令。
 - 支持 LobeHub Agent Registry 助理预设，也支持本地自定义助理。
 - 支持纯文本技能：本地化公共目录、安装/卸载、编辑内置技能、本地自定义技能、自动选择和工作区预设。
@@ -215,7 +215,7 @@ UPSTASH_REDIS_REST_TOKEN="..."
 默认模型供应商：
 
 ```bash
-DEFAULT_PROVIDER_TYPE="Gemini"
+DEFAULT_PROVIDER_TYPE="Gemini" # Gemini、Anthropic、OpenAI 或 OpenAI Compatible
 DEFAULT_PROVIDER_NAME="Google Gemini"
 DEFAULT_PROVIDER_BASE_URL=""
 DEFAULT_PROVIDER_API_KEY="provider-key"

@@ -13,6 +13,7 @@ import {
   getSafeUrlPolicy,
 } from "@/lib/security/urlPolicy";
 import { isOpenAIProviderType } from "@/lib/providers/providerTypes";
+import { ANTHROPIC_PROVIDER_TYPE } from "@/lib/providers/providerTypes";
 import { resolveProviderRuntimeConfig } from "@/lib/byok/server";
 import { safeServerLogError } from "@/lib/utils/safeServerLog";
 
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
     const headers: Record<string, string> = {};
     if (isOpenAIProviderType(provider.type)) {
       headers.Authorization = `Bearer ${apiKey}`;
+    } else if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
+      headers["x-api-key"] = apiKey;
+      headers["anthropic-version"] = "2023-06-01";
     } else {
       headers["x-goog-api-key"] = apiKey;
     }

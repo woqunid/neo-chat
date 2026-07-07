@@ -38,6 +38,18 @@ describe("url policy and provider runtime helpers", () => {
     ).toBe("https://compat.example.com/v1");
   });
 
+  it("normalizes Anthropic base URLs and model endpoint", () => {
+    expect(normalizeProviderBaseUrl("", "Anthropic")).toBe(
+      "https://api.anthropic.com/v1",
+    );
+    expect(
+      normalizeProviderBaseUrl("https://api.anthropic.com", "Anthropic"),
+    ).toBe("https://api.anthropic.com/v1");
+    expect(getProviderModelsUrl("", "Anthropic")).toBe(
+      "https://api.anthropic.com/v1/models",
+    );
+  });
+
   it("keeps Gemini SDK base URL at the service root", () => {
     expect(
       normalizeProviderBaseUrl(
@@ -59,6 +71,7 @@ describe("url policy and provider runtime helpers", () => {
     process.env.OPENAI_API_KEY = "openai-env-secret";
 
     expect(getProviderApiKey({ type: "Gemini" })).toBe("");
+    expect(getProviderApiKey({ type: "Anthropic" })).toBe("");
     expect(getProviderApiKey({ type: "OpenAI" })).toBe("");
     expect(getProviderApiKey({ type: "OpenAI Compatible" })).toBe("");
   });

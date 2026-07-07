@@ -14,7 +14,10 @@ import {
   readJsonRequestBody,
 } from "@/lib/api/middleware";
 import { resolveProviderRuntimeConfig } from "@/lib/byok/server";
-import { isOpenAIProviderType } from "@/lib/providers/providerTypes";
+import {
+  isAnthropicProviderType,
+  isOpenAIProviderType,
+} from "@/lib/providers/providerTypes";
 import { safeServerLogError } from "@/lib/utils/safeServerLog";
 
 const ExecuteCodeSchema = z.object({
@@ -28,6 +31,13 @@ export async function POST(request: NextRequest) {
     const body = ExecuteCodeSchema.parse(await readJsonRequestBody(request));
     const { modelName, code } = body;
     const provider = await resolveProviderRuntimeConfig(body.provider);
+    if (isAnthropicProviderType(provider.type)) {
+      return NextResponse.json(
+        { error: "Anthropic code execution is not supported" },
+        { status: 400 },
+      );
+    }
+
     await assertProviderOutboundAllowed(provider);
 
     const prompt = `Please simulate the following Python code and return the likely output.

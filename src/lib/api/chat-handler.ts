@@ -6,6 +6,10 @@ import { Message } from "@/types";
 import { ProviderFactory, ProviderConfig } from "../providers/base";
 import { streamGeminiResponse } from "../streaming/gemini";
 import {
+  generateAnthropicMessage,
+  streamAnthropicMessages,
+} from "../streaming/anthropic";
+import {
   streamOpenAIChatCompletions,
   streamOpenAIResponses,
 } from "../streaming/openai";
@@ -15,14 +19,17 @@ import {
   createSSESender,
 } from "../streaming/sse";
 import {
+  prepareAnthropicMessages,
   prepareGeminiHistory,
   prepareOpenAIHistory,
   prepareOpenAIResponsesInput,
 } from "../utils/history";
 import { convertAttachmentsToOpenAIResponses } from "../utils/attachments";
+import { convertAttachmentsToAnthropic } from "../utils/attachments";
 import { convertSchemaToGemini } from "../utils/schema";
 import { logDevWarn } from "../utils/devLogger";
 import {
+  ANTHROPIC_PROVIDER_TYPE,
   isOpenAIProviderType,
   OPENAI_COMPATIBLE_PROVIDER_TYPE,
 } from "../providers/providerTypes";
@@ -152,7 +159,25 @@ export async function handleChatStream(options: ChatHandlerOptions) {
     try {
       const send = createSSESender(controller);
 
-      if (provider.type === "OpenAI") {
+      if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
+        await ProviderFactory.assertProviderOutboundAllowed(provider);
+        const messages = prepareAnthropicMessages(history);
+        const content: any[] = [{ type: "text", text: newMessage }];
+        if (attachments?.length) {
+          content.push(...convertAttachmentsToAnthropic(attachments));
+        }
+        messages.push({ role: "user", content });
+
+        await streamAnthropicMessages({
+          provider,
+          model: modelName,
+          messages,
+          systemInstruction,
+          temperature: config?.temperature,
+          tools,
+          onChunk: send,
+        });
+      } else if (provider.type === "OpenAI") {
         await ProviderFactory.assertProviderOutboundAllowed(provider);
         const client = ProviderFactory.createOpenAIClient(provider);
         const input = prepareOpenAIResponsesInput(history);
@@ -294,6 +319,14 @@ export async function handleSimpleGeneration(
   prompt: string,
 ): Promise<string> {
   await ProviderFactory.assertProviderOutboundAllowed(provider);
+
+  if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
+    return generateAnthropicMessage({
+      provider,
+      model: modelName,
+      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+    });
+  }
 
   if (provider.type === "OpenAI") {
     const client = ProviderFactory.createOpenAIClient(provider);

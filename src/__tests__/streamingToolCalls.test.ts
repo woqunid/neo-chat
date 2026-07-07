@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { PLUGIN_EXECUTION_LIMITS } from "../config/limits";
+import { streamAnthropicMessages } from "../lib/streaming/anthropic";
 import { streamGeminiResponse } from "../lib/streaming/gemini";
 import {
   streamOpenAIChatCompletions,
@@ -42,6 +43,21 @@ function searchMessages(messages: SSEMessage[]) {
   return messages.filter(
     (message): message is Extract<SSEMessage, { type: "search" }> =>
       message.type === "search",
+  );
+}
+
+function createSseResponse(events: unknown[]) {
+  const encoder = new TextEncoder();
+  const body = events
+    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+    .join("");
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(body));
+        controller.close();
+      },
+    }),
   );
 }
 
@@ -97,6 +113,50 @@ describe("streamed tool-call normalization", () => {
       args: { q: "neo" },
       status: "pending",
     });
+  });
+
+  it("streams Anthropic text and tool calls", async () => {
+    const messages: SSEMessage[] = [];
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      createSseResponse([
+        {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "hello" },
+        },
+        {
+          type: "content_block_start",
+          index: 1,
+          content_block: {
+            type: "tool_use",
+            id: "toolu_1",
+            name: "lookup",
+          },
+        },
+        {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "input_json_delta", partial_json: '{"q":"neo"}' },
+        },
+        { type: "content_block_stop", index: 1 },
+        { type: "message_delta", usage: { output_tokens: 3 } },
+      ]),
+    );
+
+    await streamAnthropicMessages({
+      provider: { type: "Anthropic", apiKey: "secret" },
+      model: "claude-test",
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      onChunk: (message) => messages.push(message),
+    });
+
+    expect(contentMessages(messages)[0]?.content).toBe("hello");
+    expect(toolCallMessages(messages)[0]?.toolCall).toMatchObject({
+      id: "toolu_1",
+      name: "lookup",
+      args: { q: "neo" },
+      status: "pending",
+    });
+    expect(messages.some((message) => message.type === "usage")).toBe(true);
   });
 
   it("keeps the streamed tool-call ceiling high but bounded", async () => {

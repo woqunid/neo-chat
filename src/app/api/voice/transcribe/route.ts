@@ -14,7 +14,10 @@ import {
   decryptSecretEnvelope,
   resolveProviderRuntimeConfig,
 } from "@/lib/byok/server";
-import { isOpenAIProviderType } from "@/lib/providers/providerTypes";
+import {
+  isAnthropicProviderType,
+  isOpenAIProviderType,
+} from "@/lib/providers/providerTypes";
 import {
   getDefaultElevenLabsApiKey,
   getDefaultElevenLabsSttModel,
@@ -264,6 +267,13 @@ export async function POST(request: NextRequest) {
 
       const resolvedProvider =
         await resolveProviderRuntimeConfig(modelProvider);
+      if (isAnthropicProviderType(resolvedProvider.type)) {
+        return NextResponse.json(
+          { error: "Anthropic audio transcription is not supported" },
+          { status: 400 },
+        );
+      }
+
       await ProviderFactory.assertProviderOutboundAllowed(resolvedProvider);
 
       if (isOpenAIProviderType(resolvedProvider.type)) {

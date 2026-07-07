@@ -6,7 +6,10 @@ import {
   getOutboundPolicyProfile,
   type OutboundPolicyProfile,
 } from "./deployment";
-import { isOpenAIProviderType } from "../providers/providerTypes";
+import {
+  ANTHROPIC_PROVIDER_TYPE,
+  isOpenAIProviderType,
+} from "../providers/providerTypes";
 
 export type OutboundContext =
   | "provider"
@@ -50,12 +53,17 @@ export interface ProviderRuntimeConfig {
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
+const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 
 export function normalizeProviderBaseUrl(
   baseUrl: string | undefined,
   providerType: ProviderRuntimeConfig["type"] | string,
 ): string {
   if (!baseUrl || baseUrl === "default") {
+    if (providerType === ANTHROPIC_PROVIDER_TYPE) {
+      return DEFAULT_ANTHROPIC_BASE_URL;
+    }
+
     return isOpenAIProviderType(providerType)
       ? DEFAULT_OPENAI_BASE_URL
       : DEFAULT_GEMINI_BASE_URL;
@@ -66,6 +74,10 @@ export function normalizeProviderBaseUrl(
   normalized = normalized.replace(/\/+$/, "");
 
   if (isOpenAIProviderType(providerType)) {
+    return normalized.endsWith("/v1") ? normalized : `${normalized}/v1`;
+  }
+
+  if (providerType === ANTHROPIC_PROVIDER_TYPE) {
     return normalized.endsWith("/v1") ? normalized : `${normalized}/v1`;
   }
 
@@ -84,6 +96,10 @@ export function getProviderModelsUrl(
 
   if (providerType === "Gemini") {
     return `${normalized}/v1beta/models`;
+  }
+
+  if (providerType === ANTHROPIC_PROVIDER_TYPE) {
+    return `${normalized}/models`;
   }
 
   return `${normalized}/models`;

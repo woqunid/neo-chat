@@ -193,9 +193,9 @@ export const getSearchCompatibilityErrorMessage = (
     case "missing_model_provider":
       return "No active model provider is available for search.";
     case "google_requires_gemini":
-      return "Google Search is only available with Gemini models. Choose an external search provider for OpenAI-compatible models.";
+      return "Google Search is only available with Gemini models. Choose an external search provider for this model provider.";
     case "model_builtin_search_unsupported":
-      return "Model built-in search is only available with Gemini or OpenAI Responses models. Choose an external search provider for OpenAI-compatible models.";
+      return "Model built-in search is only available with Gemini or OpenAI Responses models. Choose an external search provider for this model provider.";
     case "missing_search_api_key":
       return `${getSearchProviderLabel(result.provider)} search requires an API key.`;
     case "missing_search_base_url":

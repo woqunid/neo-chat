@@ -97,9 +97,18 @@ const ProviderSettings = () => {
   const providerApiKeyHelpUrl =
     currentProvider?.type === "Gemini"
       ? "https://aistudio.google.com/app/apikey"
-      : currentProvider?.type === "OpenAI"
-        ? "https://platform.openai.com/api-keys"
-        : undefined;
+      : currentProvider?.type === "Anthropic"
+        ? "https://console.anthropic.com/settings/keys"
+        : currentProvider?.type === "OpenAI"
+          ? "https://platform.openai.com/api-keys"
+          : undefined;
+
+  const providerBaseUrlPlaceholder =
+    currentProvider?.type === "Gemini"
+      ? t("geminiBaseUrlPlaceholder")
+      : currentProvider?.type === "Anthropic"
+        ? t("anthropicBaseUrlPlaceholder")
+        : t("openaiBaseUrlPlaceholder");
 
   const clearDeleteConfirmation = () => {
     if (deleteConfirmTimerRef.current) {
@@ -420,6 +429,7 @@ const ProviderSettings = () => {
                         className="w-full px-3 py-2 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-[border-color,box-shadow] appearance-none text-gray-800 dark:text-foreground"
                       >
                         <option value="Gemini">Gemini</option>
+                        <option value="Anthropic">{t("anthropic")}</option>
                         <option value="OpenAI">{t("openaiResponses")}</option>
                         <option value="OpenAI Compatible">
                           {t("openaiCompatible")}
@@ -457,11 +467,7 @@ const ProviderSettings = () => {
                           baseUrl: e.target.value,
                         })
                       }
-                      placeholder={
-                        currentProvider.type === "Gemini"
-                          ? t("geminiBaseUrlPlaceholder")
-                          : t("openaiBaseUrlPlaceholder")
-                      }
+                      placeholder={providerBaseUrlPlaceholder}
                       className="w-full px-3 py-2 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-[border-color,box-shadow] font-mono text-gray-600 dark:text-foreground/85"
                     />
                     {currentProvider.baseUrl ? (

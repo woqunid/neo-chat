@@ -83,6 +83,41 @@ export function convertAttachmentsToOpenAIResponses(attachments: Attachment[]) {
     .filter(Boolean);
 }
 
+function convertImageAttachmentToAnthropic(att: Attachment) {
+  if (!att.mimeType.startsWith("image/")) {
+    throw new Error(
+      `Anthropic does not support attachment type ${att.mimeType}`,
+    );
+  }
+
+  if (att.data) {
+    return {
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: att.mimeType,
+        data: att.data,
+      },
+    };
+  }
+
+  if (att.url) {
+    return {
+      type: "image" as const,
+      source: {
+        type: "url" as const,
+        url: att.url,
+      },
+    };
+  }
+
+  throw new Error(`Anthropic image attachment ${att.fileName} has no data`);
+}
+
+export function convertAttachmentsToAnthropic(attachments: Attachment[]) {
+  return attachments.map(convertImageAttachmentToAnthropic);
+}
+
 /**
  * 检查附件是否为图片
  */

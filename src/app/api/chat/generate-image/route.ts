@@ -18,7 +18,10 @@ import {
 import { resolveProviderRuntimeConfig } from "@/lib/byok/server";
 import { normalizeGeneratedImageAttachments } from "@/lib/utils/generatedImages";
 import { safeServerLogError } from "@/lib/utils/safeServerLog";
-import { isOpenAIProviderType } from "@/lib/providers/providerTypes";
+import {
+  isAnthropicProviderType,
+  isOpenAIProviderType,
+} from "@/lib/providers/providerTypes";
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +30,12 @@ export async function POST(request: NextRequest) {
     );
     const { modelName, prompt } = body;
     const provider = await resolveProviderRuntimeConfig(body.provider);
+    if (isAnthropicProviderType(provider.type)) {
+      return NextResponse.json(
+        { error: "Anthropic image generation is not supported" },
+        { status: 400 },
+      );
+    }
 
     if (isOpenAIProviderType(provider.type)) {
       const apiKey = getProviderApiKey(provider);

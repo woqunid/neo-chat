@@ -92,9 +92,9 @@ registry lookups survive across instances.
 
 | Variable                    | Purpose                                                                                                           |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_PROVIDER_TYPE`     | Default provider type, such as `Gemini`, `OpenAI`, or `OpenAI Compatible`.                                        |
+| `DEFAULT_PROVIDER_TYPE`     | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                           |
 | `DEFAULT_PROVIDER_NAME`     | Display name for the default provider.                                                                            |
-| `DEFAULT_PROVIDER_BASE_URL` | Base URL for OpenAI-compatible providers.                                                                         |
+| `DEFAULT_PROVIDER_BASE_URL` | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.              |
 | `DEFAULT_PROVIDER_API_KEY`  | Deployment-level API key for the default provider.                                                                |
 | `DEFAULT_PROVIDER_MODELS`   | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays with optional `name`. |
 

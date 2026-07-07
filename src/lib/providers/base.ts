@@ -13,7 +13,7 @@ import {
   getSafeUrlPolicy,
 } from "../security/urlPolicy";
 import { assertOutboundUrlAllowed } from "../security/safeFetch";
-import { isOpenAIProviderType } from "./providerTypes";
+import { isAnthropicProviderType, isOpenAIProviderType } from "./providerTypes";
 
 export type ProviderConfig = ProviderRuntimeConfig;
 
@@ -95,6 +95,10 @@ export class ProviderFactory {
    * 创建客户端（自动选择类型）
    */
   static createClient(provider: ProviderConfig): OpenAI | GoogleGenAI {
+    if (isAnthropicProviderType(provider.type)) {
+      throw new Error("Anthropic uses the Messages API stream adapter");
+    }
+
     return isOpenAIProviderType(provider.type)
       ? this.createOpenAIClient(provider)
       : this.createGeminiClient(provider);

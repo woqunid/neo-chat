@@ -46,6 +46,14 @@ describe("provider model extraction", () => {
     ).toEqual(["chat-model"]);
   });
 
+  it("extracts Anthropic model ids from model list data", () => {
+    expect(
+      extractProviderModelIds("Anthropic", {
+        data: [{ id: "claude-sonnet-4-5" }, { id: "claude-sonnet-4-5" }],
+      }),
+    ).toEqual(["claude-sonnet-4-5"]);
+  });
+
   it("caps model id length and total model count", () => {
     const models = Array.from(
       { length: PROVIDER_MODEL_LIMITS.maxModels + 5 },
