@@ -29,6 +29,7 @@
   "fetchModelsAria": "{name} からモデルを取得",
   "fetchModels": "モデルを取得",
   "noModels": "モデルが見つかりません。",
+  "toggleModelAria": "モデル {name} の有効状態を切り替え",
   "editMetadataAria": "{name} のメタデータを編集",
   "failedToFetchModels": "モデルの取得に失敗しました",
   "noCompatibleModels": "互換性のあるモデルが見つかりません。",

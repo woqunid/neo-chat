@@ -29,6 +29,7 @@
   "fetchModelsAria": "从 {name} 获取模型",
   "fetchModels": "获取模型",
   "noModels": "未找到模型。",
+  "toggleModelAria": "切换模型 {name} 的启用状态",
   "editMetadataAria": "编辑 {name} 的元数据",
   "failedToFetchModels": "获取模型失败",
   "noCompatibleModels": "未找到兼容的模型。",

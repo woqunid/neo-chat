@@ -641,60 +641,61 @@ const ProviderSettings = () => {
                 ) : null}
                 {displayModels.length > 0 ? (
                   <div className="space-y-2">
-                    {displayModels.map((model) => (
-                      <div
-                        key={model}
-                        className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-muted rounded-lg transition-colors group"
-                      >
-                        <label className="flex items-center gap-3 cursor-pointer select-none flex-1 min-w-0 rounded-lg focus-within:ring-2 focus-within:ring-blue-500/60">
-                          <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                    {displayModels.map((model) => {
+                      const modelName = formatModelName(
+                        model,
+                        modelMetadata,
+                        customModelMetadata,
+                      );
+
+                      return (
+                        <div
+                          key={model}
+                          className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-muted rounded-lg transition-colors group"
+                        >
+                          <label className="relative flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center">
                             <input
                               type="checkbox"
                               name="enabledProviderModels"
                               value={model}
                               checked={currentProvider.models.includes(model)}
                               onChange={() => toggleModel(model)}
+                              aria-label={t("toggleModelAria", {
+                                name: modelName,
+                              })}
                               className="peer sr-only"
                             />
                             <span
                               aria-hidden="true"
-                              className={`w-5 h-5 rounded border flex items-center justify-center transition-[color,background-color,border-color] shrink-0 ${currentProvider.models.includes(model) ? "bg-blue-500 border-blue-500 text-white" : "border-gray-300 dark:border-input bg-white dark:bg-accent"}`}
+                              className={`w-5 h-5 rounded border flex items-center justify-center transition-[color,background-color,border-color,box-shadow] shrink-0 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500/60 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-white dark:peer-focus-visible:ring-offset-background ${currentProvider.models.includes(model) ? "bg-blue-500 border-blue-500 text-white" : "border-gray-300 dark:border-input bg-white dark:bg-accent"}`}
                             >
                               {currentProvider.models.includes(model) && (
                                 <Check size={12} aria-hidden="true" />
                               )}
                             </span>
-                          </span>
+                          </label>
                           <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 flex-1 min-w-0">
                             <span className="text-sm text-gray-700 dark:text-foreground font-mono truncate">
-                              {formatModelName(
-                                model,
-                                modelMetadata,
-                                customModelMetadata,
-                              )}
+                              {modelName}
                             </span>
                             {renderModelCapabilities(model)}
                           </div>
-                        </label>
-                        <button
-                          type="button"
-                          aria-label={t("editMetadataAria", {
-                            name: formatModelName(
-                              model,
-                              modelMetadata,
-                              customModelMetadata,
-                            ),
-                          })}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingModelId(model);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-foreground hover:bg-gray-200 dark:hover:bg-accent/80 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
-                        >
-                          <Settings size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            aria-label={t("editMetadataAria", {
+                              name: modelName,
+                            })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingModelId(model);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-foreground hover:bg-gray-200 dark:hover:bg-accent/80 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                          >
+                            <Settings size={14} aria-hidden="true" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-gray-400">

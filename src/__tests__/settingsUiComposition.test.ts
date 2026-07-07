@@ -36,4 +36,15 @@ describe("settings UI primitives", () => {
     expect(systemSettings).toContain('t("messagePositionDesc")');
     expect(systemSettings).toContain("SimpleSwitch");
   });
+
+  it("keeps provider model toggles scoped to the checkbox control", () => {
+    const providerSettings = readFileSync(
+      resolve(process.cwd(), "src/components/settings/ProviderSettings.tsx"),
+      "utf8",
+    );
+
+    expect(providerSettings).toContain('aria-label={t("toggleModelAria"');
+    expect(providerSettings).not.toContain("focus-within:ring-2");
+    expect(providerSettings).not.toContain("select-none flex-1 min-w-0");
+  });
 });

@@ -29,6 +29,7 @@
   "fetchModelsAria": "Fetch models from {name}",
   "fetchModels": "Fetch Models",
   "noModels": "No models found.",
+  "toggleModelAria": "Toggle model {name}",
   "editMetadataAria": "Edit metadata for {name}",
   "failedToFetchModels": "Failed to fetch models",
   "noCompatibleModels": "No compatible models found.",
