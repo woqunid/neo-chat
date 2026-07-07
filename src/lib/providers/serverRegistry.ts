@@ -157,7 +157,7 @@ function createStore(): ServerModelProviderStore {
   if (isSharedStoreName(store) && upstashUrl && upstashToken) {
     return new UpstashServerModelProviderStore(upstashUrl, upstashToken);
   }
-  if (isSharedStoreName(store) || getDeploymentMode() === "hosted") {
+  if (isSharedStoreName(store) || !canUseMemoryStore()) {
     throw new Error(SHARED_PROVIDER_STORE_ERROR);
   }
   return {
