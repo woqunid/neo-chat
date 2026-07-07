@@ -60,7 +60,7 @@ export default function SuperAdminPage() {
       });
       if (!response.ok) throw new Error(await readError(response, "加载失败"));
       const data = (await response.json()) as { providers?: AdminProvider[] };
-      setProviders(data.providers?.length ? data.providers : [newProvider()]);
+      setProviders(data.providers || []);
       setSelectedIndex(0);
       setStatus("");
     } catch (error) {
@@ -78,12 +78,11 @@ export default function SuperAdminPage() {
     );
   };
 
-  const saveProviders = async () => {
-    const nextProviders = providers.map((provider, index) =>
-      index === selectedIndex
-        ? { ...provider, models: parseModels(modelsText) }
-        : provider,
-    );
+  const persistProviders = async (
+    nextProviders: AdminProvider[],
+    nextIndex: number,
+    successMessage: string,
+  ) => {
     setBusy(true);
     try {
       const response = await fetch("/api/superadmin/providers", {
@@ -93,13 +92,26 @@ export default function SuperAdminPage() {
       });
       if (!response.ok) throw new Error(await readError(response, "保存失败"));
       const data = (await response.json()) as { providers?: AdminProvider[] };
-      setProviders(data.providers || []);
-      setStatus("已保存。");
+      const savedProviders = data.providers || [];
+      setProviders(savedProviders);
+      setSelectedIndex(
+        Math.min(nextIndex, Math.max(0, savedProviders.length - 1)),
+      );
+      setStatus(successMessage);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "保存失败");
     } finally {
       setBusy(false);
     }
+  };
+
+  const saveProviders = async () => {
+    const nextProviders = providers.map((provider, index) =>
+      index === selectedIndex
+        ? { ...provider, models: parseModels(modelsText) }
+        : provider,
+    );
+    await persistProviders(nextProviders, selectedIndex, "已保存。");
   };
 
   const fetchModels = async () => {
@@ -129,12 +141,15 @@ export default function SuperAdminPage() {
     setStatus("");
   };
 
-  const deleteSelected = () => {
-    setProviders((current) =>
-      current.filter((_, index) => index !== selectedIndex),
+  const deleteSelected = async () => {
+    const nextProviders = providers.filter(
+      (_, index) => index !== selectedIndex,
     );
-    setSelectedIndex(0);
-    setStatus("已从列表移除，保存后生效。");
+    const nextIndex = Math.max(
+      0,
+      Math.min(selectedIndex, nextProviders.length - 1),
+    );
+    await persistProviders(nextProviders, nextIndex, "已删除并保存。");
   };
 
   return (
