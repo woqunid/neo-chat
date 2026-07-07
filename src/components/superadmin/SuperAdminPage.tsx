@@ -67,7 +67,7 @@ export default function SuperAdminPage() {
 
   useEffect(() => {
     setModelsText(serializeModels(selected?.models || []));
-  }, [selectedIndex, selected?.id]);
+  }, [selectedIndex, selected?.id, selected?.models]);
 
   const loadProviders = async () => {
     setBusy(true);
