@@ -289,6 +289,29 @@ const SystemSettings = () => {
             />
           </div>
 
+          {/* Message Position */}
+          <div className="flex items-center justify-between p-4">
+            <div>
+              <div className="text-sm font-medium text-gray-700 dark:text-foreground">
+                {t("messagePosition")}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-muted-foreground">
+                {t("messagePositionDesc")}
+              </div>
+            </div>
+            <SimpleSwitch
+              ariaLabel={t("messagePositionAria")}
+              name="enableRoleBasedMessagePosition"
+              checked={system.enableRoleBasedMessagePosition}
+              onChange={() =>
+                updateSystemSettings({
+                  enableRoleBasedMessagePosition:
+                    !system.enableRoleBasedMessagePosition,
+                })
+              }
+            />
+          </div>
+
           {/* Context Compression */}
           <div className="flex flex-col p-4 gap-4">
             <div className="flex items-center justify-between">

@@ -489,7 +489,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   // Get Store Data
   const { getCurrentSession, selectedModel, activeMessages } = useChatStore();
   const { openImagePreview } = useUIStore();
-  const { voice } = useSettingsStore();
+  const { system, voice } = useSettingsStore();
 
   const stopCurrentAudio = () => {
     currentAudioRef.current?.dispose();
@@ -1102,6 +1102,21 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   // Tool Data
   const skillInvocations = message.skillInvocations || [];
+  const usesRoleBasedPosition = system.enableRoleBasedMessagePosition;
+  const isRightAlignedUserMessage =
+    usesRoleBasedPosition && message.role === "user";
+  const messageLayoutClass = usesRoleBasedPosition
+    ? isRightAlignedUserMessage
+      ? "items-end md:flex-row-reverse md:items-start"
+      : "items-start"
+    : "";
+  const headerContainerLayoutClass = isRightAlignedUserMessage
+    ? "flex-row-reverse md:flex-row"
+    : "";
+  const headerLayoutClass = isRightAlignedUserMessage ? "flex-row-reverse" : "";
+  const contentLayoutClass = usesRoleBasedPosition
+    ? "w-full max-w-[92%] md:w-fit md:max-w-[min(82%,42rem)]"
+    : "flex-1";
 
   const handleAttachmentClick = (index: number) => {
     if (!message.attachments) return;
@@ -1353,10 +1368,14 @@ const MessageItem: React.FC<MessageItemProps> = ({
           document.body,
         )}
 
-      <div className="message-item group relative flex flex-col md:flex-row gap-2 md:gap-3 rounded-md transition-[background-color,border-color] duration-200 border border-transparent px-3 py-3 bg-gray-50/0 hover:bg-gray-50/80 dark:hover:bg-muted/40">
+      <div
+        className={`message-item group relative flex flex-col md:flex-row gap-2 md:gap-3 rounded-md transition-[background-color,border-color] duration-200 border border-transparent px-3 py-3 bg-gray-50/0 hover:bg-gray-50/80 dark:hover:bg-muted/40 ${messageLayoutClass}`}
+      >
         {/* Avatar & Header Section */}
-        <div className="flex items-center w-full md:w-auto justify-between md:justify-start gap-2 md:block md:shrink-0 md:mt-0.5 select-none">
-          <div className="flex items-center gap-2">
+        <div
+          className={`flex items-center w-full md:w-auto justify-between md:justify-start gap-2 md:block md:shrink-0 md:mt-0.5 select-none ${headerContainerLayoutClass}`}
+        >
+          <div className={`flex items-center gap-2 ${headerLayoutClass}`}>
             {message.role === "model" ? (
               <Tooltip content={message.model || t("model")} position="right">
                 <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg md:rounded-xl bg-red-300 shadow-sm border border-white dark:border-border flex items-center justify-center text-white">
@@ -1395,7 +1414,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         {/* Content Area */}
         <div
           ref={visibleMessageContentRef}
-          className="flex-1 min-w-0 pl-1 md:pl-0"
+          className={`min-w-0 pl-1 md:pl-0 ${contentLayoutClass}`}
         >
           {/* Attachments */}
           {message.attachments && message.attachments.length > 0 && (

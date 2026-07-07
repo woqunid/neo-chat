@@ -24,4 +24,16 @@ describe("settings UI primitives", () => {
     expect(settingsPage).toContain('id: "memory"');
     expect(settingsPage).toContain("tabMemory");
   });
+
+  it("exposes a system switch for role-based message positions", () => {
+    const systemSettings = readFileSync(
+      resolve(process.cwd(), "src/components/settings/SystemSettings.tsx"),
+      "utf8",
+    );
+
+    expect(systemSettings).toContain("enableRoleBasedMessagePosition");
+    expect(systemSettings).toContain('t("messagePosition")');
+    expect(systemSettings).toContain('t("messagePositionDesc")');
+    expect(systemSettings).toContain("SimpleSwitch");
+  });
 });

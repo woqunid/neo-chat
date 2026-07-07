@@ -34,6 +34,7 @@ describe("app config normalization", () => {
     expect(normalizeChatConfig({})).toEqual(DEFAULT_CHAT_CONFIG);
     expect(normalizeSystemSettings({})).toEqual(DEFAULT_SYSTEM_SETTINGS);
     expect(DEFAULT_SYSTEM_SETTINGS.enableHtmlVisualPrompt).toBe(true);
+    expect(DEFAULT_SYSTEM_SETTINGS.enableRoleBasedMessagePosition).toBe(false);
   });
 
   it("normalizes system settings text and numeric ranges", () => {
@@ -46,6 +47,7 @@ describe("app config normalization", () => {
       historyKeepCount: 0,
       enableCodeCollapse: true,
       enableHtmlVisualPrompt: true,
+      enableRoleBasedMessagePosition: true,
     });
 
     expect(system.systemPrompt).toHaveLength(
@@ -62,6 +64,7 @@ describe("app config normalization", () => {
     );
     expect(system.enableCodeCollapse).toBe(true);
     expect(system.enableHtmlVisualPrompt).toBe(true);
+    expect(system.enableRoleBasedMessagePosition).toBe(true);
   });
 
   it("normalizes system font size", () => {

@@ -53,6 +53,7 @@ export interface SystemSettings {
   historyKeepCount: number;
   enableCodeCollapse: boolean;
   enableHtmlVisualPrompt: boolean;
+  enableRoleBasedMessagePosition: boolean;
   fontSize: "small" | "medium" | "large";
 }
 

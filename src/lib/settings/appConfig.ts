@@ -115,6 +115,10 @@ export function normalizeSystemSettings(
       typeof raw.enableHtmlVisualPrompt === "boolean"
         ? raw.enableHtmlVisualPrompt
         : defaults.enableHtmlVisualPrompt,
+    enableRoleBasedMessagePosition:
+      typeof raw.enableRoleBasedMessagePosition === "boolean"
+        ? raw.enableRoleBasedMessagePosition
+        : defaults.enableRoleBasedMessagePosition,
     fontSize: normalizeFontSize(raw.fontSize, defaults.fontSize),
   };
 }

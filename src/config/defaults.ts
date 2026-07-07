@@ -67,6 +67,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   historyKeepCount: 4, // 保留最近 4 轮
   enableCodeCollapse: false,
   enableHtmlVisualPrompt: true,
+  enableRoleBasedMessagePosition: false,
   fontSize: "medium",
 } as const satisfies SystemSettings;
 
