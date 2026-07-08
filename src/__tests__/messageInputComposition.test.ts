@@ -122,4 +122,41 @@ describe("MessageInput composition", () => {
     expect(attachmentTray).toContain("markdown-file-card-action");
     expect(attachmentTray).not.toContain("h-16 w-16");
   });
+
+  it("keeps the composer editable while generation is queued", () => {
+    const chatApp = readFileSync(
+      resolve(process.cwd(), "src/components/app/ChatApp.tsx"),
+      "utf8",
+    );
+    const messageInput = readFileSync(
+      resolve(process.cwd(), "src/components/chat/MessageInput.tsx"),
+      "utf8",
+    );
+
+    expect(chatApp).toContain("queuedMessagesRef");
+    expect(chatApp).toContain("enqueueChatMessage");
+    expect(chatApp).toContain("disabled={availableModels.length === 0}");
+    expect(chatApp).toContain("isGenerating={isGenerating}");
+    expect(chatApp).toContain("queuedMessageCount={queuedMessageCount}");
+    expect(chatApp).not.toContain(
+      "disabled={isGenerating || availableModels.length === 0}",
+    );
+
+    expect(messageInput).toContain("isGenerating?: boolean");
+    expect(messageInput).toContain("queuedMessageCount?: number");
+    expect(messageInput).toContain(
+      "const isInputBusy = disabled || isTranscribing || isParsingAttachments;",
+    );
+    expect(messageInput).toContain(
+      "const isSessionConfigBusy = isInputBusy || isGenerating;",
+    );
+    expect(messageInput).toMatch(
+      /selectModelAria[\s\S]{0,700}disabled=\{isInputBusy\}/,
+    );
+    expect(messageInput).toMatch(
+      /polishTextAria[\s\S]{0,500}disabled=\{isInputBusy \|\| isPolishingInput \|\| !input\.trim\(\)\}/,
+    );
+    expect(messageInput).toContain('isGenerating ? t("queueMessage")');
+    expect(messageInput).toContain('t("queuedMessages"');
+  });
 });

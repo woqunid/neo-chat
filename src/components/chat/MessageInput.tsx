@@ -101,6 +101,8 @@ interface MessageInputProps {
   onSelectModel?: (model: string) => void;
   isSearchEnabled?: boolean;
   onSearchEnabledChange?: (enabled: boolean) => void;
+  isGenerating?: boolean;
+  queuedMessageCount?: number;
   variant?: MessageInputVariant;
 }
 
@@ -131,6 +133,8 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onSelectModel,
       isSearchEnabled = false,
       onSearchEnabledChange,
+      isGenerating = false,
+      queuedMessageCount = 0,
       variant = "default",
     },
     ref,
@@ -1028,6 +1032,8 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       t("noModelSelected");
     const hasKnowledgeAttachments = attachments.some(isKnowledgeAttachment);
     const isInputBusy = disabled || isTranscribing || isParsingAttachments;
+    const isSessionConfigBusy = isInputBusy || isGenerating;
+    const hasDraft = Boolean(input.trim() || attachments.length > 0);
     const textareaMinHeightClass = isHeroVariant
       ? "min-h-[5em]"
       : "min-h-[2em]";
@@ -1361,7 +1367,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                           ? "text-emerald-500 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
                           : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-muted-foreground dark:hover:bg-accent/50 dark:hover:text-foreground"
                       }`}
-                      disabled={isInputBusy}
+                      disabled={isSessionConfigBusy}
                     >
                       <Sparkles size={16} aria-hidden="true" />
                     </button>
@@ -1440,7 +1446,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                           : t("plugins")
                       }
                       className={`${iconButtonBaseClass} transition-colors ${iconButtonFocusClass} ${activePlugins.length > 0 ? "text-cyan-500 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20" : "text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent/50"}`}
-                      disabled={isInputBusy}
+                      disabled={isSessionConfigBusy}
                     >
                       <Blocks size={16} aria-hidden="true" />
                     </button>
@@ -1532,7 +1538,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     onClick={() =>
                       setChatConfig({ useReasoning: !chatConfig.useReasoning })
                     }
-                    disabled={isInputBusy}
+                    disabled={isSessionConfigBusy}
                   >
                     <Lightbulb size={16} aria-hidden="true" />
                   </button>
@@ -1564,7 +1570,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                         : "text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent/50"
                     }`}
                     onClick={handleSearchToggle}
-                    disabled={isInputBusy}
+                    disabled={isSessionConfigBusy}
                   >
                     <Globe size={16} aria-hidden="true" />
                   </button>
@@ -1691,55 +1697,70 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
             {/* Actions */}
             <div className="flex shrink-0 items-center gap-1">
+              {queuedMessageCount > 0 && (
+                <span
+                  role="status"
+                  aria-live="polite"
+                  className="mr-1 hidden rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 dark:bg-blue-950/40 dark:text-blue-300 md:inline-flex"
+                >
+                  {t("queuedMessages", { count: queuedMessageCount })}
+                </span>
+              )}
+
               {isInputBusy ? (
-                onStop && !isParsingAttachments ? (
-                  <Tooltip content={t("stopGeneration")} position="top">
-                    <button
-                      type="button"
-                      aria-label={t("stopGenerationAria")}
-                      aria-busy="true"
-                      className={`${iconButtonBaseClass} relative overflow-hidden bg-gray-100 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:bg-accent dark:text-muted-foreground dark:hover:bg-red-900/20 dark:hover:text-red-400 group ${iconButtonFocusClass}`}
-                      onClick={onStop}
-                    >
-                      <div className="relative w-4 h-4">
-                        <Loader2
-                          size={16}
-                          aria-hidden="true"
-                          className="animate-spin absolute inset-0 transition-[opacity,transform] duration-300 group-hover:opacity-0 group-hover:scale-75"
-                        />
-                        <Square
-                          size={16}
-                          fill="currentColor"
-                          aria-hidden="true"
-                          className="absolute inset-0 opacity-0 scale-75 transition-[opacity,transform] duration-300 group-hover:opacity-100 group-hover:scale-100"
-                        />
-                      </div>
-                    </button>
-                  </Tooltip>
-                ) : (
+                <button
+                  type="button"
+                  aria-label={t("working")}
+                  aria-busy="true"
+                  className={`${iconButtonBaseClass} cursor-not-allowed bg-transparent text-gray-500 dark:text-muted-foreground`}
+                >
+                  <Loader2
+                    size={16}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                </button>
+              ) : hasDraft ? (
+                <Tooltip
+                  content={isGenerating ? t("queueMessage") : t("sendMessage")}
+                  position="top"
+                >
                   <button
                     type="button"
-                    aria-label={t("working")}
-                    aria-busy="true"
-                    className={`${iconButtonBaseClass} cursor-not-allowed bg-transparent text-gray-500 dark:text-muted-foreground`}
-                  >
-                    <Loader2
-                      size={16}
-                      className="animate-spin"
-                      aria-hidden="true"
-                    />
-                  </button>
-                )
-              ) : input || attachments.length > 0 ? (
-                <Tooltip content={t("sendMessage")} position="top">
-                  <button
-                    type="button"
-                    aria-label={t("sendMessageAria")}
-                    disabled={!selectedModel || isParsingAttachments}
+                    aria-label={
+                      isGenerating
+                        ? t("queueMessageAria")
+                        : t("sendMessageAria")
+                    }
+                    disabled={!selectedModel || disabled}
                     className={`${iconButtonBaseClass} bg-gray-100 text-gray-500 shadow-sm transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-accent dark:text-muted-foreground dark:hover:bg-accent/80 ${iconButtonFocusClass}`}
                     onClick={handleSend}
                   >
                     <SendHorizontal size={16} aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              ) : isGenerating && onStop ? (
+                <Tooltip content={t("stopGeneration")} position="top">
+                  <button
+                    type="button"
+                    aria-label={t("stopGenerationAria")}
+                    aria-busy="true"
+                    className={`${iconButtonBaseClass} relative overflow-hidden bg-gray-100 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:bg-accent dark:text-muted-foreground dark:hover:bg-red-900/20 dark:hover:text-red-400 group ${iconButtonFocusClass}`}
+                    onClick={onStop}
+                  >
+                    <div className="relative w-4 h-4">
+                      <Loader2
+                        size={16}
+                        aria-hidden="true"
+                        className="animate-spin absolute inset-0 transition-[opacity,transform] duration-300 group-hover:opacity-0 group-hover:scale-75"
+                      />
+                      <Square
+                        size={16}
+                        fill="currentColor"
+                        aria-hidden="true"
+                        className="absolute inset-0 opacity-0 scale-75 transition-[opacity,transform] duration-300 group-hover:opacity-100 group-hover:scale-100"
+                      />
+                    </div>
                   </button>
                 </Tooltip>
               ) : (

@@ -115,6 +115,12 @@ const logChatAppError = logDevError;
 const EMPTY_MESSAGES: Message[] = [];
 const loadChatService = () => import("@/services/api/chatService");
 
+type QueuedChatMessage = {
+  sessionId: string;
+  text: string;
+  attachments: Attachment[];
+};
+
 const ChatApp = () => {
   // --- Global Store ---
   const {
@@ -185,6 +191,7 @@ const ChatApp = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [queuedMessageCount, setQueuedMessageCount] = useState(0);
   const {
     isGenerating,
     beginActiveGeneration,
@@ -247,12 +254,26 @@ const ChatApp = () => {
   );
   const assistantSelectRequestRef = useRef(0);
   const defaultProviderFetchRef = useRef(false);
+  const isGeneratingRef = useRef(isGenerating);
+  const queuedMessagesRef = useRef<QueuedChatMessage[]>([]);
+  const sendMessageNowRef = useRef<
+    | ((
+        text: string,
+        attachments: Attachment[],
+        requestedSessionId?: string,
+      ) => Promise<void>)
+    | null
+  >(null);
 
   const currentSession = getCurrentSession(); // This is just metadata now
   const messages = activeMessages ?? EMPTY_MESSAGES; // Use activeMessages from store
   const currentSessionConfig = currentSession?.config;
   const currentSessionWorkspaceId = currentSession?.workspaceId;
   useChatThemeEffects(theme, system.fontSize);
+
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
 
   const updateBrowserSearch = useCallback(
     (params: URLSearchParams, historyMode: "push" | "replace") => {
@@ -875,10 +896,20 @@ const ChatApp = () => {
     });
   };
 
-  const handleSendMessage = async (text: string, attachments: Attachment[]) => {
-    if ((!text.trim() && attachments.length === 0) || isGenerating) return;
+  const enqueueChatMessage = (message: QueuedChatMessage) => {
+    queuedMessagesRef.current = [...queuedMessagesRef.current, message];
+    setQueuedMessageCount(queuedMessagesRef.current.length);
+  };
 
-    let targetSessionId = currentSessionId;
+  const sendMessageNow = async (
+    text: string,
+    attachments: Attachment[],
+    requestedSessionId?: string,
+  ) => {
+    if (!text.trim() && attachments.length === 0) return;
+
+    let targetSessionId =
+      requestedSessionId || useChatStore.getState().currentSessionId;
 
     if (!targetSessionId) {
       targetSessionId = createSession();
@@ -906,6 +937,7 @@ const ChatApp = () => {
     }
 
     const generation = beginActiveGeneration();
+    isGeneratingRef.current = true;
 
     const modelDisplayName = getModelDisplayName(
       selectedModel,
@@ -1263,8 +1295,49 @@ const ChatApp = () => {
       }
     } finally {
       finishActiveGeneration(generation);
+      isGeneratingRef.current = false;
     }
   };
+  sendMessageNowRef.current = sendMessageNow;
+
+  const handleSendMessage = async (text: string, attachments: Attachment[]) => {
+    if (!text.trim() && attachments.length === 0) return;
+
+    let targetSessionId = useChatStore.getState().currentSessionId;
+
+    if (!targetSessionId) {
+      targetSessionId = createSession();
+    }
+
+    if (!targetSessionId) return;
+
+    if (isGeneratingRef.current) {
+      enqueueChatMessage({
+        sessionId: targetSessionId,
+        text,
+        attachments,
+      });
+      return;
+    }
+
+    await sendMessageNow(text, attachments, targetSessionId);
+  };
+
+  useEffect(() => {
+    if (isGenerating || queuedMessageCount === 0) return;
+
+    const nextMessage = queuedMessagesRef.current[0];
+    const activeSessionId = useChatStore.getState().currentSessionId;
+    if (!nextMessage || nextMessage.sessionId !== activeSessionId) return;
+
+    queuedMessagesRef.current = queuedMessagesRef.current.slice(1);
+    setQueuedMessageCount(queuedMessagesRef.current.length);
+    void sendMessageNowRef.current?.(
+      nextMessage.text,
+      nextMessage.attachments,
+      nextMessage.sessionId,
+    );
+  }, [currentSessionId, isGenerating, queuedMessageCount]);
 
   const generateModelResponseBranch = async (
     messageId: string,
@@ -2161,7 +2234,9 @@ const ChatApp = () => {
                   variant={messageInputVariant}
                   onSend={handleSendMessage}
                   onStop={isGenerating ? handleStopGeneration : undefined}
-                  disabled={isGenerating || availableModels.length === 0}
+                  disabled={availableModels.length === 0}
+                  isGenerating={isGenerating}
+                  queuedMessageCount={queuedMessageCount}
                   availableModels={availableModels}
                   selectedModel={selectedModel}
                   onSelectModel={setModel}
