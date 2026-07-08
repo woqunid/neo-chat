@@ -123,7 +123,7 @@ export function prepareOpenAIHistory(messages: Message[]) {
             });
           }
         }
-      } else {
+      } else if (hasVisibleText(msg.content)) {
         result.push({
           role: "assistant",
           content: msg.content,
@@ -153,10 +153,10 @@ export function prepareOpenAIResponsesInput(messages: Message[]) {
       continue;
     }
 
-    if (msg.content) {
+    if (hasVisibleText(msg.content)) {
       result.push({
         role: "assistant",
-        content: [{ type: "input_text", text: msg.content }],
+        content: [{ type: "output_text", text: msg.content }],
       });
     }
 
@@ -184,6 +184,10 @@ export function prepareOpenAIResponsesInput(messages: Message[]) {
   }
 
   return result;
+}
+
+function hasVisibleText(content: string): boolean {
+  return content.trim().length > 0;
 }
 
 function createAnthropicTextBlock(text: string) {

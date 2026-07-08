@@ -24,6 +24,10 @@ import {
   prepareOpenAIHistory,
   prepareOpenAIResponsesInput,
 } from "../utils/history";
+import {
+  createTranscriptChatMessages,
+  requiresTranscriptHistory,
+} from "./openaiCompatibleHistory";
 import { convertAttachmentsToOpenAIResponses } from "../utils/attachments";
 import { convertAttachmentsToAnthropic } from "../utils/attachments";
 import { convertSchemaToGemini } from "../utils/schema";
@@ -167,6 +171,31 @@ function getResponsesOutputText(response: any): string {
     .join("");
 }
 
+function prepareOpenAICompatibleMessages({
+  history,
+  newMessage,
+  attachments,
+  systemInstruction,
+}: {
+  history: Message[];
+  newMessage: string;
+  attachments?: any[];
+  systemInstruction?: string;
+}) {
+  const messages = prepareOpenAIHistory(history);
+  const content: any[] = [{ type: "text", text: newMessage }];
+  if (attachments?.length) {
+    content.push(...attachments);
+  }
+  messages.push({ role: "user", content });
+
+  if (systemInstruction) {
+    messages.unshift({ role: "system", content: systemInstruction });
+  }
+
+  return messages;
+}
+
 /**
  * 处理聊天请求（流式）
  */
@@ -230,20 +259,20 @@ export async function handleChatStream(options: ChatHandlerOptions) {
         });
       } else if (provider.type === OPENAI_COMPATIBLE_PROVIDER_TYPE) {
         await ProviderFactory.assertProviderOutboundAllowed(provider);
-        const messages = prepareOpenAIHistory(history);
-
-        // 添加新消息
-        const content: any[] = [{ type: "text", text: newMessage }];
-        if (attachments?.length) {
-          // 转换附件格式
-          content.push(...attachments);
-        }
-        messages.push({ role: "user", content });
-
-        // 添加系统指令
-        if (systemInstruction) {
-          messages.unshift({ role: "system", content: systemInstruction });
-        }
+        const providerBaseUrlHost = getProviderBaseUrlHost(provider);
+        const messages = requiresTranscriptHistory(providerBaseUrlHost)
+          ? createTranscriptChatMessages({
+              history,
+              newMessage,
+              attachments,
+              systemInstruction,
+            })
+          : prepareOpenAICompatibleMessages({
+              history,
+              newMessage,
+              attachments,
+              systemInstruction,
+            });
 
         const client = ProviderFactory.createOpenAIClient(provider);
         await streamOpenAIChatCompletions({
