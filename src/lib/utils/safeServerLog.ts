@@ -44,10 +44,21 @@ export function safeServerLogError(
   ...values: unknown[]
 ): void {
   if (process.env.NODE_ENV === "test") return;
-  console.error(message, ...values.map((value) => sanitizeLogValue(value)));
+  console.error(message, ...values.map(formatLogValue));
 }
 
 export function safeServerLogWarn(message: string, ...values: unknown[]): void {
   if (process.env.NODE_ENV === "test") return;
-  console.warn(message, ...values.map((value) => sanitizeLogValue(value)));
+  console.warn(message, ...values.map(formatLogValue));
+}
+
+function formatLogValue(value: unknown): unknown {
+  const sanitized = sanitizeLogValue(value);
+  if (!sanitized || typeof sanitized !== "object") return sanitized;
+
+  try {
+    return JSON.stringify(sanitized);
+  } catch {
+    return "[unserializable]";
+  }
 }

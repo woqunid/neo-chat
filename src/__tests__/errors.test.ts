@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AuthenticationError,
+  ProviderError,
   toPublicErrorPayload,
   ValidationError,
 } from "../lib/errors";
@@ -21,6 +22,24 @@ describe("public error serialization", () => {
       error: "API key not configured",
       code: "AUTH_ERROR",
       statusCode: 401,
+    });
+  });
+
+  it("keeps provider errors actionable and redacted", () => {
+    expect(
+      toPublicErrorPayload(
+        new ProviderError(
+          "Provider request failed: status_code=500, upstream Bearer sk-secret failed",
+          "OpenAI",
+          { status: 500 },
+        ),
+      ),
+    ).toMatchObject({
+      error:
+        "Provider request failed: status_code=500, upstream Bearer [redacted] failed",
+      code: "PROVIDER_ERROR",
+      statusCode: 502,
+      details: { provider: "OpenAI", status: 500 },
     });
   });
 

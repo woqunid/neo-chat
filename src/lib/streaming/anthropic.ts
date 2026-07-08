@@ -6,6 +6,10 @@ import {
 } from "../security/urlPolicy";
 import type { SSEMessage } from "./sse";
 import { finalizeStreamedToolCall } from "./toolCalls";
+import {
+  createProviderTimeoutSignal,
+  getProviderRequestTimeoutMs,
+} from "../providers/requestTimeout";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
@@ -70,6 +74,7 @@ function createRequestBody(options: AnthropicStreamOptions, stream: boolean) {
 async function createAnthropicResponse(options: AnthropicStreamOptions) {
   const apiKey = getProviderApiKey(options.provider);
   if (!apiKey) throw new Error("Anthropic API key is not configured");
+  const timeoutMs = getProviderRequestTimeoutMs();
 
   const response = await fetch(getMessagesEndpoint(options.provider), {
     method: "POST",
@@ -79,6 +84,9 @@ async function createAnthropicResponse(options: AnthropicStreamOptions) {
       "x-api-key": apiKey,
     },
     body: JSON.stringify(createRequestBody(options, true)),
+    ...(timeoutMs > 0
+      ? { signal: createProviderTimeoutSignal(timeoutMs) }
+      : {}),
   });
 
   if (!response.ok) {
@@ -102,6 +110,7 @@ export async function generateAnthropicMessage(
 ): Promise<string> {
   const apiKey = getProviderApiKey(options.provider);
   if (!apiKey) throw new Error("Anthropic API key is not configured");
+  const timeoutMs = getProviderRequestTimeoutMs();
 
   const response = await fetch(getMessagesEndpoint(options.provider), {
     method: "POST",
@@ -113,6 +122,9 @@ export async function generateAnthropicMessage(
     body: JSON.stringify(
       createRequestBody({ ...options, onChunk: () => undefined }, false),
     ),
+    ...(timeoutMs > 0
+      ? { signal: createProviderTimeoutSignal(timeoutMs) }
+      : {}),
   });
 
   if (!response.ok) {

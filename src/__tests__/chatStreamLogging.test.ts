@@ -66,9 +66,11 @@ describe("chat stream logging", () => {
       newMessage: "ping",
     });
 
-    await expect(response.text()).resolves.toContain(
-      "An internal error occurred",
-    );
+    const body = await response.text();
+    expect(body).toContain("Provider request failed");
+    expect(body).toContain("status_code=400");
+    expect(body).toContain("Provider rejected Bearer [redacted]");
+    expect(body).not.toContain("sk-secret");
 
     const serializedLogs = JSON.stringify(consoleSpy.mock.calls);
     expect(serializedLogs).toContain("Chat stream error");

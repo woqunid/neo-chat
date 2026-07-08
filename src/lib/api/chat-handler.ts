@@ -28,6 +28,7 @@ import { convertAttachmentsToOpenAIResponses } from "../utils/attachments";
 import { convertAttachmentsToAnthropic } from "../utils/attachments";
 import { convertSchemaToGemini } from "../utils/schema";
 import { logDevWarn } from "../utils/devLogger";
+import { ApiError, ProviderError } from "../errors";
 import {
   ANTHROPIC_PROVIDER_TYPE,
   isOpenAIProviderType,
@@ -108,6 +109,34 @@ function logChatStreamError(error: unknown, options: ChatHandlerOptions): void {
     modelName: options.modelName,
     error: getChatStreamErrorDetails(error),
   });
+}
+
+function getProviderErrorMessage(
+  details: ReturnType<typeof getChatStreamErrorDetails>,
+) {
+  const status = details.status ? `status_code=${details.status}, ` : "";
+  return `Provider request failed: ${status}${details.message}`;
+}
+
+function toChatStreamPublicError(
+  error: unknown,
+  options: ChatHandlerOptions,
+): Error {
+  if (error instanceof ApiError) return error;
+
+  const details = getChatStreamErrorDetails(error);
+  return new ProviderError(
+    getProviderErrorMessage(details),
+    options.provider.type,
+    {
+      providerType: options.provider.type,
+      providerBaseUrlHost: getProviderBaseUrlHost(options.provider),
+      modelName: options.modelName,
+      status: details.status,
+      code: details.code,
+      type: details.type,
+    },
+  );
 }
 
 function convertToolsToOpenAIResponses(tools?: any[]) {
@@ -303,7 +332,7 @@ export async function handleChatStream(options: ChatHandlerOptions) {
       send({ type: "done" });
     } catch (error) {
       logChatStreamError(error, options);
-      throw error;
+      throw toChatStreamPublicError(error, options);
     }
   });
 

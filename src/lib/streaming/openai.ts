@@ -12,6 +12,7 @@ import {
   finalizeStreamedToolCall,
 } from "./toolCalls";
 import { normalizeSearchSources } from "../search/results";
+import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
 
 export interface OpenAIStreamOptions {
   client: OpenAI;
@@ -118,6 +119,20 @@ function extractReasoningSummary(item: any): string {
   ]
     .filter(Boolean)
     .join("");
+}
+
+async function createOpenAIStreamRequest(
+  create: (
+    params: any,
+    options: { maxRetries: number; timeout?: number },
+  ) => Promise<unknown>,
+  params: any,
+): Promise<unknown> {
+  const timeout = getProviderRequestTimeoutMs();
+  return create(params, {
+    maxRetries: 0,
+    ...(timeout > 0 ? { timeout } : {}),
+  });
 }
 
 type ThinkTagStreamEvent = {
@@ -403,7 +418,10 @@ export async function streamOpenAIChatCompletions(
     useReasoning,
   });
 
-  const stream = (await client.chat.completions.create(requestParams)) as any;
+  const stream = (await createOpenAIStreamRequest(
+    client.chat.completions.create.bind(client.chat.completions),
+    requestParams,
+  )) as any;
   await finishChatCompletionStream(
     stream,
     startTime,
@@ -457,7 +475,10 @@ export async function streamOpenAIResponses(
     requestParams.reasoning = { effort: "high", summary: "auto" };
   }
 
-  const stream = (await client.responses.create(requestParams)) as any;
+  const stream = (await createOpenAIStreamRequest(
+    client.responses.create.bind(client.responses),
+    requestParams,
+  )) as any;
   let toolCallPosition = 0;
   let hasStreamedOutputText = false;
   let hasStreamedReasoning = false;

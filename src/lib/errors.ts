@@ -57,8 +57,9 @@ export class ProviderError extends ApiError {
   constructor(
     message: string,
     public provider: string,
+    details?: Record<string, unknown>,
   ) {
-    super(message, 502, "PROVIDER_ERROR", { provider });
+    super(message, 502, "PROVIDER_ERROR", { provider, ...details });
     this.name = "ProviderError";
   }
 }

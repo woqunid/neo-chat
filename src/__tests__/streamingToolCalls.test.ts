@@ -63,6 +63,7 @@ function createSseResponse(events: unknown[]) {
 
 describe("streamed tool-call normalization", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -334,6 +335,30 @@ describe("streamed tool-call normalization", () => {
         model: "gpt-test",
         stream: true,
       }),
+      { maxRetries: 0, timeout: 30_000 },
+    );
+  });
+
+  it("allows disabling OpenAI stream request timeout", async () => {
+    vi.stubEnv("PROVIDER_REQUEST_TIMEOUT_MS", "0");
+    const client = {
+      responses: {
+        create: vi.fn(async () =>
+          asyncChunks([{ type: "response.output_text.delta", delta: "Hello" }]),
+        ),
+      },
+    };
+
+    await streamOpenAIResponses({
+      client: client as any,
+      model: "gpt-test",
+      input: [],
+      onChunk: () => undefined,
+    });
+
+    expect(client.responses.create).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-test" }),
+      { maxRetries: 0 },
     );
   });
 
@@ -367,7 +392,10 @@ describe("streamed tool-call normalization", () => {
 
     expect(messages).toContainEqual({ type: "content", content: "Compat" });
     const request = (client.chat.completions.create as any).mock.calls[0][0];
+    const requestOptions = (client.chat.completions.create as any).mock
+      .calls[0][1];
     expect(request).not.toHaveProperty("tools");
+    expect(requestOptions).toEqual({ maxRetries: 0, timeout: 30_000 });
   });
 
   it("uses a conservative OpenAI Compatible chat request shape", async () => {

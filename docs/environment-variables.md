@@ -91,13 +91,14 @@ provider settings survive across instances.
 
 ## Default Model Provider
 
-| Variable                    | Purpose                                                                                                           |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_PROVIDER_TYPE`     | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                           |
-| `DEFAULT_PROVIDER_NAME`     | Display name for the default provider.                                                                            |
-| `DEFAULT_PROVIDER_BASE_URL` | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.              |
-| `DEFAULT_PROVIDER_API_KEY`  | Deployment-level API key for the default provider.                                                                |
-| `DEFAULT_PROVIDER_MODELS`   | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays with optional `name`. |
+| Variable                      | Purpose                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_PROVIDER_TYPE`       | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                           |
+| `DEFAULT_PROVIDER_NAME`       | Display name for the default provider.                                                                            |
+| `DEFAULT_PROVIDER_BASE_URL`   | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.              |
+| `DEFAULT_PROVIDER_API_KEY`    | Deployment-level API key for the default provider.                                                                |
+| `DEFAULT_PROVIDER_MODELS`     | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays with optional `name`. |
+| `PROVIDER_REQUEST_TIMEOUT_MS` | Provider request timeout in milliseconds. Defaults to `30000`; set to `0` to disable.                             |
 
 ## Default Task Models
 
