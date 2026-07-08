@@ -9,9 +9,9 @@ when the matching tag is pushed.
 
 ## v2.1.0
 
-- Rebuilt System Settings with clearer grouped controls, an About panel,
-  deployment health visibility, local data export/reset actions, and refreshed
-  localized settings copy.
+- Rebuilt System Settings with clearer grouped controls, deployment health
+  visibility, local data export/reset actions, and refreshed localized settings
+  copy.
 - Added native image generation and image editing for models with image
   input/output metadata, including ordered mixed text/image output blocks,
   image edit attachments, and OPFS-backed display caching.

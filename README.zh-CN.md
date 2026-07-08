@@ -26,7 +26,7 @@ Neo Chat 是一个可自托管、本地优先的 AI 对话应用，基于 Next.j
 
 ## v2.1.0 亮点
 
-- 重构 System Settings，提供更清晰的分组控制、About 面板、部署健康可见性，以及本地数据导出/重置入口。
+- 重构 System Settings，提供更清晰的分组控制、部署健康可见性，以及本地数据导出/重置入口。
 - 新增模型原生图片生成/编辑，支持按顺序渲染图文混合输出块，并使用 OPFS 做图片显示缓存。
 - 扩展内置插件媒体工具：Agnes/Gemini 图片处理、独立的 OpenAI 兼容 Images API 与 OpenAI Responses 图片处理插件、插件级 Base URL/Model ID 配置、受支持接口的图片数量参数、压缩后的图片工具结果，以及 Agnes 图片/视频处理能力升级。
 - 为支持 reasoning 的 Gemini 和 OpenAI-compatible 模型新增 thinking intensity 控制。

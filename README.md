@@ -26,7 +26,7 @@ It is designed for people who want the power of modern AI workspaces without giv
 
 ## v2.1.0 Highlights
 
-- Rebuilt System Settings with clearer grouped controls, an About panel, deployment health visibility, and local data export/reset actions.
+- Rebuilt System Settings with clearer grouped controls, deployment health visibility, and local data export/reset actions.
 - Added native model image generation/editing with ordered mixed text/image output blocks and OPFS-backed image display caching.
 - Expanded built-in plugin media tools with Agnes/Gemini image processing, separate OpenAI-compatible Images API and OpenAI Responses image processing plugins, plugin-level Base URL/Model ID controls, image count parameters where supported, compact image tool results, and Agnes image/video processing upgrades.
 - Added thinking intensity controls for reasoning-capable Gemini and OpenAI-compatible models.
