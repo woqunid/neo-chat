@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Check,
   Eye,
+  Image as ImageIcon,
   Paperclip,
   Mic,
   Lightbulb,
@@ -17,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { ProviderType } from "@/types";
 import {
   useSettingsStore,
   formatModelName,
@@ -25,12 +27,13 @@ import {
 import { useCoreSettingsStore } from "@/store/core/coreSettingsStore";
 import Tooltip from "../ui/Tooltip";
 import ModelEditor from "./ModelEditor";
-import { SecretInput } from "./SettingsUI";
+import { CustomSelect, SecretInput } from "./SettingsUI";
 import { PROVIDER_CONFIG_LIMITS } from "@/config/limits";
 import { DEFAULT_PROVIDER_NAME } from "@/lib/providers/config";
 import {
   getResponseErrorMessage,
   readJsonResponseOrThrow,
+  signedApiFetch,
 } from "@/lib/api/client";
 import {
   buildProviderRuntimeConfig,
@@ -40,6 +43,7 @@ import {
   encryptLocalSecret,
   LOCAL_SECRET_CONTEXTS,
 } from "@/lib/security/localSecrets";
+import { supportsImageGeneration, supportsModality } from "@/lib/utils/model";
 
 const ProviderSettings = () => {
   const t = useTranslations("Providers");
@@ -112,6 +116,28 @@ const ProviderSettings = () => {
         ? t("anthropicBaseUrlPlaceholder")
         : t("openaiBaseUrlPlaceholder");
 
+  const providerTypeOptions: Array<{
+    value: ProviderType;
+    label: string;
+  }> = [
+    {
+      value: "OpenAI Compatible",
+      label: t("openaiCompatible"),
+    },
+    {
+      value: "OpenAI",
+      label: t("openaiResponses"),
+    },
+    {
+      value: "Anthropic",
+      label: t("anthropic"),
+    },
+    {
+      value: "Gemini",
+      label: "Gemini",
+    },
+  ];
+
   const clearDeleteConfirmation = () => {
     if (deleteConfirmTimerRef.current) {
       clearTimeout(deleteConfirmTimerRef.current);
@@ -175,7 +201,7 @@ const ProviderSettings = () => {
     setFetchError(null);
     try {
       const response = await fetchWithByokRetry(async () =>
-        fetch("/api/providers/models", {
+        signedApiFetch("/api/providers/models", {
           method: "POST",
           signal: controller.signal,
           headers: {
@@ -267,7 +293,7 @@ const ProviderSettings = () => {
           "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800",
       });
     }
-    if (meta.modalities?.input?.includes("image")) {
+    if (supportsModality(meta, "image", "input")) {
       capabilities.push({
         key: "vis",
         icon: Eye,
@@ -276,7 +302,16 @@ const ProviderSettings = () => {
           "bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300 border-green-200 dark:border-green-800",
       });
     }
-    if (meta.modalities?.input?.includes("audio")) {
+    if (supportsImageGeneration(meta)) {
+      capabilities.push({
+        key: "img",
+        icon: ImageIcon,
+        label: t("capImageGeneration"),
+        className:
+          "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
+      });
+    }
+    if (supportsModality(meta, "audio", "input")) {
       capabilities.push({
         key: "aud",
         icon: Mic,
@@ -434,33 +469,19 @@ const ProviderSettings = () => {
                     >
                       {t("apiType")}
                     </label>
-                    <div className="relative">
-                      <select
-                        id={providerTypeInputId}
-                        name="providerType"
-                        value={currentProvider.type}
-                        onChange={(e) =>
-                          updateProvider(currentProvider.id, {
-                            type: e.target.value as any,
-                          })
-                        }
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-[border-color,box-shadow] appearance-none text-gray-800 dark:text-foreground"
-                      >
-                        <option value="Gemini">Gemini</option>
-                        <option value="Anthropic">{t("anthropic")}</option>
-                        <option value="OpenAI">{t("openaiResponses")}</option>
-                        <option value="OpenAI Compatible">
-                          {t("openaiCompatible")}
-                        </option>
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <Server
-                          size={14}
-                          className="text-gray-400"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
+                    <CustomSelect
+                      id={providerTypeInputId}
+                      value={currentProvider.type}
+                      onChange={(value) =>
+                        updateProvider(currentProvider.id, {
+                          type: value as ProviderType,
+                        })
+                      }
+                      options={providerTypeOptions}
+                      icon={Server}
+                      ariaLabel={t("apiType")}
+                      selectButtonClassName="w-full px-3 py-2 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 transition-[border-color,box-shadow] text-gray-800 dark:text-foreground flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-50"
+                    />
                   </div>
                 )}
                 {!isServerDefaultProvider && (

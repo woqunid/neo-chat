@@ -26,6 +26,10 @@ import {
   normalizeWorkspace,
 } from "../../lib/chat/entities";
 import { DEFAULT_CHAT_CONFIG } from "../../config/defaults";
+import {
+  isReasoningEnabled,
+  normalizeReasoningMode,
+} from "../../lib/chat/reasoning";
 import { deleteFromOPFS } from "@/utils/opfs";
 import { logDevError } from "../../lib/utils/devLogger";
 import {
@@ -66,6 +70,24 @@ const getAttachmentUrls = (files: Attachment[] = []): string[] => {
     if (file.url) {
       urls.add(file.url);
     }
+    if (file.displayCache?.opfsUrl) {
+      urls.add(file.displayCache.opfsUrl);
+    }
+  }
+
+  return Array.from(urls);
+};
+
+const getOutputBlockAttachmentUrls = (
+  outputBlocks: MessageOutputBlock[] = [],
+): string[] => {
+  const urls = new Set<string>();
+
+  for (const block of outputBlocks) {
+    if (block.type !== "image") continue;
+    for (const url of getAttachmentUrls([block.image])) {
+      urls.add(url);
+    }
   }
 
   return Array.from(urls);
@@ -88,6 +110,9 @@ const getMessageAttachmentUrls = (messages: Message[] = []) => {
 
   for (const message of messages) {
     for (const url of getAttachmentUrls(message.attachments)) {
+      urls.add(url);
+    }
+    for (const url of getOutputBlockAttachmentUrls(message.outputBlocks)) {
       urls.add(url);
     }
   }
@@ -391,12 +416,22 @@ const applySessionConfig = (
   sessionConfig?: SessionConfig,
 ): ChatConfig => {
   if (!sessionConfig) return currentConfig;
+  const hasReasoningConfig =
+    sessionConfig.reasoningMode !== undefined ||
+    sessionConfig.useReasoning !== undefined;
+  const reasoningMode = hasReasoningConfig
+    ? normalizeReasoningMode(
+        sessionConfig.reasoningMode,
+        sessionConfig.useReasoning,
+      )
+    : currentConfig.reasoningMode;
 
-  return {
+  return normalizeChatConfig({
     ...currentConfig,
     useSearch: sessionConfig.useSearch ?? currentConfig.useSearch,
-    useReasoning: sessionConfig.useReasoning ?? currentConfig.useReasoning,
-  };
+    useReasoning: isReasoningEnabled(reasoningMode),
+    reasoningMode,
+  });
 };
 
 export const useChatStore = create<ChatState>()(

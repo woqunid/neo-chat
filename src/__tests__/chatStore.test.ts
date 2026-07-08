@@ -115,6 +115,7 @@ describe("chat store persistence", () => {
       chatConfig: {
         useSearch: false,
         useReasoning: false,
+        reasoningMode: "off",
         temperature: 0.7,
       },
     });
@@ -137,6 +138,7 @@ describe("chat store persistence", () => {
         chatConfig: {
           useSearch: false,
           useReasoning: false,
+          reasoningMode: "off",
           temperature: 0.7,
         },
       },
@@ -231,6 +233,31 @@ describe("chat store persistence", () => {
     expect(sessionId).toBe("matching");
     expect(useChatStore.getState().currentSessionId).toBe("matching");
     expect(useChatStore.getState().sessions).toHaveLength(3);
+  });
+
+  it("migrates legacy chat config reasoning booleans during hydration", async () => {
+    const migrate = (useChatStore as any).persist.getOptions().migrate;
+
+    const migrated = await migrate(
+      {
+        sessions: [],
+        workspaces: [],
+        currentSessionId: null,
+        activeMessages: [],
+        selectedModel: "model",
+        chatConfig: {
+          useSearch: false,
+          useReasoning: true,
+          temperature: 0.7,
+        },
+      },
+      3,
+    );
+
+    expect(migrated.chatConfig).toMatchObject({
+      useReasoning: true,
+      reasoningMode: "high",
+    });
   });
 
   it("does not reuse empty chats with different active skill presets", () => {
@@ -594,6 +621,42 @@ describe("chat store persistence", () => {
     expect(useChatStore.getState().activeMessages).toEqual([]);
     expect(deleteFromOPFSMock).toHaveBeenCalledTimes(1);
     expect(deleteFromOPFSMock).toHaveBeenCalledWith(orphanUrl);
+  });
+
+  it("cleans generated image display cache files from deleted output blocks", async () => {
+    const cachedImageUrl = "opfs://images/generated/output-cache.png";
+    useChatStore.setState({
+      sessions: [makeSession("a")],
+      currentSessionId: "a",
+      activeMessages: [
+        {
+          ...makeModelMessage("m1", "generated"),
+          outputBlocks: [
+            {
+              id: "block_1",
+              type: "image",
+              image: {
+                id: "img_1",
+                mimeType: "image/png",
+                data: "aW1hZ2U=",
+                fileName: "generated.png",
+                displayCache: {
+                  opfsUrl: cachedImageUrl,
+                  sourceKind: "data",
+                  sourceFingerprint: "fingerprint",
+                  createdAt: 1,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await useChatStore.getState().deleteMessage("a", "m1");
+
+    expect(deleteFromOPFSMock).toHaveBeenCalledTimes(1);
+    expect(deleteFromOPFSMock).toHaveBeenCalledWith(cachedImageUrl);
   });
 
   it("preserves deleted message attachments still referenced by other messages", async () => {

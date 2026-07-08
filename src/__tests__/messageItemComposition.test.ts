@@ -29,6 +29,8 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("flex-row-reverse");
     expect(messageItem).toContain("messageBodyLayoutClass");
     expect(messageItem).toContain("rounded-2xl");
+    expect(messageItem).toContain("focus-within:ring-2");
+    expect(messageItem).toContain("focus-visible:ring-ring");
     expect(messageItem).toContain("PencilSparkles");
     expect(messageItem).toContain('t("polishUserMessageShort")');
     expect(messageItem).not.toContain("text-amber-500");
@@ -55,10 +57,24 @@ describe("MessageItem composition", () => {
     expect(reasoningBlock).toContain(
       "w-full flex items-center gap-2 px-3 py-2 text-xs font-medium",
     );
+    expect(reasoningBlock).toContain("formatReasoningDuration");
+    expect(reasoningBlock).toContain("durationMs?: number");
+    expect(reasoningBlock).toContain("LoaderCircle");
+    expect(reasoningBlock).toContain("useEffect");
     expect(reasoningBlock).toContain(
-      "rounded bg-violet-100 p-1 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400",
+      "const [isExpanded, setIsExpanded] = useState(isThinking);",
     );
-    expect(reasoningBlock).toContain("flex-1 text-left truncate");
+    expect(reasoningBlock).toContain("setIsExpanded(isThinking);");
+    expect(reasoningBlock).toContain("}, [isThinking]);");
+    expect(reasoningBlock).toContain(
+      "onClick={() => setIsExpanded((expanded) => !expanded)}",
+    );
+    expect(reasoningBlock).not.toContain("useState(false)");
+    expect(reasoningBlock).not.toContain("bg-violet-100");
+    expect(reasoningBlock).not.toContain("dark:bg-violet-900/30");
+    expect(reasoningBlock).toContain(
+      "flex min-w-0 flex-1 items-center gap-2 text-left",
+    );
     expect(reasoningBlock).toContain("bg-white/40 dark:bg-card/40");
     expect(reasoningBlock).not.toContain("mr-2 rounded p-1");
     expect(reasoningBlock).not.toContain("Languages");
@@ -85,8 +101,13 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("handleDownloadMarkdown");
     expect(messageItem).toContain("handleDownloadPdf");
     expect(messageItem).toContain("handleDownloadImage");
+    expect(messageItem).toContain("imageExportError");
+    expect(messageItem).toContain('t("downloadImageFailed")');
+    expect(messageItem).toContain('role="alert"');
     expect(messageItem).toContain("message-pdf-print-root");
     expect(messageItem).toContain("message-image-export-root");
+    expect(messageItem).toContain("message={pdfPrintJob.message}");
+    expect(messageItem).toContain("message={imageExportJob.message}");
     expect(messageItem).toContain("window.print");
     expect(messageItem).toContain("afterprint");
     expect(messageItem).toContain("toPng");
@@ -100,6 +121,7 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("message-image-export-canvas");
     expect(messageItem).toContain(".markdown-diagram-header");
     expect(messageItem).toContain("forceExpandCodeBlocks");
+    expect(messageItem).toContain("MessageOutputRenderer");
     expect(messageItem).toContain("proxyMessageExportImages");
     expect(messageItem).toContain("https://serveproxy.com/?url=");
     expect(messageItem).toContain("encodeURIComponent");

@@ -207,6 +207,12 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -833,6 +839,11 @@ samp {
   background: transparent;
   box-shadow: none;
   padding: 0;
+}
+
+.markdown-body :where(.markdown-table-wrap:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--ring) 65%, transparent);
+  outline-offset: 3px;
 }
 
 .markdown-body :where(table) {

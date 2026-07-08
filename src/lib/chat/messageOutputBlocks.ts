@@ -23,6 +23,10 @@ interface SearchBlockUpdate {
 
 const cloneToolCall = (toolCall: ToolCall): ToolCall => ({ ...toolCall });
 
+const cloneImage = (
+  image: Extract<MessageOutputBlock, { type: "image" }>["image"],
+) => ({ ...image });
+
 const cloneBlock = (block: MessageOutputBlock): MessageOutputBlock => {
   switch (block.type) {
     case "text":
@@ -36,6 +40,13 @@ const cloneBlock = (block: MessageOutputBlock): MessageOutputBlock => {
         sources: [...block.sources],
         images: [...block.images],
       };
+    case "image":
+      return {
+        ...block,
+        image: cloneImage(block.image),
+      };
+    case "image_generation_status":
+      return { ...block };
     case "tool_group":
       return {
         ...block,
@@ -50,6 +61,7 @@ export function createMessageOutputBlockBuilder(
   const createId = options.createId ?? (() => uuidv7());
   const blocks = (options.initialBlocks || []).map(cloneBlock);
   let activeSearchBlockId: string | undefined;
+  let activeReasoningBlockId: string | undefined;
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index];
     if (block.type === "search" && block.isSearching) {
@@ -57,8 +69,30 @@ export function createMessageOutputBlockBuilder(
       break;
     }
   }
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (block.type === "reasoning" && block.startedAt && !block.endedAt) {
+      activeReasoningBlockId = block.id;
+      break;
+    }
+  }
 
   const getLastBlock = () => blocks[blocks.length - 1];
+
+  const finalizeActiveReasoning = (endedAt = Date.now()) => {
+    if (!activeReasoningBlockId) return false;
+    const block = blocks.find(
+      (item): item is Extract<MessageOutputBlock, { type: "reasoning" }> =>
+        item.type === "reasoning" && item.id === activeReasoningBlockId,
+    );
+    activeReasoningBlockId = undefined;
+    if (!block || block.endedAt) return false;
+    const startedAt = block.startedAt ?? endedAt;
+    block.startedAt = startedAt;
+    block.endedAt = endedAt;
+    block.durationMs = Math.max(0, endedAt - startedAt);
+    return true;
+  };
 
   const findToolCallLocation = (toolCallId: string) => {
     for (const block of blocks) {
@@ -87,6 +121,7 @@ export function createMessageOutputBlockBuilder(
   return {
     appendText(content: string) {
       if (!content) return;
+      finalizeActiveReasoning();
       const last = getLastBlock();
       if (last?.type === "text") {
         last.content += content;
@@ -102,18 +137,26 @@ export function createMessageOutputBlockBuilder(
     appendReasoning(content: string) {
       if (!content) return;
       const last = getLastBlock();
-      if (last?.type === "reasoning") {
+      if (last?.type === "reasoning" && !last.endedAt) {
+        if (!last.startedAt) {
+          last.startedAt = Date.now();
+        }
         last.content += content;
+        activeReasoningBlockId = last.id;
         return;
       }
+      const startedAt = Date.now();
       blocks.push({
         id: createId(),
         type: "reasoning",
         content,
+        startedAt,
       });
+      activeReasoningBlockId = blocks[blocks.length - 1]?.id;
     },
 
     upsertSearch(update: SearchBlockUpdate) {
+      finalizeActiveReasoning();
       const activeTarget = activeSearchBlockId
         ? blocks.find(
             (block) =>
@@ -157,7 +200,40 @@ export function createMessageOutputBlockBuilder(
       activeSearchBlockId = isSearching ? block.id : undefined;
     },
 
+    appendImage(
+      image: Extract<MessageOutputBlock, { type: "image" }>["image"],
+    ) {
+      finalizeActiveReasoning();
+      blocks.push({
+        id: createId(),
+        type: "image",
+        image: cloneImage(image),
+      });
+    },
+
+    appendImageGenerationStatus() {
+      finalizeActiveReasoning();
+      const id = createId();
+      blocks.push({
+        id,
+        type: "image_generation_status",
+        status: "generating",
+      });
+      return id;
+    },
+
+    clearImageGenerationStatus(id?: string) {
+      const index = blocks.findIndex(
+        (block) =>
+          block.type === "image_generation_status" && (!id || block.id === id),
+      );
+      if (index === -1) return false;
+      blocks.splice(index, 1);
+      return true;
+    },
+
     appendToolCall(toolCall: ToolCall) {
+      finalizeActiveReasoning();
       const last = getLastBlock();
       if (last?.type === "tool_group") {
         updateToolCallInGroup(last, toolCall);
@@ -192,6 +268,8 @@ export function createMessageOutputBlockBuilder(
     getBlocks(): MessageOutputBlock[] {
       return blocks.map(cloneBlock);
     },
+
+    finalizeActiveReasoning,
   };
 }
 

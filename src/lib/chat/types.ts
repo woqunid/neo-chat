@@ -8,6 +8,12 @@ export interface Attachment {
   data?: string;
   url?: string;
   fileName: string;
+  displayCache?: {
+    opfsUrl: string;
+    sourceKind: "data" | "url";
+    sourceFingerprint: string;
+    createdAt: number;
+  };
 }
 
 export interface MessageVersion {
@@ -66,6 +72,9 @@ export type MessageOutputBlock =
       id: string;
       type: "reasoning";
       content: string;
+      startedAt?: number;
+      endedAt?: number;
+      durationMs?: number;
     }
   | {
       id: string;
@@ -74,6 +83,16 @@ export type MessageOutputBlock =
       error?: string;
       sources: Source[];
       images: ImageSource[];
+    }
+  | {
+      id: string;
+      type: "image";
+      image: Attachment;
+    }
+  | {
+      id: string;
+      type: "image_generation_status";
+      status: "generating";
     }
   | {
       id: string;
@@ -230,6 +249,7 @@ export type ChatGenerationEvent =
 export interface SessionConfig {
   useSearch?: boolean;
   useReasoning?: boolean;
+  reasoningMode?: ReasoningMode;
   activePlugins?: string[];
   activeSkills?: string[];
 }
@@ -281,6 +301,10 @@ export interface Assistant {
 export interface ChatConfig {
   useSearch: boolean;
   useReasoning: boolean;
+  reasoningMode: ReasoningMode;
   useRAG?: boolean;
   temperature: number;
+  imageCount?: number;
 }
+
+export type ReasoningMode = "off" | "auto" | "low" | "medium" | "high";

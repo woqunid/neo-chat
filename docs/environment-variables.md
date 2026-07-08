@@ -82,6 +82,12 @@ Workers, and multi-instance Docker deployments should use `upstash` so rate
 limits, document parse jobs, plugin registry lookups, and `/superadmin` model
 provider settings survive across instances.
 
+## Upload Limits
+
+| Variable                    | Purpose                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `MAX_ATTACHMENT_FILE_BYTES` | Maximum chat attachment file size in bytes. Defaults to `10485760` and is clamped internally. |
+
 ## Public URLs
 
 | Variable               | Purpose                                                                         |
@@ -91,14 +97,46 @@ provider settings survive across instances.
 
 ## Default Model Provider
 
-| Variable                      | Purpose                                                                                                           |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_PROVIDER_TYPE`       | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                           |
-| `DEFAULT_PROVIDER_NAME`       | Display name for the default provider.                                                                            |
-| `DEFAULT_PROVIDER_BASE_URL`   | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.              |
-| `DEFAULT_PROVIDER_API_KEY`    | Deployment-level API key for the default provider.                                                                |
-| `DEFAULT_PROVIDER_MODELS`     | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays with optional `name`. |
-| `PROVIDER_REQUEST_TIMEOUT_MS` | Provider request timeout in milliseconds. Defaults to `30000`; set to `0` to disable.                             |
+| Variable                    | Purpose                                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_PROVIDER_TYPE`     | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                                                     |
+| `DEFAULT_PROVIDER_NAME`     | Display name for the default provider.                                                                                                      |
+| `DEFAULT_PROVIDER_BASE_URL` | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.                                        |
+| `DEFAULT_PROVIDER_API_KEY`  | Deployment-level API key for the default provider.                                                                                          |
+| `DEFAULT_PROVIDER_MODELS`   | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays, and JSON object arrays with optional metadata. |
+| `PROVIDER_REQUEST_TIMEOUT_MS` | Provider request timeout in milliseconds. Defaults to `30000`; set to `0` to disable.                                                     |
+
+`DEFAULT_PROVIDER_MODELS` JSON object entries may include display metadata,
+capability aliases, and explicit modalities:
+
+```bash
+DEFAULT_PROVIDER_MODELS='[
+  {
+    "id": "gpt-image-2",
+    "name": "GPT Image 2",
+    "capabilities": ["image_generation"]
+  },
+  {
+    "id": "gemini-3.1-flash-image",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text", "image"]
+    }
+  }
+]'
+```
+
+Supported capability aliases include `vision`, `attachment`, `audio`,
+`reasoning`, `tool_call`, `image_generation`, `image_output`, and
+`image_editing`. `image_generation` / `image_output` add `image` to
+`modalities.output`; `image_editing` adds `image` to both input and output.
+When explicit `modalities.input` or `modalities.output` are present, they are
+treated as authoritative for that direction.
+
+Image generation request counts are not configured here. `imageCount` is an
+optional per-request API field planned by the app when the selected model
+supports image output; it is omitted when the user did not clearly ask for
+multiple separate images.
 
 ## Default Task Models
 

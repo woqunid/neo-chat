@@ -1,6 +1,7 @@
 {
   "thinking": "思考中…",
   "thoughtProcess": "思考プロセス",
+  "thoughtDuration": "思考時間: {duration}",
   "copied": "コピーしました",
   "copyFailed": "コピーに失敗しました",
   "thoughtProcessDetails": "思考プロセスの詳細",
@@ -26,6 +27,7 @@
   "memoryImportance": "重要度 {value}",
   "labelSearching": "検索中…",
   "labelSearchFailed": "検索に失敗しました",
+  "tableScrollRegion": "横スクロール可能な表",
   "labelSources": "情報源",
   "labelSourcesAndImages": "情報源と画像",
   "labelImages": "画像",

@@ -1,6 +1,7 @@
 {
   "thinking": "Thinking…",
   "thoughtProcess": "Thought Process",
+  "thoughtDuration": "Thought duration: {duration}",
   "copied": "Copied",
   "copyFailed": "Copy failed",
   "thoughtProcessDetails": "Thought process details",
@@ -24,8 +25,9 @@
   "memorySearchQuery": "Query:",
   "memorySearchLimit": "Limit:",
   "memoryImportance": "Importance {value}",
-  "labelSearching": "Searching...",
+  "labelSearching": "Searching…",
   "labelSearchFailed": "Search failed",
+  "tableScrollRegion": "Scrollable table",
   "labelSources": "Sources",
   "labelSourcesAndImages": "Sources & Images",
   "labelImages": "Images",

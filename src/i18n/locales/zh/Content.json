@@ -1,6 +1,7 @@
 {
   "thinking": "思考中…",
   "thoughtProcess": "思考过程",
+  "thoughtDuration": "思考时长：{duration}",
   "copied": "已复制",
   "copyFailed": "复制失败",
   "thoughtProcessDetails": "思考过程详情",
@@ -26,6 +27,7 @@
   "memoryImportance": "重要性 {value}",
   "labelSearching": "搜索中…",
   "labelSearchFailed": "搜索失败",
+  "tableScrollRegion": "可横向滚动的表格",
   "labelSources": "来源",
   "labelSourcesAndImages": "来源和图片",
   "labelImages": "图片",

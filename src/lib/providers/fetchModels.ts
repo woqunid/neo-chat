@@ -1,4 +1,4 @@
-import { safeFetchJson } from "../security/safeFetch";
+import { safeFetchJson } from "@/lib/security/safeFetch";
 import {
   getProviderApiKey,
   getProviderModelsUrl,

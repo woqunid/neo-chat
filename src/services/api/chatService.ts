@@ -16,9 +16,19 @@ import { v7 as uuidv7 } from "uuid";
 import { executePluginFunction } from "@/utils/pluginUtils";
 import { createSearchProvider } from "./searchService";
 import { getEnabledPluginFunctions } from "@/lib/plugin/resolve";
-import { parseModelString } from "@/lib/utils/model";
+import {
+  parseModelString,
+  supportsImageGeneration,
+  supportsTextOutput,
+} from "@/lib/utils/model";
+import { isOpenAIProviderType } from "../../lib/providers/providerTypes";
 import { normalizeSessionTitle } from "@/lib/chat/entities";
 import { appendContextToChatInput } from "@/lib/utils/chatInput";
+import { cacheGeneratedImageAttachments } from "../../lib/utils/generatedImages";
+import {
+  stripAttachmentsDisplayCacheForModel,
+  stripMessagesDisplayCacheForModel,
+} from "../../lib/utils/imageDisplayCache";
 import { appendDiagramRequestInstructions } from "../../lib/chat/diagramPrompt";
 import { appendHtmlVisualRequestInstructions } from "../../lib/chat/htmlVisualPrompt";
 import {
@@ -26,6 +36,7 @@ import {
   getSearchCompatibilityErrorMessage,
 } from "@/lib/settings/searchRag";
 import { createMessageOutputBlockBuilder } from "../../lib/chat/messageOutputBlocks";
+import { resolveImageGenerationOptions } from "../../lib/chat/imageGenerationOptions";
 import {
   buildSearchContextForPrompt,
   createSearchDecisionPrompt,
@@ -41,6 +52,7 @@ import {
 import {
   getResponseErrorMessage,
   readJsonResponseOrThrow,
+  signedApiFetch,
 } from "../../lib/api/client";
 import {
   buildProviderRuntimeConfig,
@@ -81,12 +93,24 @@ type ChatToolDefinition = {
   };
 };
 
+type PluginImageCandidate = {
+  id?: unknown;
+  mimeType?: unknown;
+  data?: unknown;
+  url?: unknown;
+  fileName?: unknown;
+};
+
 function coerceToolDefinition(tool: unknown): ChatToolDefinition {
   return tool as ChatToolDefinition;
 }
 
 function isBrowserMemoryStorePendingHydration(hasHydrated: boolean): boolean {
   return typeof window !== "undefined" && !hasHydrated;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function isMemorySearchEnabled(): boolean {
@@ -140,9 +164,96 @@ async function executeMemorySearchTool(args: unknown): Promise<unknown> {
   return formatMemoryToolResult(results);
 }
 
+function parsePluginImageBase64(
+  value: unknown,
+  fallbackMimeType: unknown,
+): { data: string; mimeType: string } | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  const raw = value.trim();
+  const dataUrlMatch = raw.match(/^data:([^;,]+)?;base64,(.*)$/);
+  if (dataUrlMatch) {
+    return {
+      mimeType: dataUrlMatch[1] || "image/png",
+      data: dataUrlMatch[2] || "",
+    };
+  }
+
+  return {
+    mimeType:
+      typeof fallbackMimeType === "string" ? fallbackMimeType : "image/png",
+    data: raw,
+  };
+}
+
+function getPluginResultImageCandidates(
+  resultData: unknown,
+): PluginImageCandidate[] {
+  if (!isRecord(resultData)) return [];
+
+  const nestedImageRecords = Array.isArray(resultData.images)
+    ? resultData.images.filter(isRecord)
+    : [];
+  const imageRecords =
+    nestedImageRecords.length > 0 ? nestedImageRecords : [resultData];
+
+  return imageRecords
+    .map((item, index): PluginImageCandidate | null => {
+      const parsedBase64 = parsePluginImageBase64(
+        item.imageBase64,
+        item.mimeType,
+      );
+      const imageUrl =
+        typeof item.imageUrl === "string" && item.imageUrl.trim()
+          ? item.imageUrl.trim()
+          : "";
+      if (!parsedBase64 && !imageUrl) return null;
+
+      return {
+        id: item.id,
+        mimeType: parsedBase64?.mimeType || item.mimeType || "image/png",
+        data: parsedBase64?.data,
+        url: parsedBase64 ? undefined : imageUrl,
+        fileName:
+          typeof item.fileName === "string" && item.fileName.trim()
+            ? item.fileName
+            : imageRecords.length > 1
+              ? `plugin-image-${index + 1}.png`
+              : "plugin-image.png",
+      };
+    })
+    .filter((item): item is PluginImageCandidate => Boolean(item));
+}
+
+function compactPluginImageResultForHistory(resultData: unknown): unknown {
+  if (!isRecord(resultData)) return resultData;
+
+  const imageCandidates = getPluginResultImageCandidates(resultData);
+  if (imageCandidates.length === 0) return resultData;
+
+  const compacted = Object.fromEntries(
+    Object.entries(resultData).filter(
+      ([key]) => !["imageBase64", "imageUrl", "images", "raw"].includes(key),
+    ),
+  );
+  const firstUrl = imageCandidates.find(
+    (image) => typeof image.url === "string" && image.url.trim(),
+  )?.url;
+  const hasInlineImage = imageCandidates.some(
+    (image) => typeof image.data === "string" && image.data.trim(),
+  );
+
+  return {
+    ...compacted,
+    imageUrl: typeof firstUrl === "string" ? firstUrl : null,
+    imageBase64: hasInlineImage ? "[image omitted]" : null,
+    imageCount: imageCandidates.length,
+  };
+}
+
 function resolveModelMetadata(modelName: string): ModelMetadata | undefined {
   const { modelMetadata, customModelMetadata } = useSettingsStore.getState();
-  return customModelMetadata[modelName] || modelMetadata[modelName];
+  return customModelMetadata?.[modelName] || modelMetadata?.[modelName];
 }
 
 function getMessagesContextLength(messages: Message[]): number {
@@ -175,6 +286,44 @@ function getAttachmentsContextLength(attachments: Attachment[]): number {
       (attachment.url?.length || 0),
     0,
   );
+}
+
+function resolveModelStringMetadata(model: string): ModelMetadata | undefined {
+  const { modelName } = parseModelString(model);
+  return resolveModelMetadata(modelName);
+}
+
+function resolveTextGenerationModel({
+  selectedModel,
+  selectedModelMetadata,
+  providers,
+}: {
+  selectedModel: string;
+  selectedModelMetadata?: ModelMetadata;
+  providers: Array<{
+    id: string;
+    enabled?: boolean;
+    models?: string[];
+  }>;
+}): string | undefined {
+  if (supportsTextOutput(selectedModelMetadata)) return selectedModel;
+
+  const taskModel = getTaskModel("promptOptimization").trim();
+  if (taskModel && supportsTextOutput(resolveModelStringMetadata(taskModel))) {
+    return taskModel;
+  }
+
+  const fallback = providers
+    .filter((provider) => provider.enabled)
+    .flatMap((provider) =>
+      (provider.models || []).map((modelName) => ({
+        id: `${provider.id}:${modelName}`,
+        metadata: resolveModelMetadata(modelName),
+      })),
+    )
+    .find((candidate) => supportsTextOutput(candidate.metadata));
+
+  return fallback?.id;
 }
 
 async function decideExternalSearchUse({
@@ -220,7 +369,7 @@ export const executeCode = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/execute-code", {
+      signedApiFetch("/api/chat/execute-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -273,7 +422,7 @@ export const generateChatTitle = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/generate-title", {
+      signedApiFetch("/api/chat/generate-title", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -324,7 +473,7 @@ export const generateRelatedQuestions = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/related-questions", {
+      signedApiFetch("/api/chat/related-questions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -378,7 +527,7 @@ export const generateRAGSearchQueries = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/rag-queries", {
+      signedApiFetch("/api/chat/rag-queries", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -414,6 +563,8 @@ export const generateRAGSearchQueries = async (
 export const generateImage = async (
   modelString: string,
   prompt: string,
+  options: { imageCount?: number; attachments?: Attachment[] } = {},
+  signal?: AbortSignal,
 ): Promise<{ images: Attachment[]; message: string }> => {
   const { providerId, modelName } = parseModelString(modelString);
 
@@ -425,8 +576,11 @@ export const generateImage = async (
   if (!provider) throw new Error("No provider found");
 
   try {
+    const requestAttachments = options.attachments
+      ? await stripAttachmentsDisplayCacheForModel(options.attachments)
+      : undefined;
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/generate-image", {
+      signedApiFetch("/api/chat/generate-image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -435,7 +589,10 @@ export const generateImage = async (
           provider: await buildProviderRuntimeConfig(provider),
           modelName,
           prompt,
+          imageCount: options.imageCount,
+          attachments: requestAttachments,
         }),
+        signal,
       }),
     );
 
@@ -449,8 +606,9 @@ export const generateImage = async (
       images?: Attachment[];
       message?: string;
     }>(response, "Image generation failed");
+    const images = await cacheGeneratedImageAttachments(data.images || []);
     return {
-      images: data.images || [],
+      images,
       message: data.message || "No images generated.",
     };
   } catch (error) {
@@ -501,6 +659,7 @@ export const streamChatResponse = async (
     : providers.find((p) => p.enabled);
 
   if (!provider) throw new Error("No provider available");
+  const selectedModelMetadata = resolveModelMetadata(modelName);
 
   let effectiveNewMessage = newMessage;
   const { search } = useSettingsStore.getState();
@@ -529,59 +688,68 @@ export const streamChatResponse = async (
   ) {
     let externalSearchStarted = false;
     try {
-      const decision = await decideExternalSearchUse({
-        model,
-        history,
-        message: newMessage,
-        signal,
+      const searchDecisionModel = resolveTextGenerationModel({
+        selectedModel: model,
+        selectedModelMetadata,
+        providers,
       });
-
-      if (!decision.shouldSearch) {
+      if (!searchDecisionModel) {
         onSearchStatus(false, { sources: [], images: [] });
       } else {
-        outputBlockBuilder.upsertSearch({ isSearching: true });
-        externalSearchStarted = true;
-        onSearchStatus(true);
-        emitOutputBlocks();
-        const searchResults = await createSearchProvider({
-          query: decision.query,
+        const decision = await decideExternalSearchUse({
+          model: searchDecisionModel,
+          history,
+          message: newMessage,
+          signal,
         });
-        outputBlockBuilder.upsertSearch({
-          isSearching: false,
-          results: searchResults,
-        });
-        onSearchStatus(false, searchResults);
-        emitOutputBlocks();
 
-        if (
-          searchResults.sources.length > 0 ||
-          searchResults.images.length > 0
-        ) {
-          const searchContext = buildSearchContextForPrompt({
-            sources: searchResults.sources,
-            images: searchResults.images,
+        if (!decision.shouldSearch) {
+          onSearchStatus(false, { sources: [], images: [] });
+        } else {
+          outputBlockBuilder.upsertSearch({ isSearching: true });
+          externalSearchStarted = true;
+          onSearchStatus(true);
+          emitOutputBlocks();
+          const searchResults = await createSearchProvider({
+            query: decision.query,
           });
-          const metadata = resolveModelMetadata(modelName);
-          const budget = allocateContextBudget({
-            modelInputTokenLimit: metadata?.limit?.context,
-            reservedOutputTokens: metadata?.limit?.output,
-            sources: {
-              history: getMessagesContextLength(history),
-              attachments: getAttachmentsContextLength(attachments),
-              search: searchContext.length,
-            },
+          outputBlockBuilder.upsertSearch({
+            isSearching: false,
+            results: searchResults,
           });
-          const boundedSearchContext = trimTextToEstimatedTokens(
-            searchContext,
-            budget.allocations.search.maxTokens,
-          );
+          onSearchStatus(false, searchResults);
+          emitOutputBlocks();
 
-          if (boundedSearchContext) {
-            effectiveNewMessage = appendContextToChatInput(
-              newMessage,
-              boundedSearchContext,
-              { separator: "\n\n" },
+          if (
+            searchResults.sources.length > 0 ||
+            searchResults.images.length > 0
+          ) {
+            const searchContext = buildSearchContextForPrompt({
+              sources: searchResults.sources,
+              images: searchResults.images,
+            });
+            const metadata = resolveModelMetadata(modelName);
+            const budget = allocateContextBudget({
+              modelInputTokenLimit: metadata?.limit?.context,
+              reservedOutputTokens: metadata?.limit?.output,
+              sources: {
+                history: getMessagesContextLength(history),
+                attachments: getAttachmentsContextLength(attachments),
+                search: searchContext.length,
+              },
+            });
+            const boundedSearchContext = trimTextToEstimatedTokens(
+              searchContext,
+              budget.allocations.search.maxTokens,
             );
+
+            if (boundedSearchContext) {
+              effectiveNewMessage = appendContextToChatInput(
+                newMessage,
+                boundedSearchContext,
+                { separator: "\n\n" },
+              );
+            }
           }
         }
       }
@@ -636,7 +804,9 @@ export const streamChatResponse = async (
     const allToolCalls: ToolCall[] = [];
     let committedContent = "";
     let committedReasoning = "";
-    let requestHistory = history as Message[];
+    let requestHistory = await stripMessagesDisplayCacheForModel(
+      history as Message[],
+    );
     const messageWithSkills = skillsContext?.trim()
       ? appendContextToChatInput(effectiveNewMessage, skillsContext, {
           separator: "\n\n",
@@ -649,8 +819,87 @@ export const streamChatResponse = async (
       ),
       userSystemInstruction,
     );
-    let requestAttachments = attachments;
+    let requestAttachments =
+      await stripAttachmentsDisplayCacheForModel(attachments);
+    let requestConfig: Partial<ChatConfig> = { ...config };
     const maxToolRounds = PLUGIN_EXECUTION_LIMITS.maxToolRounds;
+
+    if (
+      requestConfig.imageCount === undefined &&
+      supportsImageGeneration(selectedModelMetadata)
+    ) {
+      const availableModels = providers
+        .filter((item) => item.enabled)
+        .flatMap((item) =>
+          item.models.map((availableModelName) => ({
+            id: `${item.id}:${availableModelName}`,
+            metadata: resolveModelMetadata(availableModelName),
+          })),
+        );
+      const imageOptions = await resolveImageGenerationOptions({
+        userMessage: newMessage,
+        selectedModel: model,
+        selectedModelMetadata,
+        defaultPromptOptimizationModel: getTaskModel("promptOptimization"),
+        availableModels,
+        generate: (planningModel, prompt) =>
+          streamGenerateContent(planningModel, prompt, () => {}, signal),
+      });
+      requestConfig = { ...requestConfig, ...imageOptions };
+    }
+
+    if (
+      isOpenAIProviderType(provider.type) &&
+      supportsImageGeneration(selectedModelMetadata) &&
+      (!supportsTextOutput(selectedModelMetadata) ||
+        modelName.toLowerCase().startsWith("gpt-image-"))
+    ) {
+      const loadingBlockId = outputBlockBuilder.appendImageGenerationStatus();
+      emitOutputBlocks();
+
+      let images: Attachment[];
+      let message: string;
+      try {
+        const result = await generateImage(
+          model,
+          requestMessage,
+          {
+            imageCount: requestConfig.imageCount,
+            attachments: requestAttachments,
+          },
+          signal,
+        );
+        images = result.images;
+        message = result.message;
+      } catch (error) {
+        if (outputBlockBuilder.clearImageGenerationStatus(loadingBlockId)) {
+          emitOutputBlocks();
+        }
+        throw error;
+      }
+
+      outputBlockBuilder.clearImageGenerationStatus(loadingBlockId);
+
+      if (images.length > 0) {
+        for (const image of images) {
+          outputBlockBuilder.appendImage(image);
+        }
+        onChunk(
+          committedContent,
+          committedReasoning,
+          outputBlockBuilder.getBlocks(),
+        );
+        return committedContent;
+      }
+
+      outputBlockBuilder.appendText(message);
+      onChunk(
+        committedContent + message,
+        committedReasoning,
+        outputBlockBuilder.getBlocks(),
+      );
+      return committedContent + message;
+    }
 
     const emitToolCalls = () => {
       onToolUpdate?.([...allToolCalls]);
@@ -672,7 +921,7 @@ export const streamChatResponse = async (
       toolCalls: ToolCall[];
     }> => {
       const response = await fetchWithByokRetry(async () =>
-        fetch("/api/chat", {
+        signedApiFetch("/api/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -683,13 +932,18 @@ export const streamChatResponse = async (
             history: requestHistory,
             newMessage: requestMessage,
             attachments: requestAttachments,
-            config,
+            config: requestConfig,
             systemInstruction: userSystemInstruction,
             tools,
+            enableImageGeneration:
+              supportsImageGeneration(selectedModelMetadata) &&
+              (provider.type === "OpenAI" || provider.type === "Gemini"),
             enableGoogleSearch:
-              config?.useSearch && searchCompatibility.mode === "gemini-google",
+              requestConfig?.useSearch &&
+              searchCompatibility.mode === "gemini-google",
             enableOpenAIWebSearch:
-              config?.useSearch && searchCompatibility.mode === "openai-web",
+              requestConfig?.useSearch &&
+              searchCompatibility.mode === "openai-web",
           }),
           signal,
         }),
@@ -713,7 +967,7 @@ export const streamChatResponse = async (
       let buffer = "";
       const roundToolCalls: ToolCall[] = [];
 
-      const handleEventData = (data: string) => {
+      const handleEventData = async (data: string) => {
         if (!data || data === "[DONE]") return false;
         const parsed = JSON.parse(data);
 
@@ -770,7 +1024,17 @@ export const streamChatResponse = async (
             return false;
 
           case "image":
-            onImage?.([parsed.image]);
+            if (parsed.image) {
+              const [image] = await cacheGeneratedImageAttachments([
+                parsed.image,
+              ]);
+              outputBlockBuilder.appendImage(image);
+              onChunk(
+                committedContent + fullContent,
+                committedReasoning + fullReasoning,
+                outputBlockBuilder.getBlocks(),
+              );
+            }
             return false;
 
           case "usage": {
@@ -789,6 +1053,9 @@ export const streamChatResponse = async (
             throw new Error(parsed.error);
 
           case "done":
+            if (outputBlockBuilder.finalizeActiveReasoning()) {
+              emitOutputBlocks();
+            }
             return true;
 
           default:
@@ -796,7 +1063,7 @@ export const streamChatResponse = async (
         }
       };
 
-      const processSSEEvent = (event: string) => {
+      const processSSEEvent = async (event: string) => {
         const dataLines = event
           .split("\n")
           .filter((line) => line.startsWith("data: "))
@@ -805,7 +1072,7 @@ export const streamChatResponse = async (
         if (dataLines.length === 0) return false;
 
         try {
-          return handleEventData(dataLines.join("\n"));
+          return await handleEventData(dataLines.join("\n"));
         } catch (eventError) {
           if (eventError instanceof SyntaxError) {
             logDevError("Failed to parse SSE data:", eventError);
@@ -824,7 +1091,7 @@ export const streamChatResponse = async (
         buffer = events.pop() || "";
 
         for (const event of events) {
-          const isDone = processSSEEvent(event);
+          const isDone = await processSSEEvent(event);
           if (isDone) {
             return {
               content: fullContent,
@@ -836,7 +1103,7 @@ export const streamChatResponse = async (
       }
 
       if (buffer.trim()) {
-        const isDone = processSSEEvent(buffer);
+        const isDone = await processSSEEvent(buffer);
         if (isDone) {
           return {
             content: fullContent,
@@ -846,6 +1113,9 @@ export const streamChatResponse = async (
         }
       }
 
+      if (outputBlockBuilder.finalizeActiveReasoning()) {
+        emitOutputBlocks();
+      }
       return {
         content: fullContent,
         reasoning: fullReasoning,
@@ -910,11 +1180,14 @@ export const streamChatResponse = async (
               !!resultData &&
               typeof resultData === "object" &&
               "error" in resultData;
+            const storedResultData = isError
+              ? resultData
+              : compactPluginImageResultForHistory(resultData);
             const completed: ToolCall = {
               ...toolCall,
               status: isError ? "error" : "success",
               isError,
-              result: resultData,
+              result: storedResultData,
             };
             outputBlockBuilder.updateToolCall(completed);
             emitOutputBlocks();
@@ -1028,7 +1301,8 @@ export const prepareHistoryForLLM = async (
           m.attachments?.length ||
           m.reasoning ||
           m.searchSources?.length ||
-          m.toolCalls?.length)),
+          m.toolCalls?.length ||
+          m.outputBlocks?.length)),
   );
 
   // If no compression state exists, return filtered history
@@ -1192,7 +1466,7 @@ export const streamGenerateContent = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat/generate", {
+      signedApiFetch("/api/chat/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1292,7 +1566,7 @@ export const streamGenerateToolCall = async (
 
   try {
     const response = await fetchWithByokRetry(async () =>
-      fetch("/api/chat", {
+      signedApiFetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

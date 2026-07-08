@@ -51,6 +51,7 @@ import {
   useChatThemeEffects,
 } from "@/features/chat";
 import { resolveEffectiveChatContext } from "@/lib/chat/effectiveChatContext";
+import { resolveEffectiveChatRequestConfig } from "@/lib/chat/effectiveChatConfig";
 import { buildDirectMemoryPromptContext } from "@/lib/memory/entities";
 import { appendContextToChatInput } from "@/lib/utils/chatInput";
 import {
@@ -68,6 +69,7 @@ import {
 import {
   getResponseErrorMessage,
   readJsonResponseOrThrow,
+  signedApiFetch,
 } from "@/lib/api/client";
 import {
   getSessionPluginPresetSyncKey,
@@ -189,7 +191,7 @@ const ChatApp = () => {
 
   // --- Local UI State ---
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isNonDesktopViewport, setIsNonDesktopViewport] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [queuedMessageCount, setQueuedMessageCount] = useState(0);
   const {
@@ -326,11 +328,11 @@ const ChatApp = () => {
         setSettingsTab(resolvedSettingsTab);
       }
       updatePanelUrl(panel, resolvedSettingsTab, historyMode);
-      if (isMobileViewport) {
+      if (isNonDesktopViewport) {
         setIsSidebarOpen(false);
       }
     },
-    [isMobileViewport, settingsTab, updatePanelUrl],
+    [isNonDesktopViewport, settingsTab, updatePanelUrl],
   );
 
   const handleSettingsTabChange = useCallback(
@@ -366,7 +368,7 @@ const ChatApp = () => {
     if (typeof window === "undefined") return;
 
     const updateViewport = () => {
-      setIsMobileViewport(window.innerWidth < 768);
+      setIsNonDesktopViewport(window.innerWidth < 1024);
     };
 
     updateViewport();
@@ -374,10 +376,10 @@ const ChatApp = () => {
     return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
-  const isMobileSidebarModalOpen = isSidebarOpen && isMobileViewport;
+  const isSidebarDrawerOpen = isSidebarOpen && isNonDesktopViewport;
 
   useEffect(() => {
-    if (!isMobileSidebarModalOpen) return;
+    if (!isSidebarDrawerOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -385,14 +387,13 @@ const ChatApp = () => {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobileSidebarModalOpen]);
+  }, [isSidebarDrawerOpen]);
 
   const mainInertProps = useMemo<
     React.HTMLAttributes<HTMLElement> & { inert?: boolean }
   >(
-    () =>
-      isMobileSidebarModalOpen ? { inert: true, "aria-hidden": true } : {},
-    [isMobileSidebarModalOpen],
+    () => (isSidebarDrawerOpen ? { inert: true, "aria-hidden": true } : {}),
+    [isSidebarDrawerOpen],
   );
 
   // Logic for Assistant List Animation
@@ -441,8 +442,9 @@ const ChatApp = () => {
 
   // Sync Global Plugins from Session Config
   useEffect(() => {
+    const sessionPluginPreset = currentSessionConfig?.activePlugins;
     const sessionPlugins = normalizeActivePluginIds(
-      currentSessionConfig?.activePlugins,
+      sessionPluginPreset,
       installedPlugins,
       pluginConfigs,
       { unauthenticatedAllowedPluginIds: ["unsplash"] },
@@ -456,7 +458,7 @@ const ChatApp = () => {
       !shouldApplySessionPluginPreset(
         _hasHydrated,
         chatHasHydrated,
-        sessionPlugins,
+        sessionPluginPreset,
         syncedSessionPluginPresetRef.current,
         presetSyncKey,
       )
@@ -612,7 +614,7 @@ const ChatApp = () => {
     const providerSnapshot = defaultProvider;
 
     fetchWithByokRetry(async () =>
-      fetch("/api/providers/models", {
+      signedApiFetch("/api/providers/models", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -814,6 +816,7 @@ const ChatApp = () => {
       session,
       workspace,
       systemPrompt: system.systemPrompt,
+      personality: system.personality,
       enableHtmlVisualPrompt: system.enableHtmlVisualPrompt,
       selectedModel,
       provider,
@@ -826,6 +829,7 @@ const ChatApp = () => {
       },
       rag,
       installedPlugins,
+      installedSkills,
       pluginConfigs,
       activePlugins,
     });
@@ -1013,7 +1017,12 @@ const ChatApp = () => {
       );
       if (!isGenerationRunActive(generation)) return;
 
-      const effectiveConfig = { ...chatConfig };
+      const effectiveConfig = resolveEffectiveChatRequestConfig({
+        chatConfig,
+        selectedModel,
+        modelMetadata,
+        customModelMetadata,
+      });
       const skillResolution = await resolveSkillsForMessage({
         message: text,
         selectedModel,
@@ -1442,7 +1451,12 @@ const ChatApp = () => {
         historyForApi, // Don't include lastUserMsg here, it's sent as newMessage
         finalText,
         finalAttachments,
-        chatConfig,
+        resolveEffectiveChatRequestConfig({
+          chatConfig,
+          selectedModel,
+          modelMetadata,
+          customModelMetadata,
+        }),
         (streamText, streamReasoning, outputBlocks) => {
           if (!isGenerationRunActive(generation)) return;
           latestStreamText = streamText;
@@ -1727,7 +1741,12 @@ const ChatApp = () => {
         historyForApi,
         finalText,
         finalAttachments,
-        chatConfig,
+        resolveEffectiveChatRequestConfig({
+          chatConfig,
+          selectedModel,
+          modelMetadata,
+          customModelMetadata,
+        }),
         (streamText, streamReasoning, outputBlocks) => {
           if (!isGenerationRunActive(generation) || !modelMessageId) return;
           latestStreamText = streamText;
@@ -1979,10 +1998,10 @@ const ChatApp = () => {
       </a>
       <ImagePreview />
 
-      {/* Mobile Sidebar Overlay Mask */}
-      {isSidebarOpen && (
+      {/* Sidebar Drawer Overlay Mask */}
+      {isSidebarDrawerOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/10 dark:bg-black/50 backdrop-blur-[1px] md:hidden transition-opacity duration-300"
+          className="fixed inset-0 z-30 bg-black/10 transition-opacity duration-200 dark:bg-black/50 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -2007,7 +2026,7 @@ const ChatApp = () => {
         onSmartRename={handleSmartRename}
         isOpen={isSidebarOpen}
         toggleSidebar={() => setIsSidebarOpen((open) => !open)}
-        isModal={isMobileSidebarModalOpen}
+        isModal={isSidebarDrawerOpen}
         onRequestClose={() => setIsSidebarOpen(false)}
         onOpenPluginMarket={() => navigateToPanel("plugins")}
         isPluginMarketOpen={viewMode === "plugins"}
@@ -2017,7 +2036,7 @@ const ChatApp = () => {
         isAssistantHubOpen={viewMode === "assistants"}
         onOpenKnowledgeBase={() => navigateToPanel("knowledge")}
         isKnowledgeBaseOpen={viewMode === "knowledge"}
-        onOpenSettings={() => navigateToPanel("settings")}
+        onOpenSettings={() => navigateToPanel("settings", "system")}
         isSettingsOpen={viewMode === "settings"}
         onLogoClick={() => navigateToPanel("chat")}
       />
@@ -2027,7 +2046,7 @@ const ChatApp = () => {
         {...mainInertProps}
         id="main-chat"
         tabIndex={-1}
-        className="flex-1 flex flex-col h-full relative z-0 min-w-0 overflow-hidden"
+        className="flex-1 flex flex-col h-full relative z-0 min-w-0 overflow-hidden md:pl-16 lg:pl-0"
       >
         {actionError && (
           <div
@@ -2074,7 +2093,7 @@ const ChatApp = () => {
                         : t("openSidebarAria")
                     }
                     onClick={() => setIsSidebarOpen((open) => !open)}
-                    className="p-2 -ml-2 rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    className="p-2 -ml-2 rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     {isSidebarOpen ? (
                       <PanelLeftClose size={16} aria-hidden="true" />
@@ -2098,9 +2117,9 @@ const ChatApp = () => {
                       type="button"
                       aria-label={t("newChatAria")}
                       onClick={handleNewChat}
-                      className="p-2 -mr-2 rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      className="p-2 -mr-2 rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
-                      <MessageSquarePlus size={16} />
+                      <MessageSquarePlus size={16} aria-hidden="true" />
                     </button>
                   </Tooltip>
                 )}

@@ -25,6 +25,9 @@ vi.mock("@/lib/defaultConfig/shared", async () =>
 vi.mock("@/lib/providers/models", async () =>
   vi.importActual("../lib/providers/models"),
 );
+vi.mock("@/lib/providers/fetchModels", async () =>
+  vi.importActual("../lib/providers/fetchModels"),
+);
 vi.mock("@/lib/providers/providerTypes", async () =>
   vi.importActual("../lib/providers/providerTypes"),
 );
@@ -112,6 +115,7 @@ const ENV_KEYS = [
   "DEFAULT_HISTORY_KEEP_COUNT",
   "DEFAULT_ENABLE_CODE_COLLAPSE",
   "DEFAULT_ENABLE_HTML_VISUAL_PROMPT",
+  "MAX_ATTACHMENT_FILE_BYTES",
 ] as const;
 
 const LEGACY_PROVIDER_ENV_KEYS = [
@@ -224,6 +228,7 @@ describe("server default configuration", () => {
       enableHtmlVisualPrompt: true,
       compressionThreshold: 12,
     });
+    expect(config.limits.attachments.maxFileBytes).toBe(10 * 1024 * 1024);
 
     for (const secret of [
       "provider-secret",
@@ -238,6 +243,35 @@ describe("server default configuration", () => {
     ]) {
       expect(serialized).not.toContain(secret);
     }
+  });
+
+  it("exposes clamped runtime attachment upload limits", async () => {
+    setEnv({
+      MAX_ATTACHMENT_FILE_BYTES: String(1024 * 1024),
+    });
+
+    const { getPublicServerConfig } =
+      await import("../lib/defaultConfig/server");
+
+    expect(getPublicServerConfig().limits.attachments.maxFileBytes).toBe(
+      1024 * 1024,
+    );
+
+    setEnv({
+      MAX_ATTACHMENT_FILE_BYTES: String(100 * 1024 * 1024),
+    });
+
+    expect(
+      getPublicServerConfig().limits.attachments.maxFileBytes,
+    ).toBeLessThan(100 * 1024 * 1024);
+
+    setEnv({
+      MAX_ATTACHMENT_FILE_BYTES: "not-a-number",
+    });
+
+    expect(getPublicServerConfig().limits.attachments.maxFileBytes).toBe(
+      10 * 1024 * 1024,
+    );
   });
 
   it("allows self-hosted defaults to disable HTML visual prompting", async () => {
@@ -317,6 +351,14 @@ describe("server default configuration", () => {
       trustedProxyHeaders: true,
       byokStableKeyConfigured: true,
       byokEphemeralAllowed: false,
+      apiProof: {
+        required: true,
+        enabled: true,
+        configured: true,
+        protectedHighCostApis: true,
+        windowSeconds: 60,
+        sessionTtlSeconds: 600,
+      },
       rateLimitStore: "shared",
       documentParseJobStore: "shared",
       pluginRegistryStore: "shared",
@@ -345,9 +387,16 @@ describe("server default configuration", () => {
             attachment: true,
             vision: true,
             audio: true,
+            image_generation: true,
             reasoning: false,
             tool_call: true,
           },
+          reasoning_options: [
+            {
+              type: "effort",
+              values: ["low", "high", "xhigh", "minimal"],
+            },
+          ],
         },
         { id: "gpt-4o", name: "Duplicate" },
       ]),
@@ -365,8 +414,9 @@ describe("server default configuration", () => {
         name: "GPT-4o Hosted",
         attachment: true,
         reasoning: false,
+        reasoning_options: [{ type: "effort", values: ["low", "high"] }],
         tool_call: true,
-        modalities: { input: ["image", "audio", "text"] },
+        modalities: { input: ["image", "audio", "text"], output: ["image"] },
       },
     });
     expect(serialized).not.toContain("provider-secret");
@@ -380,11 +430,21 @@ describe("server default configuration", () => {
       DEFAULT_PROVIDER_MODELS: JSON.stringify([
         {
           id: "gpt-5.5",
-          capabilities: ["vision", "attachment", "reasoning", "tool_call"],
+          capabilities: [
+            "vision",
+            "attachment",
+            "reasoning",
+            "tool_call",
+            "image_editing",
+          ],
         },
         {
           id: "gpt-5.4",
           name: "GPT-5.4",
+          modalities: {
+            input: ["text"],
+            output: ["image"],
+          },
           capabilities: {
             vision: true,
             audio: false,
@@ -413,7 +473,7 @@ describe("server default configuration", () => {
         attachment: true,
         reasoning: true,
         tool_call: true,
-        modalities: { input: ["image", "text"] },
+        modalities: { input: ["image", "text"], output: ["image"] },
       },
       "gpt-5.4": {
         id: "gpt-5.4",
@@ -421,7 +481,7 @@ describe("server default configuration", () => {
         attachment: true,
         reasoning: false,
         tool_call: true,
-        modalities: { input: ["image", "text"] },
+        modalities: { input: ["text"], output: ["image"] },
       },
     });
   });
@@ -597,6 +657,84 @@ describe("server default configuration", () => {
       expect.any(Object),
     );
     expect(JSON.stringify(await response.json())).not.toContain("rag-secret");
+  });
+
+  it("rejects custom namespaces when query requests use the server default RAG token", async () => {
+    setEnv({
+      DEFAULT_RAG_BASE_URL: "https://rag.internal/api",
+      DEFAULT_RAG_TOKEN: "rag-secret",
+      DEFAULT_RAG_NAMESPACE: "hosted",
+    });
+
+    const { POST } = await import("../app/api/rag/query/route");
+    const response = await POST(
+      new Request("https://neo.test/api/rag/query", {
+        method: "POST",
+        body: JSON.stringify({
+          text: "What is Neo?",
+          namespace: "other-tenant",
+          useDefault: true,
+        }),
+      }) as any,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "Custom RAG namespace requires user-provided credentials",
+    });
+    expect(mocks.safeFetchJson).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom namespaces when upsert requests use the server default RAG token", async () => {
+    setEnv({
+      DEFAULT_RAG_BASE_URL: "https://rag.internal/api",
+      DEFAULT_RAG_TOKEN: "rag-secret",
+      DEFAULT_RAG_NAMESPACE: "hosted",
+    });
+
+    const { POST } = await import("../app/api/rag/upsert/route");
+    const response = await POST(
+      new Request("https://neo.test/api/rag/upsert", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [{ id: "id-1", data: "Knowledge" }],
+          namespace: "other-tenant",
+          useDefault: true,
+        }),
+      }) as any,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "Custom RAG namespace requires user-provided credentials",
+    });
+    expect(mocks.safeFetchJson).not.toHaveBeenCalled();
+  });
+
+  it("rejects custom namespaces when delete requests use the server default RAG token", async () => {
+    setEnv({
+      DEFAULT_RAG_BASE_URL: "https://rag.internal/api",
+      DEFAULT_RAG_TOKEN: "rag-secret",
+      DEFAULT_RAG_NAMESPACE: "hosted",
+    });
+
+    const { POST } = await import("../app/api/rag/delete/route");
+    const response = await POST(
+      new Request("https://neo.test/api/rag/delete", {
+        method: "POST",
+        body: JSON.stringify({
+          ids: ["id-1"],
+          namespace: "other-tenant",
+          useDefault: true,
+        }),
+      }) as any,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "Custom RAG namespace requires user-provided credentials",
+    });
+    expect(mocks.safeFetchJson).not.toHaveBeenCalled();
   });
 
   it("uses the server LlamaParse key when document parsing requests opt into defaults", async () => {

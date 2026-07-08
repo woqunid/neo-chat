@@ -23,7 +23,8 @@ export type OutboundContext =
   | "docs"
   | "voice"
   | "agent"
-  | "metadata";
+  | "metadata"
+  | "sharedStore";
 
 export interface SafeUrlPolicy {
   context: OutboundContext;
@@ -234,6 +235,7 @@ export function getSafeUrlPolicy(context: OutboundContext): SafeUrlPolicy {
       };
     case "pluginManifest":
     case "plugin":
+    case "sharedStore":
     default:
       return {
         context,

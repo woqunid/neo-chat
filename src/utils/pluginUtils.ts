@@ -4,7 +4,7 @@ import {
   getPluginFunctionNameCollisions,
   resolvePluginFunction,
 } from "../lib/plugin/resolve";
-import { readJsonResponseOrThrow } from "../lib/api/client";
+import { readJsonResponseOrThrow, signedApiFetch } from "../lib/api/client";
 import {
   getPluginExecutionArgsError,
   getPluginExecutionFunctionNameError,
@@ -34,7 +34,7 @@ async function postPluginExecution(
 ) {
   return fetchWithByokRetry(async () => {
     const payload = await buildPayload();
-    return fetch("/api/plugins/execute", {
+    return signedApiFetch("/api/plugins/execute", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,14 +58,25 @@ async function postPluginExecutionWithLegacyFallback(
 async function buildPluginAuthConfig(
   pluginId: string,
   authConfig?: PluginExecutionAuthConfig | PluginConfig["auth"],
+  baseUrl?: string,
+  model?: string,
 ): Promise<PluginExecutionAuthConfig | undefined> {
-  if (!authConfig) return undefined;
+  if (!authConfig && !baseUrl && !model) return undefined;
+  if (!authConfig) {
+    return {
+      ...(baseUrl ? { baseUrl } : {}),
+      ...(model ? { model } : {}),
+    };
+  }
+
   const value = await resolvePluginAuthValue(pluginId, authConfig);
 
   return {
-    type: authConfig.type,
-    key: authConfig.key,
-    addTo: authConfig.addTo,
+    type: authConfig?.type,
+    key: authConfig?.key,
+    addTo: authConfig?.addTo,
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(model ? { model } : {}),
     valueSecret: await encryptSecret(value, BYOK_CONTEXTS.pluginAuth(pluginId)),
   };
 }
@@ -178,6 +189,8 @@ export const executePluginFunction = async (
           buildPluginAuthConfig(
             modifiedPlugin.id,
             hasAuth ? authOverride || config?.auth : undefined,
+            config?.baseUrl,
+            config?.model,
           );
         const response = await postPluginExecutionWithLegacyFallback(
           async () => ({
@@ -228,6 +241,8 @@ export const executePluginFunction = async (
     const authConfig = await buildPluginAuthConfig(
       foundPlugin.id,
       authOverride || config?.auth,
+      config?.baseUrl,
+      config?.model,
     );
     return await executeBackendPluginFunction(
       foundPlugin,

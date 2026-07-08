@@ -116,14 +116,14 @@ interface ReadableAttachmentDocument {
 interface PdfPrintJob {
   id: string;
   title: string;
-  content: string;
+  message: Message;
   searchSources: NonNullable<Message["searchSources"]>;
 }
 
 interface ImageExportJob {
   id: string;
   title: string;
-  content: string;
+  message: Message;
   searchSources: NonNullable<Message["searchSources"]>;
   width: number;
 }
@@ -348,7 +348,7 @@ const UserMessageEditor = ({
   };
 
   return (
-    <div className="rounded-lg border border-input bg-background shadow-sm">
+    <div className="rounded-lg border border-input bg-background shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
       <textarea
         ref={textareaRef}
         value={draft}
@@ -356,7 +356,7 @@ const UserMessageEditor = ({
           setDraft(event.target.value);
           setPolishError(null);
         }}
-        className="max-h-72 min-h-28 w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+        className="max-h-72 min-h-28 w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-ring"
         aria-label={t("editUserMessageAria")}
         autoFocus
       />
@@ -447,6 +447,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const [imageExportJob, setImageExportJob] = useState<ImageExportJob | null>(
     null,
   );
+  const [imageExportError, setImageExportError] = useState<string | null>(null);
 
   // Immersive / Reading Mode State
   const [readingMode, setReadingMode] = useState<
@@ -487,7 +488,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const originalDocumentTitleRef = useRef<string | null>(null);
 
   // Get Store Data
-  const { getCurrentSession, selectedModel, activeMessages } = useChatStore();
+  const { getCurrentSession, selectedModel, activeMessages, updateMessage } =
+    useChatStore();
   const { openImagePreview } = useUIStore();
   const { system, voice } = useSettingsStore();
 
@@ -733,6 +735,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         const didProxy = proxyMessageExportImages(root);
         if (!didProxy) {
           logMessageItemError("Failed to export message image", firstError);
+          setImageExportError(t("downloadImageFailed"));
           return;
         }
 
@@ -743,6 +746,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         } catch (retryError) {
           if (!cancelled) {
             logMessageItemError("Failed to export message image", retryError);
+            setImageExportError(t("downloadImageFailed"));
           }
         }
       } finally {
@@ -761,7 +765,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
       if (firstFrame !== null) cancelAnimationFrame(firstFrame);
       if (secondFrame !== null) cancelAnimationFrame(secondFrame);
     };
-  }, [imageExportJob]);
+  }, [imageExportJob, t]);
 
   // Typewriter Effect Logic using requestAnimationFrame
   useEffect(() => {
@@ -858,17 +862,18 @@ const MessageItem: React.FC<MessageItemProps> = ({
     setPdfPrintJob({
       id: `${message.id}-${Date.now()}`,
       title: getMessageDownloadName("pdf"),
-      content: message.content,
+      message,
       searchSources: message.searchSources || [],
     });
     setShowMoreMenu(false);
   };
 
   const handleDownloadImage = () => {
+    setImageExportError(null);
     setImageExportJob({
       id: `${message.id}-${Date.now()}`,
       title: getMessageDownloadName("png"),
-      content: message.content,
+      message,
       searchSources: message.searchSources || [],
       width: getMessageImageExportWidth(visibleMessageContentRef.current),
     });
@@ -1134,7 +1139,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
     const previewImages = imageAttachments.map((att) => ({
       url:
-        att.url || (att.data ? `data:${att.mimeType};base64,${att.data}` : ""),
+        att.displayCache?.opfsUrl ||
+        att.url ||
+        (att.data ? `data:${att.mimeType};base64,${att.data}` : ""),
       alt: att.fileName,
       description: att.fileName,
     }));
@@ -1146,6 +1153,44 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
     openImagePreview(previewImages, newIndex);
   };
+
+  const persistCachedMessageAttachments = useCallback(
+    (cachedAttachment: Attachment) => {
+      const sessionId = getCurrentSession()?.id;
+      if (!sessionId || !message.attachments?.length) return;
+
+      let changed = false;
+      const attachments = message.attachments.map((attachment) => {
+        if (attachment.id !== cachedAttachment.id) return attachment;
+        changed = true;
+        return cachedAttachment;
+      });
+      if (!changed) return;
+
+      updateMessage(sessionId, message.id, { attachments });
+    },
+    [getCurrentSession, message.attachments, message.id, updateMessage],
+  );
+
+  const persistCachedOutputImage = useCallback(
+    (cachedImage: Attachment) => {
+      const sessionId = getCurrentSession()?.id;
+      if (!sessionId || !message.outputBlocks?.length) return;
+
+      let changed = false;
+      const outputBlocks = message.outputBlocks.map((block) => {
+        if (block.type !== "image" || block.image.id !== cachedImage.id) {
+          return block;
+        }
+        changed = true;
+        return { ...block, image: cachedImage };
+      });
+      if (!changed) return;
+
+      updateMessage(sessionId, message.id, { outputBlocks });
+    },
+    [getCurrentSession, message.id, message.outputBlocks, updateMessage],
+  );
 
   const handleReadingDialogKeyDown = (
     event: React.KeyboardEvent<HTMLDivElement>,
@@ -1210,8 +1255,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
             aria-hidden="true"
             data-print-job-id={pdfPrintJob.id}
           >
-            <MarkdownRenderer
-              content={pdfPrintJob.content}
+            <MessageOutputRenderer
+              message={pdfPrintJob.message}
+              displayedContent={pdfPrintJob.message.content}
               searchSources={pdfPrintJob.searchSources}
               forcedTheme="light"
               forceExpandCodeBlocks
@@ -1232,8 +1278,9 @@ const MessageItem: React.FC<MessageItemProps> = ({
               style={{ width: imageExportJob.width }}
             >
               <div className="message-export-content-root">
-                <MarkdownRenderer
-                  content={imageExportJob.content}
+                <MessageOutputRenderer
+                  message={imageExportJob.message}
+                  displayedContent={imageExportJob.message.content}
                   searchSources={imageExportJob.searchSources}
                   forceExpandCodeBlocks
                 />
@@ -1343,11 +1390,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     </div>
                   )
                 ) : (
-                  <MarkdownRenderer
-                    content={message.content}
-                    searchSources={
-                      readingMode === "message" ? sources : undefined
-                    }
+                  <MessageOutputRenderer
+                    message={message}
+                    displayedContent={message.content}
+                    searchSources={readingMode === "message" ? sources : []}
+                    onFileClick={handleFileClick}
                   />
                 )}
               </div>
@@ -1432,6 +1479,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                   attachment={att}
                   onImageClick={() => handleAttachmentClick(idx)}
                   onDocumentClick={handleDocumentAttachmentClick}
+                  onAttachmentCached={persistCachedMessageAttachments}
                 />
               ))}
             </div>
@@ -1532,6 +1580,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     isErrorMessage={isErrorMessage}
                     searchSources={sources}
                     onFileClick={handleFileClick}
+                    onImageCached={persistCachedOutputImage}
                   />
                 </div>
               )}
@@ -1545,6 +1594,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
               className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
             >
               {ttsError}
+            </div>
+          ) : null}
+          {imageExportError ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100"
+            >
+              {imageExportError}
             </div>
           ) : null}
 

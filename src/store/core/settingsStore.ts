@@ -15,13 +15,7 @@ import {
   SkillCatalog,
   SkillDataLocale,
 } from "@/types";
-import {
-  AGNES_IMAGE_PLUGIN,
-  AGNES_VIDEO_PLUGIN,
-  JINA_READER_PLUGIN,
-  WEATHER_PLUGIN,
-  UNSPLASH_PLUGIN,
-} from "@/config/plugins";
+import { BUILT_IN_PLUGINS, UNSPLASH_PLUGIN } from "@/config/plugins";
 import { DEFAULT_SYSTEM_SETTINGS } from "@/config/defaults";
 import { PublicServerConfig } from "@/lib/defaultConfig/shared";
 import {
@@ -66,7 +60,11 @@ import {
   normalizeTextSkill,
 } from "../../lib/skills";
 import { normalizeSystemSettings } from "../../lib/settings/appConfig";
-import { clearBrowserAppData } from "../../lib/data/clearAppData";
+import {
+  clearBrowserAppData,
+  clearBrowserAppDataSources,
+  type BrowserAppDataSource,
+} from "../../lib/data/clearAppData";
 import {
   createBrowserAppExportPayload,
   type AppExportPayload,
@@ -186,17 +184,10 @@ interface SettingsState {
 
   // Data Management
   exportAllData: () => Promise<AppExportPayload>;
+  clearDataSources: (sources: BrowserAppDataSource[]) => Promise<void>;
   clearAllData: () => Promise<void>;
 }
 
-// 内置插件列表
-const BUILT_IN_PLUGINS = [
-  JINA_READER_PLUGIN,
-  WEATHER_PLUGIN,
-  UNSPLASH_PLUGIN,
-  AGNES_IMAGE_PLUGIN,
-  AGNES_VIDEO_PLUGIN,
-] as const;
 const BUILT_IN_PLUGINS_BY_ID = new Map(
   BUILT_IN_PLUGINS.map((plugin) => [plugin.id, plugin]),
 );
@@ -275,7 +266,7 @@ const syncCustomSkillsFromInstalled = (skills: readonly TextSkill[]) =>
     MARKET_LIMITS.maxCustomSkills,
   );
 
-const SKILL_DATA_LOCALES: readonly SkillDataLocale[] = ["en", "zh-CN"];
+const SKILL_DATA_LOCALES: readonly SkillDataLocale[] = ["en", "zh-CN", "ja"];
 
 const normalizeSkillCatalogCache = (
   value: unknown,
@@ -1201,6 +1192,12 @@ export const useSettingsStore = create<SettingsState>()(
 
       // Data Management
       exportAllData: async () => createBrowserAppExportPayload(),
+      clearDataSources: async (sources) => {
+        await clearBrowserAppDataSources({ sources, rag: get().rag });
+        if (typeof window !== "undefined") {
+          window.location.reload();
+        }
+      },
       clearAllData: async () => {
         await clearBrowserAppData(get().rag);
         if (typeof window !== "undefined") {

@@ -13,6 +13,13 @@ import {
 } from "./toolCalls";
 import { normalizeSearchSources } from "../search/results";
 import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
+import type { ReasoningMode } from "../../types";
+import {
+  isExplicitReasoningEffort,
+  isReasoningEnabled,
+  normalizeReasoningMode,
+} from "../chat/reasoning";
+import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
 
 export interface OpenAIStreamOptions {
   client: OpenAI;
@@ -21,6 +28,7 @@ export interface OpenAIStreamOptions {
   temperature?: number;
   tools?: any[];
   useReasoning?: boolean;
+  reasoningMode?: ReasoningMode;
   onChunk: (message: SSEMessage) => void;
 }
 
@@ -135,6 +143,56 @@ async function createOpenAIStreamRequest(
   });
 }
 
+function extractImageDataValue(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const data = extractImageDataValue(item);
+      if (data) return data;
+    }
+    return "";
+  }
+  if (typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+  return (
+    extractImageDataValue(record.result) ||
+    extractImageDataValue(record.image) ||
+    extractImageDataValue(record.b64_json) ||
+    extractImageDataValue(record.data) ||
+    extractImageDataValue(record.partial_image_b64) ||
+    extractImageDataValue(record.base64)
+  );
+}
+
+function emitResponsesImageGeneration(
+  event: any,
+  onChunk: (message: SSEMessage) => void,
+): void {
+  const item = event?.item || event?.output || event;
+  const data = extractImageDataValue([
+    item?.result,
+    item?.image,
+    item?.b64_json,
+    item?.data,
+    item?.partial_image_b64,
+    event?.result,
+    event?.image,
+    event?.b64_json,
+    event?.data,
+    event?.partial_image_b64,
+  ]);
+  const image = normalizeGeneratedImageAttachment({
+    id: item?.id || event?.item_id || event?.id,
+    mimeType: item?.mime_type || item?.mimeType || event?.mime_type,
+    data,
+    fileName: item?.file_name || item?.fileName || "generated-image.png",
+  });
+
+  if (image) onChunk({ type: "image", image });
+}
+
 type ThinkTagStreamEvent = {
   type: "content" | "reasoning";
   content: string;
@@ -238,7 +296,9 @@ export interface OpenAIResponsesStreamOptions {
   temperature?: number;
   tools?: any[];
   useReasoning?: boolean;
+  reasoningMode?: ReasoningMode;
   enableWebSearch?: boolean;
+  enableImageGeneration?: boolean;
   onChunk: (message: SSEMessage) => void;
 }
 
@@ -248,6 +308,7 @@ interface ChatCompletionRequestOptions {
   temperature?: number;
   tools?: any[];
   useReasoning?: boolean;
+  reasoningMode?: ReasoningMode;
 }
 
 function normalizeChatCompletionMessages(messages: any[]): any[] {
@@ -277,7 +338,9 @@ function createChatCompletionRequestParams({
   temperature = 1,
   tools,
   useReasoning,
+  reasoningMode: rawReasoningMode,
 }: ChatCompletionRequestOptions): any {
+  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
   const requestParams: any = {
     model,
     messages: normalizeChatCompletionMessages(messages),
@@ -294,9 +357,8 @@ function createChatCompletionRequestParams({
     }
   }
 
-  // Add reasoning effort for o1 models if useReasoning is enabled
-  if (isO1Model && useReasoning) {
-    requestParams.reasoning_effort = "high";
+  if (isExplicitReasoningEffort(reasoningMode)) {
+    requestParams.reasoning_effort = reasoningMode;
   }
 
   return requestParams;
@@ -406,8 +468,10 @@ export async function streamOpenAIChatCompletions(
     temperature = 1,
     tools,
     useReasoning,
+    reasoningMode: rawReasoningMode,
     onChunk,
   } = options;
+  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
 
   const startTime = Date.now();
   const requestParams = createChatCompletionRequestParams({
@@ -416,6 +480,7 @@ export async function streamOpenAIChatCompletions(
     temperature,
     tools,
     useReasoning,
+    reasoningMode,
   });
 
   const stream = (await createOpenAIStreamRequest(
@@ -425,7 +490,7 @@ export async function streamOpenAIChatCompletions(
   await finishChatCompletionStream(
     stream,
     startTime,
-    Boolean(useReasoning),
+    isReasoningEnabled(reasoningMode),
     onChunk,
   );
 }
@@ -449,9 +514,12 @@ export async function streamOpenAIResponses(
     temperature,
     tools,
     useReasoning,
+    reasoningMode: rawReasoningMode,
     enableWebSearch,
+    enableImageGeneration,
     onChunk,
   } = options;
+  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
 
   const startTime = Date.now();
   const requestParams: any = {
@@ -470,9 +538,17 @@ export async function streamOpenAIResponses(
       "web_search_call.action.sources",
     ];
   }
+  if (
+    enableImageGeneration &&
+    !requestTools.some((tool) => tool?.type === "image_generation")
+  ) {
+    requestTools.push({ type: "image_generation" });
+  }
   if (requestTools.length > 0) requestParams.tools = requestTools;
-  if (useReasoning) {
-    requestParams.reasoning = { effort: "high", summary: "auto" };
+  if (reasoningMode === "auto") {
+    requestParams.reasoning = { summary: "auto" };
+  } else if (isExplicitReasoningEffort(reasoningMode)) {
+    requestParams.reasoning = { effort: reasoningMode, summary: "auto" };
   }
 
   const stream = (await createOpenAIStreamRequest(
@@ -495,7 +571,7 @@ export async function streamOpenAIResponses(
       case "response.reasoning_summary_text.delta":
       case "response.reasoning_text.delta": {
         const reasoningContent = extractTextValue(event.delta);
-        if (useReasoning && reasoningContent) {
+        if (isReasoningEnabled(reasoningMode) && reasoningContent) {
           hasStreamedReasoning = true;
           onChunk({ type: "reasoning", content: reasoningContent });
         }
@@ -533,7 +609,7 @@ export async function streamOpenAIResponses(
         if (item?.type === "reasoning") {
           if (!hasStreamedReasoning) {
             const reasoningContent = extractReasoningSummary(item);
-            if (useReasoning && reasoningContent) {
+            if (isReasoningEnabled(reasoningMode) && reasoningContent) {
               onChunk({ type: "reasoning", content: reasoningContent });
             }
           }
@@ -581,6 +657,13 @@ export async function streamOpenAIResponses(
         }
         break;
       }
+
+      case "response.image_generation_call.completed":
+        emitResponsesImageGeneration(event, onChunk);
+        break;
+
+      case "response.image_generation_call.partial_image":
+        break;
 
       case "response.completed": {
         const usage = event.response?.usage;

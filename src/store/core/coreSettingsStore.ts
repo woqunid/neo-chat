@@ -17,6 +17,7 @@ import {
   normalizeModelProvider,
   normalizeModelProviders,
 } from "@/lib/providers/config";
+import { OPENAI_COMPATIBLE_PROVIDER_TYPE } from "@/lib/providers/providerTypes";
 import { logDevError } from "../../lib/utils/devLogger";
 import {
   migrateProviderLocalSecret,
@@ -171,7 +172,7 @@ export const useCoreSettingsStore = create<CoreSettingsState>()(
         const newProvider: ModelProvider = {
           id: id,
           name: "New Provider",
-          type: "OpenAI",
+          type: OPENAI_COMPATIBLE_PROVIDER_TYPE,
           baseUrl: "https://api.openai.com",
           apiKey: "",
           enabled: true,

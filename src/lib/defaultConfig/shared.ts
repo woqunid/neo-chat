@@ -61,9 +61,22 @@ export interface PublicServerConfig {
     trustedProxyHeaders: boolean;
     byokStableKeyConfigured: boolean;
     byokEphemeralAllowed: boolean;
+    apiProof: {
+      required: boolean;
+      enabled: boolean;
+      configured: boolean;
+      protectedHighCostApis: boolean;
+      windowSeconds: number;
+      sessionTtlSeconds: number;
+    };
     rateLimitStore: PublicDeploymentStoreState;
     documentParseJobStore: PublicDeploymentStoreState;
     pluginRegistryStore: PublicDeploymentStoreState;
+  };
+  limits: {
+    attachments: {
+      maxFileBytes: number;
+    };
   };
   system?: SystemSettings;
 }

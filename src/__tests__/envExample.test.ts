@@ -16,6 +16,7 @@ const REQUIRED_ENV_KEYS = [
   "MODEL_PROVIDER_STORE",
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
+  "MAX_ATTACHMENT_FILE_BYTES",
   "NEXT_PUBLIC_SITE_URL",
   "NEXT_PUBLIC_API_URL",
   "DEFAULT_PROVIDER_TYPE",
@@ -23,6 +24,7 @@ const REQUIRED_ENV_KEYS = [
   "DEFAULT_PROVIDER_BASE_URL",
   "DEFAULT_PROVIDER_API_KEY",
   "DEFAULT_PROVIDER_MODELS",
+  "PROVIDER_REQUEST_TIMEOUT_MS",
   "DEFAULT_MODEL_TITLE_GENERATION",
   "DEFAULT_MODEL_RELATED_QUESTIONS",
   "DEFAULT_MODEL_CONTEXT_COMPRESSION",
@@ -77,6 +79,7 @@ function scanDirectProcessEnvKeys(): Set<string> {
     "src/lib/security/accessControl.ts",
     "src/lib/security/deployment.ts",
     "src/lib/security/requestGuards.ts",
+    "src/lib/security/requestProof.ts",
     "src/lib/security/rateLimitStore.ts",
     "src/lib/providers/serverRegistry.ts",
     "src/lib/plugin/serverRegistry.ts",
@@ -155,5 +158,15 @@ describe(".env.example", () => {
 
     expect(config.keep_vars).toBe(true);
     expect(vars?.keep_vars).toBeUndefined();
+    expect(vars?.DEPLOYMENT_MODE).toBe("hosted");
+  });
+
+  it("keeps copied local defaults fail-closed for proxy identity", () => {
+    const example = readFileSync(
+      resolve(process.cwd(), ".env.example"),
+      "utf8",
+    );
+
+    expect(example).toContain('TRUST_PROXY_HEADERS="false"');
   });
 });

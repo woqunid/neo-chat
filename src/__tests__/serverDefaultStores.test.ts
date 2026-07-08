@@ -59,6 +59,11 @@ const serverConfig: PublicServerConfig = {
     defaultSttAvailable: false,
     defaultTtsAvailable: false,
   },
+  limits: {
+    attachments: {
+      maxFileBytes: 10 * 1024 * 1024,
+    },
+  },
 };
 
 describe("server default store injection", () => {
@@ -69,6 +74,19 @@ describe("server default store injection", () => {
 
     useSettingsStore.setState(useSettingsStore.getInitialState(), true);
     useCoreSettingsStore.setState(useCoreSettingsStore.getInitialState(), true);
+  });
+
+  it("creates new model providers as OpenAI Compatible by default", async () => {
+    const { useCoreSettingsStore } =
+      await import("../store/core/coreSettingsStore");
+
+    const providerId = useCoreSettingsStore.getState().addProvider();
+
+    expect(
+      useCoreSettingsStore
+        .getState()
+        .providers.find((provider) => provider.id === providerId)?.type,
+    ).toBe("OpenAI Compatible");
   });
 
   it("selects default search for fresh settings but preserves persisted search choices", async () => {
@@ -91,6 +109,36 @@ describe("server default store injection", () => {
 
     useSettingsStore.getState().applyServerConfig(serverConfig);
     expect(useSettingsStore.getState().search.provider).toBe("google");
+  });
+
+  it("enables default document processing when local credentials belong to another parser", async () => {
+    const { useSettingsStore } = await import("../store/core/settingsStore");
+
+    useSettingsStore.setState((state) => ({
+      ...state,
+      rag: {
+        ...state.rag,
+        documentParseProvider: "llamaParse",
+        mineruApiToken: "mineru-token",
+        llamaParseApiKey: "",
+        useDefaultDocumentProcessing: undefined,
+      },
+    }));
+
+    useSettingsStore.getState().applyServerConfig({
+      ...serverConfig,
+      rag: {
+        ...serverConfig.rag,
+        documentProcessingAvailable: true,
+        documentProcessingProvider: "llamaParse",
+      },
+    });
+
+    expect(useSettingsStore.getState().rag).toMatchObject({
+      documentParseProvider: "llamaParse",
+      useDefaultDocumentProcessing: true,
+      serverDocumentProcessingAvailable: true,
+    });
   });
 
   it("seeds missing task-model defaults without overwriting persisted user choices", async () => {
@@ -245,6 +293,39 @@ describe("server default store injection", () => {
       JINA_READER_PLUGIN.id,
     );
     expect(hasLocalSecret(savedAuth?.localValueSecret)).toBe(true);
+  });
+
+  it("adds every configured built-in plugin to installed plugins", async () => {
+    const { useSettingsStore } = await import("../store/core/settingsStore");
+    const {
+      BUILT_IN_PLUGINS,
+      GEMINI_IMAGE_PLUGIN,
+      OPENAI_IMAGE_PLUGIN,
+      OPENAI_RESPONSES_IMAGE_PLUGIN,
+    } = await import("../config/plugins");
+
+    useSettingsStore.setState((state) => ({
+      ...state,
+      installedPlugins: state.installedPlugins.filter(
+        (plugin) =>
+          plugin.id !== GEMINI_IMAGE_PLUGIN.id &&
+          plugin.id !== OPENAI_IMAGE_PLUGIN.id &&
+          plugin.id !== OPENAI_RESPONSES_IMAGE_PLUGIN.id,
+      ),
+    }));
+
+    useSettingsStore.getState().ensureBuiltInPlugins();
+
+    const installedPluginIds = useSettingsStore
+      .getState()
+      .installedPlugins.map((plugin) => plugin.id);
+
+    expect(installedPluginIds).toEqual(
+      expect.arrayContaining(BUILT_IN_PLUGINS.map((plugin) => plugin.id)),
+    );
+    expect(installedPluginIds).toContain(GEMINI_IMAGE_PLUGIN.id);
+    expect(installedPluginIds).toContain(OPENAI_IMAGE_PLUGIN.id);
+    expect(installedPluginIds).toContain(OPENAI_RESPONSES_IMAGE_PLUGIN.id);
   });
 
   it("keeps plugin auth local secrets in persisted settings snapshots", async () => {

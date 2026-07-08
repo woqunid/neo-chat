@@ -15,6 +15,7 @@ export type {
   MessageOutputBlock,
   MessageTreeNode,
   MessageVersion,
+  ReasoningMode,
   Session,
   SessionConfig,
   SessionMessageTree,
@@ -68,6 +69,7 @@ export type {
   MemoryType,
   RAGConfig,
   SystemSettings,
+  SystemPersonality,
 } from "./lib/settings/types";
 export type {
   ServiceHealthItem,

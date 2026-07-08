@@ -24,14 +24,25 @@ Neo Chat is a self-hostable, local-first AI chat application built with Next.js,
 
 It is designed for people who want the power of modern AI workspaces without giving up local data ownership. Chat history, workspace metadata, skills, plugin configuration, memories, and files stay in the browser by default; server routes act as controlled proxies for model providers, search, RAG, document parsing, voice, plugin execution, and deployment health.
 
+## v2.1.0 Highlights
+
+- Rebuilt System Settings with clearer grouped controls, an About panel, deployment health visibility, and local data export/reset actions.
+- Added native model image generation/editing with ordered mixed text/image output blocks and OPFS-backed image display caching.
+- Expanded built-in plugin media tools with Agnes/Gemini image processing, separate OpenAI-compatible Images API and OpenAI Responses image processing plugins, plugin-level Base URL/Model ID controls, image count parameters where supported, compact image tool results, and Agnes image/video processing upgrades.
+- Added thinking intensity controls for reasoning-capable Gemini and OpenAI-compatible models.
+- Added Japanese localization for the app shell, SEO metadata, assistant locale routing, voice language handling, and the public Skills catalog.
+- Hardened hosted deployments with API request proof, shared-store checks, service health coverage, safer URL/secret handling, and Cloudflare Worker command fixes.
+- Added changelog-driven GitHub Release automation and a fork-only upstream sync workflow.
+
 ## Features
 
 - Multi-provider chat with Gemini, Anthropic, OpenAI, and OpenAI-compatible endpoints.
+- Native image generation and image editing for models whose metadata exposes image output/input, with ordered mixed text/image message blocks and OPFS-backed Blob URL display caching.
 - Local-first sessions, branches, pinned chats, workspaces, workspace files, and assistant instructions.
 - Assistant presets from the LobeHub agent registry plus local custom assistants.
 - Text-only Skills with localized public catalogs, install/uninstall flows, local edits, custom skills, auto-selection, and workspace presets.
 - OpenAPI-based plugin tools with per-plugin authentication and server-side execution.
-- Built-in tools for web reading, weather, Unsplash search, Agnes image generation, and Agnes video generation.
+- Built-in tools for web reading, weather, Unsplash search, Agnes/Gemini image processing, OpenAI-compatible image processing, OpenAI Responses image processing, and Agnes video generation. Agnes image processing supports image-to-image edits, and Agnes video generation supports public image URL to video plus plugin-level model IDs. Image processing plugins remain separate from native model image output.
 - Web search through Gemini native Google Search or external providers such as Tavily, Firecrawl, Exa, Bocha, and SearXNG.
 - Knowledge-base RAG with OPFS file storage, Mineru/LlamaParse document parsing, and optional vector indexing.
 - Local memory with optional memory search, background extraction, and dream consolidation.
@@ -193,7 +204,7 @@ Neo Chat is local-first by default:
 
 - Core settings, provider records, selected models, and provider API keys are stored in browser `localStorage`.
 - Chat metadata, messages, app settings, installed plugins, installed/custom skills, skill catalog caches, assistants, knowledge metadata, and local memories are stored in IndexedDB through `localforage`.
-- Uploaded chat, workspace, and knowledge files are stored in browser OPFS.
+- Uploaded chat, workspace, and knowledge files are stored in browser OPFS. User-sent and model-generated images also keep OPFS display-cache copies that render through runtime `blob:` URLs while preserving the original message data for model requests and export.
 - User-entered secrets are encrypted in the browser as BYOK envelopes before being sent to API routes.
 
 Important server-side settings:
@@ -238,11 +249,14 @@ DEFAULT_PROVIDER_MODELS="gpt-5.5,gpt-5.4-mini"
 # JSON string array
 DEFAULT_PROVIDER_MODELS='["gpt-5.5","gpt-5.4-mini"]'
 
-# JSON object array with optional display names and capability metadata
-DEFAULT_PROVIDER_MODELS='[{"id": "gpt-5.5","name": "GPT-5.5","capabilities": ["vision","attachment","reasoning","tool_call"]},"gpt-5.4-mini"]'
+# JSON object array with optional display names, capability aliases, and modalities
+DEFAULT_PROVIDER_MODELS='[{"id":"gpt-image-2","name":"GPT Image 2","capabilities":["image_generation"]},{"id":"gemini-3.1-flash-image","modalities":{"input":["text","image"],"output":["text","image"]}},"gpt-5.4-mini"]'
 ```
 
 For JSON object entries, `name` is optional and falls back to `id`.
+`capabilities` accepts aliases such as `vision`, `attachment`, `reasoning`,
+`tool_call`, `image_generation`, `image_output`, and `image_editing`.
+Explicit `modalities.input` / `modalities.output` are preferred when present.
 
 Default task models:
 
@@ -333,7 +347,7 @@ The app keeps durable user data in browser storage whenever possible. API routes
 
 Skills are text-only prompt-context modules. The app loads localized metadata catalogs from `public/data/skills`, fetches full skill definitions only when needed, and stores installed, edited, and custom skills locally. Active skills can be selected manually, inherited from workspace presets, or auto-selected for a message.
 
-Plugins are OpenAPI-style tools installed from manifests or built-in definitions. Enabled plugin functions are exposed to compatible models as tools, then executed by the server-side plugin route. Tool-call orchestration uses a high but bounded loop limit to avoid runaway recursive calls while still allowing multi-step tasks.
+Plugins are OpenAPI-style tools installed from manifests or built-in definitions. Enabled plugin functions are exposed to compatible models as tools, then executed by the server-side plugin route. Built-in image processing plugin results stay in the tool details and compact conversation history, so the model can decide whether and how to reference generated or edited images in its follow-up message. OpenAI-compatible Images API and OpenAI Responses image processing are separate plugins so their credentials and activation can be managed independently. Supported built-in media plugins expose plugin-level API Base URL and Model ID fields, optional image count parameters, Agnes image-to-image editing, and Agnes video generation from a public HTTPS image URL while keeping Agnes video as the explicit `create_video` / `get_video_result` two-step flow. Tool-call orchestration uses a high but bounded loop limit to avoid runaway recursive calls while still allowing multi-step tasks.
 
 Search can run through Gemini native Google Search for Gemini models or external providers for other model families. Knowledge-base RAG stores source files in OPFS, optionally parses documents with Mineru or LlamaParse, and can index chunks into an external vector service.
 
@@ -404,6 +418,25 @@ Project documentation:
 - [Reliability and Safety Model](docs/reliability-and-safety.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
+
+### Fork Synchronization
+
+Fork maintainers can enable the `Sync upstream` workflow to fast-forward their fork from the upstream `u14app/neo-chat` `main` branch.
+
+1. In the fork, open **Settings > Actions > General** and allow GitHub Actions to run.
+2. In **Workflow permissions**, select **Read and write permissions** so `GITHUB_TOKEN` can push to the fork.
+3. Open **Actions > Sync upstream > Run workflow** to trigger the first sync manually.
+4. Keep the scheduled workflow enabled if you want the fork to sync daily.
+
+The workflow is skipped in the upstream repository and only runs when GitHub marks the repository as a fork. It uses fast-forward-only merging, so it fails safely when the fork branch has diverged from upstream or a branch protection rule blocks the push.
+
+Optional repository variables can override the defaults:
+
+```text
+UPSTREAM_REPOSITORY=u14app/neo-chat
+UPSTREAM_BRANCH=main
+TARGET_BRANCH=<fork default branch>
+```
 
 ## FAQ
 

@@ -42,6 +42,7 @@ export const DEFAULT_MODEL_PARAMS = {
 export const DEFAULT_CHAT_CONFIG = {
   useSearch: false,
   useReasoning: false,
+  reasoningMode: "off",
   useRAG: false,
   temperature: 0.7,
 } as const satisfies ChatConfig;
@@ -60,6 +61,7 @@ export const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant. You suppor
  */
 export const DEFAULT_SYSTEM_SETTINGS = {
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  personality: "default",
   enableAutoTitle: true,
   enableRelatedQuestions: true,
   enableAutoCompression: true,

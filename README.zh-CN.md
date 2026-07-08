@@ -24,14 +24,25 @@ Neo Chat 是一个可自托管、本地优先的 AI 对话应用，基于 Next.j
 
 它适合想使用现代 AI 工作台、同时保持本地数据所有权的用户。默认情况下，对话历史、工作区元数据、技能、插件配置、记忆和文件都保存在浏览器内；服务端路由作为受控代理，连接模型供应商、搜索、RAG、文档解析、语音、插件执行和部署健康检查。
 
+## v2.1.0 亮点
+
+- 重构 System Settings，提供更清晰的分组控制、About 面板、部署健康可见性，以及本地数据导出/重置入口。
+- 新增模型原生图片生成/编辑，支持按顺序渲染图文混合输出块，并使用 OPFS 做图片显示缓存。
+- 扩展内置插件媒体工具：Agnes/Gemini 图片处理、独立的 OpenAI 兼容 Images API 与 OpenAI Responses 图片处理插件、插件级 Base URL/Model ID 配置、受支持接口的图片数量参数、压缩后的图片工具结果，以及 Agnes 图片/视频处理能力升级。
+- 为支持 reasoning 的 Gemini 和 OpenAI-compatible 模型新增 thinking intensity 控制。
+- 新增日文支持，覆盖应用界面、SEO metadata、助理语言路由、语音语言处理和公共 Skills 目录。
+- 加强 hosted 部署安全，加入 API request proof、共享存储检查、服务健康覆盖、更安全的 URL/密钥处理，以及 Cloudflare Worker 命令修复。
+- 新增基于 `CHANGELOG.md` 的 GitHub Release 自动化，以及仅在 fork 仓库运行的 upstream 同步 workflow。
+
 ## 功能特性
 
 - 支持 Gemini、Anthropic、OpenAI 和 OpenAI-compatible endpoint 的多供应商对话。
+- 对 metadata 声明支持图片输出/输入的模型提供原生图片生成和图片编辑，图文混排会按模型输出顺序渲染，并使用 OPFS + Blob URL 做图片显示缓存。
 - 本地优先的会话、分支、置顶对话、工作区、工作区文件和助理指令。
 - 支持 LobeHub Agent Registry 助理预设，也支持本地自定义助理。
 - 支持纯文本技能：本地化公共目录、安装/卸载、编辑内置技能、本地自定义技能、自动选择和工作区预设。
 - 支持 OpenAPI 风格插件工具、插件鉴权和服务端执行。
-- 内置网页阅读、天气、Unsplash 搜索、Agnes 图片生成、Agnes 视频生成工具。
+- 内置网页阅读、天气、Unsplash 搜索、Agnes/Gemini 图片处理、OpenAI 兼容图片处理、OpenAI Responses 图片处理、Agnes 视频生成工具。Agnes 图片处理支持图生图编辑，Agnes 视频生成支持公开图片 URL 生成视频和插件级模型 ID。图片处理插件和模型原生图片输出保持分离。
 - 支持 Gemini 原生 Google Search，以及 Tavily、Firecrawl、Exa、Bocha、SearXNG 等外部搜索。
 - 知识库 RAG 支持 OPFS 文件存储、Mineru/LlamaParse 文档解析和可选向量索引。
 - 支持本地记忆、可选记忆搜索、后台记忆提取和记忆整合。
@@ -186,7 +197,7 @@ Neo Chat 默认本地优先：
 
 - 核心设置、供应商记录、已选模型和供应商 API key 存在浏览器 `localStorage`。
 - 对话元数据、消息、应用设置、已安装插件、已安装/自定义技能、技能目录缓存、助理、知识库元数据和本地记忆通过 `localforage` 存在 IndexedDB。
-- 上传的对话文件、工作区文件和知识库文件存在浏览器 OPFS。
+- 上传的对话文件、工作区文件和知识库文件存在浏览器 OPFS。用户发送和模型生成的图片还会保存 OPFS 显示缓存，并在运行期通过 `blob:` URL 渲染；原始消息数据仍用于模型请求和导出。
 - 用户输入的密钥会先在浏览器中加密成 BYOK envelope，再发送给 API 路由。
 
 重要服务端配置：
@@ -231,11 +242,14 @@ DEFAULT_PROVIDER_MODELS="gpt-5.5,gpt-5.4-mini"
 # JSON string array
 DEFAULT_PROVIDER_MODELS='["gpt-5.5","gpt-5.4-mini"]'
 
-# JSON object array with optional display names and capability metadata
-DEFAULT_PROVIDER_MODELS='[{"id": "gpt-5.5","name": "GPT-5.5","capabilities": ["vision","attachment","reasoning","tool_call"]},"gpt-5.4-mini"]'
+# JSON object array with optional display names, capability aliases, and modalities
+DEFAULT_PROVIDER_MODELS='[{"id":"gpt-image-2","name":"GPT Image 2","capabilities":["image_generation"]},{"id":"gemini-3.1-flash-image","modalities":{"input":["text","image"],"output":["text","image"]}},"gpt-5.4-mini"]'
 ```
 
 JSON 对象条目中的 `name` 可选，缺省时会使用 `id` 作为显示名。
+`capabilities` 支持 `vision`、`attachment`、`reasoning`、`tool_call`、
+`image_generation`、`image_output`、`image_editing` 等 aliases。显式
+`modalities.input` / `modalities.output` 存在时优先生效。
 
 默认任务模型：
 
@@ -326,7 +340,7 @@ flowchart LR
 
 技能是纯文本的提示词上下文模块。应用会从 `public/data/skills` 加载本地化元数据目录，只在需要时获取完整技能定义，并把已安装、已编辑和自定义技能保存在本地。活跃技能可以手动选择，也可以来自工作区预设，或在发送消息时自动选择。
 
-插件是 OpenAPI 风格工具，可以来自 manifest 或内置定义。启用的插件函数会以 tool 形式暴露给兼容模型，再由服务端插件路由执行。工具调用编排使用较高但有边界的循环上限，既允许多步任务，也避免递归工具调用失控。
+插件是 OpenAPI 风格工具，可以来自 manifest 或内置定义。启用的插件函数会以 tool 形式暴露给兼容模型，再由服务端插件路由执行。内置图片处理插件结果保留在工具详情和压缩后的对话历史中，由模型决定是否以及如何在后续回复中引用生成或编辑后的图片。OpenAI 兼容 Images API 和 OpenAI Responses 图片处理是两个独立插件，便于分别管理密钥和启用状态。受支持的内置媒体插件提供插件级 API Base URL 与 Model ID 字段、可选图片数量参数、Agnes 图生图编辑，以及基于公开 HTTPS 图片 URL 的 Agnes 图生视频；Agnes 视频仍保持显式 `create_video` / `get_video_result` 两步流程。工具调用编排使用较高但有边界的循环上限，既允许多步任务，也避免递归工具调用失控。
 
 搜索可以使用 Gemini 模型的原生 Google Search，也可以对其他模型族使用外部搜索供应商。知识库 RAG 会把源文件存在 OPFS，可选使用 Mineru 或 LlamaParse 解析文档，并可把 chunks 索引到外部向量服务。
 
@@ -397,6 +411,25 @@ docs/                 部署和可靠性说明
 - [可靠性与安全模型](docs/reliability-and-safety.md)
 - [路线图](ROADMAP.md)
 - [变更日志](CHANGELOG.md)
+
+### Fork 同步
+
+fork 维护者可以启用 `Sync upstream` workflow，把自己的 fork 从上游 `u14app/neo-chat` 的 `main` 分支快进同步。
+
+1. 在 fork 仓库打开 **Settings > Actions > General**，允许 GitHub Actions 运行。
+2. 在 **Workflow permissions** 中选择 **Read and write permissions**，让 `GITHUB_TOKEN` 可以推送到 fork。
+3. 打开 **Actions > Sync upstream > Run workflow**，手动触发第一次同步。
+4. 如果希望每天自动同步，请保持 scheduled workflow 启用。
+
+该 workflow 会在上游仓库中跳过，只会在 GitHub 标记为 fork 的仓库里运行。它使用 fast-forward-only merge；当 fork 分支已经和上游分叉，或分支保护规则阻止推送时，会安全失败，不会自动合并冲突或强推。
+
+可选 repository variables 可以覆盖默认值：
+
+```text
+UPSTREAM_REPOSITORY=u14app/neo-chat
+UPSTREAM_BRANCH=main
+TARGET_BRANCH=<fork default branch>
+```
 
 ## FAQ
 

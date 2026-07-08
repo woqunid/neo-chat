@@ -15,12 +15,14 @@ describe("app config normalization", () => {
       normalizeChatConfig({
         useSearch: "yes",
         useReasoning: true,
+        reasoningMode: "medium",
         useRAG: true,
         temperature: 99,
       }),
     ).toEqual({
       useSearch: false,
       useReasoning: true,
+      reasoningMode: "medium",
       useRAG: true,
       temperature: CHAT_CONFIG_LIMITS.maxTemperature,
     });
@@ -35,6 +37,29 @@ describe("app config normalization", () => {
     expect(normalizeSystemSettings({})).toEqual(DEFAULT_SYSTEM_SETTINGS);
     expect(DEFAULT_SYSTEM_SETTINGS.enableHtmlVisualPrompt).toBe(true);
     expect(DEFAULT_SYSTEM_SETTINGS.enableRoleBasedMessagePosition).toBe(false);
+    expect(DEFAULT_SYSTEM_SETTINGS.personality).toBe("default");
+  });
+
+  it("migrates legacy reasoning booleans to reasoning modes", () => {
+    expect(normalizeChatConfig({ useReasoning: true }).reasoningMode).toBe(
+      "high",
+    );
+    expect(normalizeChatConfig({ useReasoning: false }).reasoningMode).toBe(
+      "off",
+    );
+    expect(
+      normalizeChatConfig({
+        useReasoning: false,
+        reasoningMode: "auto",
+      }),
+    ).toMatchObject({
+      useReasoning: true,
+      reasoningMode: "auto",
+    });
+    expect(normalizeChatConfig({ reasoningMode: "xhigh" })).toMatchObject({
+      useReasoning: false,
+      reasoningMode: "off",
+    });
   });
 
   it("normalizes system settings text and numeric ranges", () => {
@@ -73,6 +98,23 @@ describe("app config normalization", () => {
     );
     expect(normalizeSystemSettings({ fontSize: "huge" }).fontSize).toBe(
       DEFAULT_SYSTEM_SETTINGS.fontSize,
+    );
+  });
+
+  it("normalizes system personality without legacy reply style fields", () => {
+    expect(normalizeSystemSettings({ personality: "efficient" })).toMatchObject(
+      {
+        personality: "efficient",
+      },
+    );
+    expect(normalizeSystemSettings({ personality: "verbose" })).toMatchObject({
+      personality: DEFAULT_SYSTEM_SETTINGS.personality,
+    });
+    expect(
+      normalizeSystemSettings({ replyStyle: "concise" }),
+    ).not.toHaveProperty("replyStyle");
+    expect(normalizeSystemSettings({ replyTone: "direct" })).not.toHaveProperty(
+      "replyTone",
     );
   });
 });

@@ -4,6 +4,8 @@
 
 import {
   GoogleGenAI,
+  Modality,
+  ThinkingLevel,
   type GenerateContentParameters,
   type GenerateContentConfig,
 } from "@google/genai";
@@ -12,6 +14,12 @@ import { SSEMessage } from "./sse";
 import { finalizeStreamedToolCall } from "./toolCalls";
 import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
 import { normalizeSearchSources } from "../search/results";
+import type { ReasoningMode } from "../../types";
+import {
+  isExplicitReasoningEffort,
+  isReasoningEnabled,
+  normalizeReasoningMode,
+} from "../chat/reasoning";
 
 export interface GeminiStreamOptions {
   client: GoogleGenAI;
@@ -21,8 +29,91 @@ export interface GeminiStreamOptions {
   temperature?: number;
   tools?: any[];
   enableGoogleSearch?: boolean;
+  enableImageGeneration?: boolean;
+  imageCount?: number;
   useReasoning?: boolean;
+  reasoningMode?: ReasoningMode;
   onChunk: (message: SSEMessage) => void;
+}
+
+const GEMINI_THINKING_BUDGETS: Record<
+  Exclude<ReasoningMode, "off" | "auto">,
+  number
+> = {
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
+
+const GEMINI_THINKING_LEVELS: Record<
+  Exclude<ReasoningMode, "off" | "auto">,
+  ThinkingLevel
+> = {
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+};
+
+function isGemini3Model(modelName: string): boolean {
+  return modelName.toLowerCase().startsWith("gemini-3");
+}
+
+function isGemini25Model(modelName: string): boolean {
+  return modelName.toLowerCase().startsWith("gemini-2.5");
+}
+
+function canDisableGeminiThinking(modelName: string): boolean {
+  const lower = modelName.toLowerCase();
+  return (
+    lower.startsWith("gemini-2.5") &&
+    (lower.includes("flash") || lower.includes("lite")) &&
+    !lower.includes("pro")
+  );
+}
+
+function getGeminiThinkingConfig(
+  modelName: string,
+  reasoningMode: ReasoningMode,
+): GenerateContentConfig["thinkingConfig"] | undefined {
+  if (reasoningMode === "off") {
+    return canDisableGeminiThinking(modelName)
+      ? { thinkingBudget: 0 }
+      : undefined;
+  }
+
+  if (reasoningMode === "auto") {
+    return { includeThoughts: true };
+  }
+
+  if (!isExplicitReasoningEffort(reasoningMode)) return undefined;
+
+  if (isGemini3Model(modelName)) {
+    return {
+      includeThoughts: true,
+      thinkingLevel: GEMINI_THINKING_LEVELS[reasoningMode],
+    };
+  }
+
+  if (isGemini25Model(modelName)) {
+    return {
+      includeThoughts: true,
+      thinkingBudget: GEMINI_THINKING_BUDGETS[reasoningMode],
+    };
+  }
+
+  return { includeThoughts: true };
+}
+
+function appendImageCountInstruction(
+  instruction: string | undefined,
+  imageCount: number | undefined,
+): string | undefined {
+  if (!imageCount) return instruction;
+
+  const imageInstruction = `When generating images for this request, create ${imageCount} separate image output${imageCount === 1 ? "" : "s"}.`;
+  return instruction
+    ? `${instruction}\n\n${imageInstruction}`
+    : imageInstruction;
 }
 
 function extractGeminiGroundingSources(groundingMetadata: any) {
@@ -70,9 +161,13 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
     temperature = 1,
     tools,
     enableGoogleSearch,
+    enableImageGeneration,
+    imageCount,
     useReasoning,
+    reasoningMode: rawReasoningMode,
     onChunk,
   } = options;
+  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
 
   const startTime = Date.now();
 
@@ -83,17 +178,21 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
   };
   const config: GenerateContentConfig = {};
 
-  if (systemInstruction) {
-    config.systemInstruction = systemInstruction;
+  const effectiveSystemInstruction = appendImageCountInstruction(
+    systemInstruction,
+    enableImageGeneration ? imageCount : undefined,
+  );
+  if (effectiveSystemInstruction) {
+    config.systemInstruction = effectiveSystemInstruction;
   }
 
   if (temperature !== undefined) {
     config.temperature = temperature;
   }
 
-  // Enable thinking mode for reasoning
-  if (useReasoning) {
-    config.thinkingConfig = { includeThoughts: true };
+  const thinkingConfig = getGeminiThinkingConfig(modelName, reasoningMode);
+  if (thinkingConfig) {
+    config.thinkingConfig = thinkingConfig;
   }
 
   const geminiTools: NonNullable<GenerateContentConfig["tools"]> = [];
@@ -105,6 +204,9 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
   }
   if (geminiTools.length > 0) {
     config.tools = geminiTools;
+  }
+  if (enableImageGeneration) {
+    config.responseModalities = [Modality.TEXT, Modality.IMAGE];
   }
 
   requestParams.config = config;
@@ -126,7 +228,7 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
       for (const part of parts) {
         // 处理思考过程
         if (part.thought && part.text) {
-          if (useReasoning) {
+          if (isReasoningEnabled(reasoningMode)) {
             // fullReasoning += part.text;
             onChunk({ type: "reasoning", content: part.text });
           }
