@@ -60,6 +60,9 @@ describe("MessageInput composition", () => {
     );
     expect(messageInput).toContain("disabled={isInputBusy}");
     expect(messageInput).not.toContain("onToggleSearch");
+    expect(messageInput).toContain("pluginSourceGroups");
+    expect(messageInput).toContain('plugin.source === "mcp"');
+    expect(messageInput).toContain('t("mcpServers")');
     expect(messageInput).not.toContain("toggleSkillActive");
     expect(messageInput).not.toContain("formatSkillCategory");
     expect(messageInput).not.toContain("autoSelectSkills");
