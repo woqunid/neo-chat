@@ -84,6 +84,7 @@ import {
   setChatPanelUrlState,
 } from "@/lib/chat/panelUrlState";
 import { buildSearchUpdate } from "@/lib/chat/searchUpdate";
+import { createStoppedGenerationUpdate } from "@/lib/chat/messageGenerationStatus";
 
 const ImagePreview = dynamic(() => import("@/components/media/ImagePreview"), {
   ssr: false,
@@ -116,6 +117,12 @@ const SettingsPage = dynamic(
 const logChatAppError = logDevError;
 const EMPTY_MESSAGES: Message[] = [];
 const loadChatService = () => import("@/services/api/chatService");
+
+const createGenerationTiming = (startTime: number, endTime: number) => ({
+  startTime,
+  endTime,
+  duration: endTime - startTime,
+});
 
 type QueuedChatMessage = {
   sessionId: string;
@@ -788,6 +795,24 @@ const ChatApp = () => {
     }
   };
 
+  const markGenerationAborted = async (
+    sessionId: string,
+    messageId: string,
+    logMessage: string,
+  ) => {
+    const message = useChatStore
+      .getState()
+      .activeMessages.find((item) => item.id === messageId);
+    if (!message) return;
+
+    updateMessage(
+      sessionId,
+      messageId,
+      createStoppedGenerationUpdate(message, Date.now()),
+    );
+    await syncActiveSessionWithNotice(sessionId, logMessage);
+  };
+
   const stopActiveGenerationWithFeedback = async () => {
     try {
       await stopActiveGeneration();
@@ -1076,11 +1101,17 @@ const ChatApp = () => {
             isSearching,
             results,
           );
-          updateMessage(targetSessionId!, currentBotMsgId, updates);
+          updateMessage(targetSessionId!, currentBotMsgId, {
+            ...updates,
+            generationStatus: "streaming",
+          });
         },
         (toolCalls) => {
           if (!isGenerationRunActive(generation)) return;
-          updateMessage(targetSessionId!, currentBotMsgId, { toolCalls });
+          updateMessage(targetSessionId!, currentBotMsgId, {
+            toolCalls,
+            generationStatus: "streaming",
+          });
         },
         (images) => {
           if (!isGenerationRunActive(generation)) return;
@@ -1090,6 +1121,7 @@ const ChatApp = () => {
 
           updateMessage(targetSessionId!, currentBotMsgId, {
             attachments: [...currentAttachments, ...images],
+            generationStatus: "streaming",
           });
         },
         (usage) => {
@@ -1122,11 +1154,8 @@ const ChatApp = () => {
       if (!isGenerationRunActive(generation)) return;
       const endTime = Date.now();
       updateMessage(targetSessionId, currentBotMsgId, {
-        timing: {
-          startTime,
-          endTime,
-          duration: endTime - startTime,
-        },
+        generationStatus: "completed",
+        timing: createGenerationTiming(startTime, endTime),
       });
 
       // --- Post-Generation ---
@@ -1250,6 +1279,13 @@ const ChatApp = () => {
       }
     } catch (error: any) {
       if (error.name === "AbortError" || generation.controller.signal.aborted) {
+        if (botMsgId) {
+          await markGenerationAborted(
+            targetSessionId,
+            botMsgId,
+            "Failed to persist aborted generation message",
+          );
+        }
         return;
       } else {
         logChatAppError("Generating content failed:", error);
@@ -1275,28 +1311,22 @@ const ChatApp = () => {
 
         if (botMsgId) {
           updateMessage(targetSessionId, botMsgId, {
+            generationStatus: "failed",
             generationError: {
               message: errorMessage,
               recoverable: true,
             },
-            timing: {
-              startTime,
-              endTime: Date.now(),
-              duration: Date.now() - startTime,
-            },
+            timing: createGenerationTiming(startTime, Date.now()),
           });
         } else {
           const errorBotMsg = createBotMessagePlaceholder(modelDisplayName, []);
           errorBotMsg.content = "";
+          errorBotMsg.generationStatus = "failed";
           errorBotMsg.generationError = {
             message: errorMessage,
             recoverable: true,
           };
-          errorBotMsg.timing = {
-            startTime,
-            endTime: Date.now(),
-            duration: Date.now() - startTime,
-          };
+          errorBotMsg.timing = createGenerationTiming(startTime, Date.now());
           await addMessage(targetSessionId, errorBotMsg);
         }
 
@@ -1482,11 +1512,17 @@ const ChatApp = () => {
             isSearching,
             results,
           );
-          updateMessage(currentSessionId, branchMessageId, updates);
+          updateMessage(currentSessionId, branchMessageId, {
+            ...updates,
+            generationStatus: "streaming",
+          });
         },
         (toolCalls) => {
           if (!isGenerationRunActive(generation)) return;
-          updateMessage(currentSessionId, branchMessageId, { toolCalls });
+          updateMessage(currentSessionId, branchMessageId, {
+            toolCalls,
+            generationStatus: "streaming",
+          });
         },
         (images) => {
           if (!isGenerationRunActive(generation)) return;
@@ -1495,6 +1531,7 @@ const ChatApp = () => {
           const currentAttachments = msg?.attachments || [];
           updateMessage(currentSessionId, branchMessageId, {
             attachments: [...currentAttachments, ...images],
+            generationStatus: "streaming",
           });
         },
         (usage) => {
@@ -1527,11 +1564,8 @@ const ChatApp = () => {
       if (!isGenerationRunActive(generation)) return;
       const endTime = Date.now();
       updateMessage(currentSessionId, branchMessageId, {
-        timing: {
-          startTime,
-          endTime,
-          duration: endTime - startTime,
-        },
+        generationStatus: "completed",
+        timing: createGenerationTiming(startTime, endTime),
       });
 
       await syncActiveSession(currentSessionId);
@@ -1546,21 +1580,23 @@ const ChatApp = () => {
       }
     } catch (error: any) {
       if (error.name === "AbortError" || generation.controller.signal.aborted) {
+        await markGenerationAborted(
+          currentSessionId,
+          branchMessageId,
+          `Failed to persist aborted ${logPrefix.toLowerCase()} message`,
+        );
         return;
       } else {
         logChatAppError(`${logPrefix} generation failed:`, error);
         const errorMessage =
           error instanceof Error ? error.message : "An unknown error occurred.";
         updateMessage(currentSessionId, branchMessageId, {
+          generationStatus: "failed",
           generationError: {
             message: errorMessage,
             recoverable: true,
           },
-          timing: {
-            startTime,
-            endTime: Date.now(),
-            duration: Date.now() - startTime,
-          },
+          timing: createGenerationTiming(startTime, Date.now()),
         });
         await syncActiveSessionWithNotice(
           currentSessionId,
@@ -1772,11 +1808,17 @@ const ChatApp = () => {
             isSearching,
             results,
           );
-          updateMessage(sessionId, modelMessageId, updates);
+          updateMessage(sessionId, modelMessageId, {
+            ...updates,
+            generationStatus: "streaming",
+          });
         },
         (toolCalls) => {
           if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          updateMessage(sessionId, modelMessageId, { toolCalls });
+          updateMessage(sessionId, modelMessageId, {
+            toolCalls,
+            generationStatus: "streaming",
+          });
         },
         (images) => {
           if (!isGenerationRunActive(generation) || !modelMessageId) return;
@@ -1788,6 +1830,7 @@ const ChatApp = () => {
 
           updateMessage(sessionId, modelMessageId, {
             attachments: [...currentAttachments, ...images],
+            generationStatus: "streaming",
           });
         },
         (usage) => {
@@ -1826,11 +1869,8 @@ const ChatApp = () => {
       if (!isGenerationRunActive(generation) || !modelMessageId) return;
       const endTime = Date.now();
       updateMessage(sessionId, modelMessageId, {
-        timing: {
-          startTime,
-          endTime,
-          duration: endTime - startTime,
-        },
+        generationStatus: "completed",
+        timing: createGenerationTiming(startTime, endTime),
       });
 
       await syncActiveSession(sessionId);
@@ -1849,6 +1889,13 @@ const ChatApp = () => {
       }
     } catch (error: any) {
       if (error.name === "AbortError" || generation.controller.signal.aborted) {
+        if (modelMessageId) {
+          await markGenerationAborted(
+            sessionId,
+            modelMessageId,
+            "Failed to persist aborted edited user message branch",
+          );
+        }
         return;
       }
 
@@ -1857,15 +1904,12 @@ const ChatApp = () => {
         error instanceof Error ? error.message : "An unknown error occurred.";
       if (modelMessageId) {
         updateMessage(sessionId, modelMessageId, {
+          generationStatus: "failed",
           generationError: {
             message: errorMessage,
             recoverable: true,
           },
-          timing: {
-            startTime,
-            endTime: Date.now(),
-            duration: Date.now() - startTime,
-          },
+          timing: createGenerationTiming(startTime, Date.now()),
         });
         await syncActiveSessionWithNotice(
           sessionId,

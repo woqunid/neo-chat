@@ -12,6 +12,7 @@ export type {
   ChatPipelineState,
   ChatPipelineStatus,
   Message,
+  MessageGenerationStatus,
   MessageOutputBlock,
   MessageTreeNode,
   MessageVersion,

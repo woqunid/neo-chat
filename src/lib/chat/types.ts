@@ -29,6 +29,9 @@ export interface MessageVersion {
   };
 }
 
+export type MessageGenerationStatus =
+  "pending" | "streaming" | "completed" | "aborted" | "failed";
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -110,6 +113,7 @@ export interface Message {
   toolCalls?: ToolCall[];
   skillInvocations?: AppliedSkillInvocation[];
   model?: string;
+  generationStatus?: MessageGenerationStatus;
   generationError?: {
     message: string;
     recoverable?: boolean;

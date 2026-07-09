@@ -8,6 +8,10 @@ import {
   isCurrentGenerationRun,
   type ActiveGenerationSyncSnapshot,
 } from "@/lib/chat/generationLifecycle";
+import {
+  createStoppedGenerationUpdate,
+  isMessageGenerationActive,
+} from "@/lib/chat/messageGenerationStatus";
 import { useChatStore } from "@/store/core/chatStore";
 
 export interface ActiveGenerationRun {
@@ -60,7 +64,20 @@ export function useChatGenerationController({
   );
 
   const stopActiveGeneration = useCallback(async () => {
-    const state = useChatStore.getState();
+    let state = useChatStore.getState();
+    const stoppedAt = Date.now();
+    if (state.currentSessionId) {
+      for (const message of state.activeMessages) {
+        if (!isMessageGenerationActive(message)) continue;
+        state.updateMessage(
+          state.currentSessionId,
+          message.id,
+          createStoppedGenerationUpdate(message, stoppedAt),
+        );
+      }
+      state = useChatStore.getState();
+    }
+
     const syncSnapshot = createActiveGenerationSyncSnapshot({
       currentSessionId: state.currentSessionId,
       activeMessages: state.activeMessages,

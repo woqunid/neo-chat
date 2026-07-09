@@ -178,6 +178,7 @@ export function createBotMessagePlaceholder(
     reasoning: "",
     timestamp: startTime,
     model: modelDisplayName,
+    generationStatus: "pending",
     ragSources: ragSources.length > 0 ? ragSources : undefined,
     isSearching: false,
   };

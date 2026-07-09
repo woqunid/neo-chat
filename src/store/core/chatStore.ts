@@ -30,6 +30,7 @@ import {
   isReasoningEnabled,
   normalizeReasoningMode,
 } from "../../lib/chat/reasoning";
+import { isMessageGenerationActive } from "../../lib/chat/messageGenerationStatus";
 import { deleteFromOPFS } from "@/utils/opfs";
 import { logDevError } from "../../lib/utils/devLogger";
 import {
@@ -937,6 +938,9 @@ export const useChatStore = create<ChatState>()(
                 ...message,
                 content: content,
               };
+              if (isMessageGenerationActive(message)) {
+                newMessage.generationStatus = "streaming";
+              }
               if (reasoning !== undefined) {
                 newMessage.reasoning = reasoning;
               }
@@ -1049,6 +1053,7 @@ export const useChatStore = create<ChatState>()(
             reasoning: "",
             timestamp: Date.now(),
             model: modelName,
+            generationStatus: "pending",
           };
           const newMessageTree = createModelResponseBranch(
             currentMessageTree,

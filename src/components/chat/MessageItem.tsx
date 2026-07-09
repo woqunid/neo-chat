@@ -78,6 +78,7 @@ import {
   createTimedStatusResetController,
   type TimedStatusResetController,
 } from "@/lib/utils/timedStatus";
+import { isMessageGenerationActive } from "@/lib/chat/messageGenerationStatus";
 import { logDevError } from "@/lib/utils/devLogger";
 import { buildMobileMessageMetaTooltip } from "@/lib/utils/messageMetaTooltip";
 import { getMessageDisplayTokenCount } from "@/lib/utils/messageTokens";
@@ -1009,17 +1010,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
     }
   };
 
-  // Heuristic: If content is empty for a model, we are probably waiting for tokens (Regenerating),
-  // even if isTyping (which is based on last message) is false for mid-chat edits.
-  const isWaitingForResponse =
-    message.role === "model" &&
-    message.content.length === 0 &&
-    !message.attachments?.length &&
-    !message.reasoning &&
-    !message.generationError &&
-    !message.searchSources &&
-    (!message.toolCalls || message.toolCalls.length === 0);
-
   const tokenCount = useMemo(() => {
     return getMessageDisplayTokenCount(message);
   }, [message]);
@@ -1034,7 +1024,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
     message.toolCalls?.length,
   );
   const isLoading =
-    (isTyping || isWaitingForResponse) && !displayedContent && !hasOutputEvents;
+    isMessageGenerationActive(message) && !displayedContent && !hasOutputEvents;
 
   // Detect error messages for styling (starts with Error:)
   const isErrorMessage =
@@ -1054,7 +1044,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   // Reasoning Thinking State & Icon Logic
   // Also check if tools are running
   const isThinking =
-    isTyping &&
+    isMessageGenerationActive(message) &&
     message.role === "model" &&
     message.content.length === 0 &&
     !message.searchSources &&
