@@ -13,12 +13,6 @@ import {
 } from "./toolCalls";
 import { normalizeSearchSources } from "../search/results";
 import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
-import type { ReasoningMode } from "../../types";
-import {
-  isExplicitReasoningEffort,
-  isReasoningEnabled,
-  normalizeReasoningMode,
-} from "../chat/reasoning";
 import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
 
 export interface OpenAIStreamOptions {
@@ -27,8 +21,6 @@ export interface OpenAIStreamOptions {
   messages: any[];
   temperature?: number;
   tools?: any[];
-  useReasoning?: boolean;
-  reasoningMode?: ReasoningMode;
   onChunk: (message: SSEMessage) => void;
 }
 
@@ -295,8 +287,6 @@ export interface OpenAIResponsesStreamOptions {
   instructions?: string;
   temperature?: number;
   tools?: any[];
-  useReasoning?: boolean;
-  reasoningMode?: ReasoningMode;
   enableWebSearch?: boolean;
   enableImageGeneration?: boolean;
   onChunk: (message: SSEMessage) => void;
@@ -307,8 +297,6 @@ interface ChatCompletionRequestOptions {
   messages: any[];
   temperature?: number;
   tools?: any[];
-  useReasoning?: boolean;
-  reasoningMode?: ReasoningMode;
 }
 
 function normalizeChatCompletionMessages(messages: any[]): any[] {
@@ -337,10 +325,7 @@ function createChatCompletionRequestParams({
   messages,
   temperature = 1,
   tools,
-  useReasoning,
-  reasoningMode: rawReasoningMode,
 }: ChatCompletionRequestOptions): any {
-  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
   const requestParams: any = {
     model,
     messages: normalizeChatCompletionMessages(messages),
@@ -355,10 +340,6 @@ function createChatCompletionRequestParams({
     if (tools && tools.length > 0) {
       requestParams.tools = tools;
     }
-  }
-
-  if (isExplicitReasoningEffort(reasoningMode)) {
-    requestParams.reasoning_effort = reasoningMode;
   }
 
   return requestParams;
@@ -461,17 +442,7 @@ async function finishChatCompletionStream(
 export async function streamOpenAIChatCompletions(
   options: OpenAIStreamOptions,
 ) {
-  const {
-    client,
-    model,
-    messages,
-    temperature = 1,
-    tools,
-    useReasoning,
-    reasoningMode: rawReasoningMode,
-    onChunk,
-  } = options;
-  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
+  const { client, model, messages, temperature = 1, tools, onChunk } = options;
 
   const startTime = Date.now();
   const requestParams = createChatCompletionRequestParams({
@@ -479,20 +450,13 @@ export async function streamOpenAIChatCompletions(
     messages,
     temperature,
     tools,
-    useReasoning,
-    reasoningMode,
   });
 
   const stream = (await createOpenAIStreamRequest(
     client.chat.completions.create.bind(client.chat.completions),
     requestParams,
   )) as any;
-  await finishChatCompletionStream(
-    stream,
-    startTime,
-    isReasoningEnabled(reasoningMode),
-    onChunk,
-  );
+  await finishChatCompletionStream(stream, startTime, true, onChunk);
 }
 
 /**
@@ -513,13 +477,10 @@ export async function streamOpenAIResponses(
     instructions,
     temperature,
     tools,
-    useReasoning,
-    reasoningMode: rawReasoningMode,
     enableWebSearch,
     enableImageGeneration,
     onChunk,
   } = options;
-  const reasoningMode = normalizeReasoningMode(rawReasoningMode, useReasoning);
 
   const startTime = Date.now();
   const requestParams: any = {
@@ -545,11 +506,6 @@ export async function streamOpenAIResponses(
     requestTools.push({ type: "image_generation" });
   }
   if (requestTools.length > 0) requestParams.tools = requestTools;
-  if (reasoningMode === "auto") {
-    requestParams.reasoning = { summary: "auto" };
-  } else if (isExplicitReasoningEffort(reasoningMode)) {
-    requestParams.reasoning = { effort: reasoningMode, summary: "auto" };
-  }
 
   const stream = (await createOpenAIStreamRequest(
     client.responses.create.bind(client.responses),
@@ -571,7 +527,7 @@ export async function streamOpenAIResponses(
       case "response.reasoning_summary_text.delta":
       case "response.reasoning_text.delta": {
         const reasoningContent = extractTextValue(event.delta);
-        if (isReasoningEnabled(reasoningMode) && reasoningContent) {
+        if (reasoningContent) {
           hasStreamedReasoning = true;
           onChunk({ type: "reasoning", content: reasoningContent });
         }
@@ -609,7 +565,7 @@ export async function streamOpenAIResponses(
         if (item?.type === "reasoning") {
           if (!hasStreamedReasoning) {
             const reasoningContent = extractReasoningSummary(item);
-            if (isReasoningEnabled(reasoningMode) && reasoningContent) {
+            if (reasoningContent) {
               onChunk({ type: "reasoning", content: reasoningContent });
             }
           }

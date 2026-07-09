@@ -14,8 +14,6 @@
   "presetParameters": "プリセットパラメータ",
   "enableSearch": "検索を有効化",
   "enableSearchAria": "このワークスペースで検索を有効化",
-  "enableReasoning": "思考プロセスを有効化",
-  "enableReasoningAria": "このワークスペースで思考プロセスを有効化",
   "activePlugins": "有効なプラグイン",
   "disablePluginAria": "プラグイン {title} を無効化",
   "enablePluginAria": "プラグイン {title} を有効化",

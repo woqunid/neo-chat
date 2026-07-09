@@ -11,7 +11,6 @@ import {
   UploadCloud,
   Library,
   Globe,
-  Lightbulb,
   Blocks,
   Check,
   Loader2,
@@ -120,9 +119,6 @@ const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
   // New Presets
   const [enableSearch, setEnableSearch] = useState(
     workspace?.enableSearch || false,
-  );
-  const [enableReasoning, setEnableReasoning] = useState(
-    workspace?.enableReasoning || false,
   );
   const [activePlugins, setActivePlugins] = useState<string[]>(
     normalizePluginIdRefs(
@@ -234,7 +230,6 @@ const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
       files,
       color: selectedColor,
       enableSearch,
-      enableReasoning,
       activePlugins: normalizePluginIdRefs(
         activePlugins,
         installedPlugins.map((plugin) => plugin.id),
@@ -665,18 +660,6 @@ const WorkspaceSettingsModal: React.FC<WorkspaceSettingsModalProps> = ({
                     name="workspaceEnableSearch"
                     checked={enableSearch}
                     onChange={() => setEnableSearch(!enableSearch)}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-foreground/85">
-                    <Lightbulb size={16} aria-hidden="true" />{" "}
-                    {t("enableReasoning")}
-                  </div>
-                  <SimpleSwitch
-                    ariaLabel={t("enableReasoningAria")}
-                    name="workspaceEnableReasoning"
-                    checked={enableReasoning}
-                    onChange={() => setEnableReasoning(!enableReasoning)}
                   />
                 </div>
               </div>

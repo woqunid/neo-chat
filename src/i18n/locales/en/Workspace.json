@@ -14,8 +14,6 @@
   "presetParameters": "Preset Parameters",
   "enableSearch": "Enable Search",
   "enableSearchAria": "Enable search for this workspace",
-  "enableReasoning": "Enable Reasoning",
-  "enableReasoningAria": "Enable reasoning for this workspace",
   "activePlugins": "Active Plugins",
   "disablePluginAria": "Disable plugin {title}",
   "enablePluginAria": "Enable plugin {title}",

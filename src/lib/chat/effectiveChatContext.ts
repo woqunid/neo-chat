@@ -292,15 +292,6 @@ export function resolveEffectiveChatContext(
     }
   }
 
-  if (chatConfig.useReasoning && !modelCapabilities.reasoning) {
-    statuses.push({
-      code: "reasoning_unsupported",
-      level: "info",
-      message:
-        "Reasoning is enabled but the selected model is not marked as reasoning-capable.",
-    });
-  }
-
   return {
     sessionId: session?.id || null,
     systemInstruction: buildSystemInstruction({

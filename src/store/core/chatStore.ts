@@ -26,10 +26,6 @@ import {
   normalizeWorkspace,
 } from "../../lib/chat/entities";
 import { DEFAULT_CHAT_CONFIG } from "../../config/defaults";
-import {
-  isReasoningEnabled,
-  normalizeReasoningMode,
-} from "../../lib/chat/reasoning";
 import { isMessageGenerationActive } from "../../lib/chat/messageGenerationStatus";
 import { deleteFromOPFS } from "@/utils/opfs";
 import { logDevError } from "../../lib/utils/devLogger";
@@ -417,21 +413,10 @@ const applySessionConfig = (
   sessionConfig?: SessionConfig,
 ): ChatConfig => {
   if (!sessionConfig) return currentConfig;
-  const hasReasoningConfig =
-    sessionConfig.reasoningMode !== undefined ||
-    sessionConfig.useReasoning !== undefined;
-  const reasoningMode = hasReasoningConfig
-    ? normalizeReasoningMode(
-        sessionConfig.reasoningMode,
-        sessionConfig.useReasoning,
-      )
-    : currentConfig.reasoningMode;
 
   return normalizeChatConfig({
     ...currentConfig,
     useSearch: sessionConfig.useSearch ?? currentConfig.useSearch,
-    useReasoning: isReasoningEnabled(reasoningMode),
-    reasoningMode,
   });
 };
 

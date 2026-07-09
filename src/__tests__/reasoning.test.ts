@@ -26,7 +26,7 @@ describe("reasoning mode helpers", () => {
     expect(resolveReasoningModeForModel("high", metadata)).toBe("high");
   });
 
-  it("normalizes request config against selected model reasoning support", () => {
+  it("ignores legacy request reasoning config", () => {
     const config = resolveEffectiveChatRequestConfig({
       chatConfig: {
         useSearch: true,
@@ -48,8 +48,8 @@ describe("reasoning mode helpers", () => {
 
     expect(config).toMatchObject({
       useSearch: true,
-      reasoningMode: "auto",
-      useReasoning: true,
+      reasoningMode: "off",
+      useReasoning: false,
       temperature: 0.7,
     });
   });

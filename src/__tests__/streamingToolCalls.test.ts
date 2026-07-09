@@ -462,7 +462,7 @@ describe("streamed tool-call normalization", () => {
     );
   });
 
-  it("suppresses OpenAI Compatible reasoning deltas when reasoning is disabled", async () => {
+  it("streams OpenAI Compatible reasoning deltas without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       chat: {
@@ -498,15 +498,16 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "compat-model",
       messages: [],
-      useReasoning: false,
       onChunk: (message) => messages.push(message),
     });
 
-    expect(reasoningMessages(messages)).toEqual([]);
+    expect(
+      reasoningMessages(messages).map((message) => message.content),
+    ).toEqual(["Hidden chain. ", "More hidden reasoning."]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
 
-  it("streams OpenAI Compatible reasoning deltas when reasoning is enabled", async () => {
+  it("does not send OpenAI Compatible reasoning effort controls", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       chat: {
@@ -542,19 +543,18 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "compat-model",
       messages: [],
-      reasoningMode: "high",
       onChunk: (message) => messages.push(message),
     });
 
     const request = (client.chat.completions.create as any).mock.calls[0][0];
-    expect(request.reasoning_effort).toBe("high");
+    expect(request).not.toHaveProperty("reasoning_effort");
     expect(
       reasoningMessages(messages).map((message) => message.content),
     ).toEqual(["Consider freshness. ", "Check sources."]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
 
-  it("maps OpenAI Compatible reasoning modes to reasoning_effort only for explicit strengths", async () => {
+  it("ignores OpenAI Compatible reasoning modes when building requests", async () => {
     const makeClient = () => ({
       chat: {
         completions: {
@@ -570,28 +570,25 @@ describe("streamed tool-call normalization", () => {
       client: lowClient as any,
       model: "compat-model",
       messages: [],
-      reasoningMode: "low",
       onChunk: () => undefined,
     });
     await streamOpenAIChatCompletions({
       client: autoClient as any,
       model: "compat-model",
       messages: [],
-      reasoningMode: "auto",
       onChunk: () => undefined,
     });
     await streamOpenAIChatCompletions({
       client: offClient as any,
       model: "compat-model",
       messages: [],
-      reasoningMode: "off",
       onChunk: () => undefined,
     });
 
     expect(
       (lowClient.chat.completions.create as any).mock.calls[0][0]
         .reasoning_effort,
-    ).toBe("low");
+    ).toBeUndefined();
     expect(
       (autoClient.chat.completions.create as any).mock.calls[0][0],
     ).not.toHaveProperty("reasoning_effort");
@@ -627,7 +624,6 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "deepseek-reasoner",
       messages: [],
-      useReasoning: true,
       onChunk: (message) => messages.push(message),
     });
 
@@ -662,7 +658,6 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "deepseek-reasoner",
       messages: [],
-      useReasoning: true,
       onChunk: (message) => messages.push(message),
     });
 
@@ -678,7 +673,7 @@ describe("streamed tool-call normalization", () => {
     ).toBe("Start  Done.");
   });
 
-  it("strips DeepSeek think tags from visible content when reasoning is disabled", async () => {
+  it("separates DeepSeek think tags even when legacy reasoning is disabled", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       chat: {
@@ -704,11 +699,12 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "deepseek-reasoner",
       messages: [],
-      useReasoning: false,
       onChunk: (message) => messages.push(message),
     });
 
-    expect(reasoningMessages(messages)).toEqual([]);
+    expect(
+      reasoningMessages(messages).map((message) => message.content),
+    ).toEqual(["Hidden chain."]);
     expect(
       contentMessages(messages)
         .map((message) => message.content)
@@ -716,7 +712,7 @@ describe("streamed tool-call normalization", () => {
     ).toBe("Answer");
   });
 
-  it("suppresses OpenAI Responses reasoning events when reasoning is disabled", async () => {
+  it("streams OpenAI Responses reasoning events without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       responses: {
@@ -746,18 +742,19 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gpt-test",
       input: [],
-      useReasoning: false,
       onChunk: (message) => messages.push(message),
     });
 
-    expect(reasoningMessages(messages)).toEqual([]);
+    expect(
+      reasoningMessages(messages).map((message) => message.content),
+    ).toEqual(["Hidden summary."]);
     expect(messages).toContainEqual({
       type: "content",
       content: "Visible answer",
     });
   });
 
-  it("requests OpenAI Responses reasoning summaries and native web search", async () => {
+  it("uses OpenAI Responses native web search without reasoning controls", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       responses: {
@@ -811,16 +808,12 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gpt-test",
       input: [],
-      reasoningMode: "high",
       enableWebSearch: true,
       onChunk: (message) => messages.push(message),
     });
 
     const request = (client.responses.create as any).mock.calls[0][0];
-    expect(request.reasoning).toMatchObject({
-      effort: "high",
-      summary: "auto",
-    });
+    expect(request).not.toHaveProperty("reasoning");
     expect(request.tools).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "web_search_preview" }),
@@ -847,7 +840,7 @@ describe("streamed tool-call normalization", () => {
     );
   });
 
-  it("requests OpenAI Responses reasoning summaries without effort in auto mode", async () => {
+  it("does not request OpenAI Responses reasoning summaries in auto mode", async () => {
     const client = {
       responses: {
         create: vi.fn(async () => asyncChunks([])),
@@ -858,12 +851,11 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gpt-test",
       input: [],
-      reasoningMode: "auto",
       onChunk: () => undefined,
     });
 
     const request = (client.responses.create as any).mock.calls[0][0];
-    expect(request.reasoning).toEqual({ summary: "auto" });
+    expect(request).not.toHaveProperty("reasoning");
   });
 
   it("normalizes Gemini tool calls with unique IDs and argument errors", async () => {
@@ -926,7 +918,7 @@ describe("streamed tool-call normalization", () => {
     expect(String(calls[1].toolCall.result)).toMatch(/JSON object/i);
   });
 
-  it("suppresses Gemini thought parts when reasoning is disabled", async () => {
+  it("streams Gemini thought parts without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       models: {
@@ -953,11 +945,12 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gemini-test",
       contents: [],
-      reasoningMode: "off",
       onChunk: (message) => messages.push(message),
     });
 
-    expect(reasoningMessages(messages)).toEqual([]);
+    expect(
+      reasoningMessages(messages).map((message) => message.content),
+    ).toEqual(["Hidden thought. "]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
 
@@ -998,13 +991,12 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gemini-test",
       contents: [],
-      reasoningMode: "auto",
       onChunk: (message) => messages.push(message),
     });
 
     const request = (client.models.generateContentStream as any).mock
       .calls[0][0];
-    expect(request.config.thinkingConfig).toEqual({ includeThoughts: true });
+    expect(request.config).not.toHaveProperty("thinkingConfig");
     expect(
       reasoningMessages(messages).map((message) => message.content),
     ).toEqual(["I should search. "]);
@@ -1018,7 +1010,7 @@ describe("streamed tool-call normalization", () => {
     ]);
   });
 
-  it("maps Gemini 2.5 reasoning modes to thinking budgets", async () => {
+  it("does not map Gemini 2.5 reasoning modes to thinking budgets", async () => {
     const client = {
       models: {
         generateContentStream: vi.fn(async () => asyncChunks([])),
@@ -1029,19 +1021,15 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gemini-2.5-flash",
       contents: [],
-      reasoningMode: "medium",
       onChunk: () => undefined,
     });
 
     const request = (client.models.generateContentStream as any).mock
       .calls[0][0];
-    expect(request.config.thinkingConfig).toEqual({
-      includeThoughts: true,
-      thinkingBudget: 8192,
-    });
+    expect(request.config).not.toHaveProperty("thinkingConfig");
   });
 
-  it("maps Gemini 3 reasoning modes to thinking levels", async () => {
+  it("does not map Gemini 3 reasoning modes to thinking levels", async () => {
     const client = {
       models: {
         generateContentStream: vi.fn(async () => asyncChunks([])),
@@ -1052,15 +1040,11 @@ describe("streamed tool-call normalization", () => {
       client: client as any,
       model: "gemini-3-flash-preview",
       contents: [],
-      reasoningMode: "low",
       onChunk: () => undefined,
     });
 
     const request = (client.models.generateContentStream as any).mock
       .calls[0][0];
-    expect(request.config.thinkingConfig).toEqual({
-      includeThoughts: true,
-      thinkingLevel: "LOW",
-    });
+    expect(request.config).not.toHaveProperty("thinkingConfig");
   });
 });

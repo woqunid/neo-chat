@@ -507,7 +507,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       workspace.files,
       {
         useSearch: workspace.enableSearch,
-        useReasoning: workspace.enableReasoning,
         activePlugins: workspace.activePlugins,
         activeSkills: workspace.activeSkills,
       },

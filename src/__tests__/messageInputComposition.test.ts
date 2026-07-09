@@ -77,22 +77,15 @@ describe("MessageInput composition", () => {
       "text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20",
     );
     expect(messageInput).toContain("handlePolishInput");
-    expect(messageInput).toContain("reasoningOptions");
-    expect(messageInput).toContain("reasoningMode");
-    expect(messageInput).toContain("DropdownMenuRadioGroup");
-    expect(messageInput).toContain('t("reasoningModeAuto")');
-    expect(messageInput).toContain('t("reasoningModeHigh")');
-    expect(messageInput).toContain("w-40 p-1.5 md:w-72");
-    expect(messageInput).toContain(
-      "h-auto min-h-8 rounded-md px-2 py-1.5 pr-8",
-    );
+    expect(messageInput).not.toContain("reasoningOptions");
+    expect(messageInput).not.toContain("showReasoningSelect");
+    expect(messageInput).not.toContain('t("reasoningModeAuto")');
+    expect(messageInput).not.toContain('t("reasoningModeHigh")');
     expect(messageInput).toContain("hover:bg-accent");
-    expect(messageInput).toContain("data-[state=checked]:bg-accent");
     expect(messageInput).not.toContain(
       "data-[state=checked]:border-violet-300",
     );
-    expect(messageInput).toContain("hidden text-[11px]");
-    expect(messageInput).toContain("md:block");
+    expect(messageInput).not.toContain("<Lightbulb");
     expect(messageInput).not.toContain(
       "setChatConfig({ useReasoning: !chatConfig.useReasoning })",
     );
@@ -120,9 +113,6 @@ describe("MessageInput composition", () => {
     expect(messageInput).not.toContain("showAttachMenu && hasAttachmentMenu");
     expect(messageInput).toContain("textFallbackInputRef.current?.click()");
     expect(messageInput).not.toContain("const AttachmentPreviewCard");
-    expect(messageInput.indexOf("{/* Reasoning Button")).toBeLessThan(
-      messageInput.indexOf("{/* Search Button */}"),
-    );
     expect(messageInput.indexOf("{/* Search Button */}")).toBeLessThan(
       messageInput.indexOf("{/* Model Selector */}"),
     );
