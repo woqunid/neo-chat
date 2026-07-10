@@ -7,19 +7,30 @@ import zh from "../i18n/locales/zh";
 
 describe("settings UI primitives", () => {
   it("uses shadcn-style semantic tokens for select and switch controls", () => {
-    const settingsUi = readFileSync(
-      resolve(process.cwd(), "src/components/settings/SettingsUI.tsx"),
-      "utf8",
-    );
+    const settingsUi = [
+      "SettingsUI.tsx",
+      "CustomSelect.tsx",
+      "useCustomSelect.ts",
+      "SettingsPrimitives.tsx",
+      "SecretInput.tsx",
+    ]
+      .map((fileName) =>
+        readFileSync(
+          resolve(process.cwd(), "src/components/settings", fileName),
+          "utf8",
+        ),
+      )
+      .join("\n");
 
     expect(settingsUi).toContain("bg-background");
     expect(settingsUi).toContain("border-input");
     expect(settingsUi).toContain("focus-visible:ring-ring");
     expect(settingsUi).toContain("data-[state=checked]");
-    expect(settingsUi).toContain("handleListboxKeyDown");
-    expect(settingsUi).toContain('event.key === "ArrowDown"');
-    expect(settingsUi).toContain('event.key === "Home"');
-    expect(settingsUi).toContain('event.key === "End"');
+    expect(settingsUi).toContain("useOptionNavigation");
+    expect(settingsUi).toContain("NAVIGATION_KEYS");
+    expect(settingsUi).toContain('"ArrowDown"');
+    expect(settingsUi).toContain('"Home"');
+    expect(settingsUi).toContain('"End"');
     expect(settingsUi).toContain("aria-activedescendant");
     expect(settingsUi).toContain(
       "focus-visible:ring-2 focus-visible:ring-blue-500/60",

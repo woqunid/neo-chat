@@ -41,9 +41,9 @@ export const API_ROUTES = {
     upsert: "/api/rag/upsert",
   },
 
-  // 搜索相关
-  search: {
-    query: "/api/search",
+  // Grok 联网搜索
+  grokSearch: {
+    query: "/api/grok-search",
   },
 
   // 语音相关
@@ -61,17 +61,6 @@ export const API_ROUTES = {
 // ============================================================================
 // 外部服务 URL
 // ============================================================================
-
-/**
- * 搜索服务 URL
- */
-export const SEARCH_SERVICE_URLS = {
-  tavily: "https://api.tavily.com",
-  firecrawl: "https://api.firecrawl.dev",
-  exa: "https://api.exa.ai",
-  bocha: "https://api.bochaai.com",
-  searxng: "http://localhost:8080",
-} as const;
 
 /**
  * AI 服务 URL
@@ -96,7 +85,6 @@ export const DATA_SERVICE_URLS = {
  * 所有外部 API URL（向后兼容）
  */
 export const EXTERNAL_API_URLS = {
-  ...SEARCH_SERVICE_URLS,
   ...AI_SERVICE_URLS,
   ...DATA_SERVICE_URLS,
 } as const;
@@ -156,7 +144,6 @@ export const CACHE_CONFIG = {
   plugins: CACHE_DURATIONS.threeDays, // 72 小时
   skills: CACHE_DURATIONS.threeDays, // 72 小时
   modelMetadata: CACHE_DURATIONS.threeDays, // 72 小时
-  searchResults: CACHE_DURATIONS.short, // 5 分钟
 } as const;
 
 // ============================================================================
@@ -171,7 +158,7 @@ export const RATE_LIMIT_CONFIG = {
     maxRequests: 60,
     windowMs: 60000, // 1 分钟
   },
-  search: {
+  grokSearch: {
     maxRequests: 30,
     windowMs: 60000, // 1 分钟
   },

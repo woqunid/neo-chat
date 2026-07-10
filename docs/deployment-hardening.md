@@ -122,6 +122,7 @@ DEPLOYMENT_MODE=hosted
 RATE_LIMIT_STORE=upstash
 DOCUMENT_PARSE_JOB_STORE=upstash
 PLUGIN_REGISTRY_STORE=upstash
+MODEL_PROVIDER_STORE=upstash
 BYOK_ALLOW_EPHEMERAL_KEY=false
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
@@ -135,7 +136,6 @@ UPSTASH_REDIS_REST_URL
 UPSTASH_REDIS_REST_TOKEN
 ACCESS_PASSWORD
 DEFAULT_PROVIDER_API_KEY
-DEFAULT_SEARCH_API_KEY
 DEFAULT_RAG_TOKEN
 DEFAULT_LLAMA_PARSE_API_KEY
 DEFAULT_ELEVENLABS_API_KEY
@@ -150,7 +150,9 @@ variables when the app also needs them after deployment.
 Keep personal API keys and deployment secrets out of source control.
 Deployment-level defaults such as `DEFAULT_PROVIDER_API_KEY` are shared by every
 user of that Worker instance. Leave them unset when users should provide their
-own provider keys in local browser settings.
+own provider keys in local browser settings. The Grok web-search key is managed
+from `/superadmin` and stored through `MODEL_PROVIDER_STORE`; it must not be
+added to source files or committed configuration.
 
 Hosted mode also disables legacy plugin execution payloads where the browser
 submits a complete plugin manifest and function definition to the server. Plugin

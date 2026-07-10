@@ -89,28 +89,6 @@ describe("server default store injection", () => {
     ).toBe("OpenAI Compatible");
   });
 
-  it("selects default search for fresh settings but preserves persisted search choices", async () => {
-    const { useSettingsStore } = await import("../store/core/settingsStore");
-
-    useSettingsStore.getState().applyServerConfig(serverConfig);
-    expect(useSettingsStore.getState().search.provider).toBe("default");
-
-    useSettingsStore.setState(useSettingsStore.getInitialState(), true);
-    useSettingsStore.setState((state) => ({
-      search: {
-        ...state.search,
-        provider: "google",
-        configs: {
-          ...state.search.configs,
-          default: { serverAvailable: false },
-        },
-      },
-    }));
-
-    useSettingsStore.getState().applyServerConfig(serverConfig);
-    expect(useSettingsStore.getState().search.provider).toBe("google");
-  });
-
   it("enables default document processing when local credentials belong to another parser", async () => {
     const { useSettingsStore } = await import("../store/core/settingsStore");
 

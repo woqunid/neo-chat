@@ -1,0 +1,66 @@
+import "server-only";
+
+import { ApiError, ProviderError } from "../errors";
+import { ProviderFactory } from "../providers/base";
+import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
+import type { ServerGrokSearchConfig } from "./grokRegistry";
+import { runGrokWebSearch, type GrokSearchResult } from "./grokWebSearch";
+
+function assertConnectionConfig(config: ServerGrokSearchConfig): void {
+  if (!config.baseUrl || !config.apiKey || !config.model) {
+    throw new ApiError(
+      "Grok web search requires a Base URL, API key, and model",
+      400,
+      "GROK_SEARCH_CONFIG_INCOMPLETE",
+    );
+  }
+}
+
+function upstreamErrorDetails(error: unknown): {
+  message: string;
+  status?: number;
+} {
+  if (!(error instanceof Error)) return { message: String(error) };
+  const record = error as Error & { status?: unknown; statusCode?: unknown };
+  const statusValue = record.status ?? record.statusCode;
+  return {
+    message: error.message,
+    ...(typeof statusValue === "number" ? { status: statusValue } : {}),
+  };
+}
+
+export async function runGrokSearchWithConfig(
+  query: string,
+  config: ServerGrokSearchConfig,
+): Promise<GrokSearchResult> {
+  assertConnectionConfig(config);
+  const provider = {
+    type: "OpenAI" as const,
+    name: "Grok Web Search",
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+  };
+  await ProviderFactory.assertProviderOutboundAllowed(provider);
+  const client = ProviderFactory.createOpenAIClient(provider);
+  const timeout = getProviderRequestTimeoutMs();
+
+  try {
+    return await runGrokWebSearch({
+      query,
+      model: config.model,
+      request: (params) =>
+        client.responses.create(params as never, {
+          maxRetries: 0,
+          ...(timeout > 0 ? { timeout } : {}),
+        }),
+    });
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const details = upstreamErrorDetails(error);
+    throw new ProviderError(
+      `Grok web search failed: ${details.message}`,
+      "Grok",
+      details,
+    );
+  }
+}

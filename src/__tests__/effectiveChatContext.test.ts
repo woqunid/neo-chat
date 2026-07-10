@@ -31,7 +31,6 @@ describe("effective chat context", () => {
       systemPrompt: "Global system prompt.",
       now: new Date("2026-07-01T02:03:04.000Z"),
       selectedModel: "openai:gpt-test",
-      provider: { type: "OpenAI Compatible" },
       modelMetadata: {},
       customModelMetadata: {},
       chatConfig: {
@@ -41,10 +40,7 @@ describe("effective chat context", () => {
         temperature: 0.7,
         useRAG: true,
       },
-      search: {
-        provider: "google",
-        configs: {},
-      },
+      searchAvailable: false,
       rag: {
         enabled: true,
         url: "",
@@ -121,7 +117,6 @@ describe("effective chat context", () => {
         activeSkills: ["workspace-skill", "workspace-skill"],
       },
       selectedModel: "openai:gpt-test",
-      provider: { type: "OpenAI" },
       modelMetadata: {},
       customModelMetadata: {},
       chatConfig: {
@@ -131,10 +126,7 @@ describe("effective chat context", () => {
         temperature: 0.7,
         useRAG: false,
       },
-      search: {
-        provider: "google",
-        configs: {},
-      },
+      searchAvailable: true,
       rag: {
         enabled: false,
         url: "",
@@ -158,7 +150,6 @@ describe("effective chat context", () => {
       systemPrompt: "Global system prompt.",
       enableHtmlVisualPrompt: true,
       selectedModel: "openai:gpt-test",
-      provider: { type: "OpenAI" },
       modelMetadata: {},
       customModelMetadata: {},
       chatConfig: {
@@ -168,10 +159,7 @@ describe("effective chat context", () => {
         temperature: 0.7,
         useRAG: false,
       },
-      search: {
-        provider: "google",
-        configs: {},
-      },
+      searchAvailable: true,
       rag: {
         enabled: false,
         url: "",
@@ -218,7 +206,6 @@ describe("effective chat context", () => {
       systemPrompt: "Global system prompt.",
       enableHtmlVisualPrompt: false,
       selectedModel: "openai:gpt-test",
-      provider: { type: "OpenAI" },
       modelMetadata: {},
       customModelMetadata: {},
       chatConfig: {
@@ -228,10 +215,7 @@ describe("effective chat context", () => {
         temperature: 0.7,
         useRAG: false,
       },
-      search: {
-        provider: "google",
-        configs: {},
-      },
+      searchAvailable: true,
       rag: {
         enabled: false,
         url: "",
@@ -257,7 +241,6 @@ describe("effective chat context", () => {
     const baseOptions = {
       systemPrompt: "Global system prompt.",
       selectedModel: "openai:gpt-test",
-      provider: { type: "OpenAI" as const },
       modelMetadata: {},
       customModelMetadata: {},
       chatConfig: {
@@ -267,10 +250,7 @@ describe("effective chat context", () => {
         temperature: 0.7,
         useRAG: false,
       },
-      search: {
-        provider: "google" as const,
-        configs: {},
-      },
+      searchAvailable: true,
       rag: {
         enabled: false,
         url: "",

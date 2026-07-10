@@ -53,7 +53,6 @@ export { default as DefaultModelSettings } from "./settings/DefaultModelSettings
 export { default as ModelEditor } from "./settings/ModelEditor";
 export { default as ProviderSettings } from "./settings/ProviderSettings";
 export { default as RAGSettings } from "./settings/RAGSettings";
-export { default as SearchSettings } from "./settings/SearchSettings";
 export { default as SettingsPage } from "./settings/SettingsPage";
 export * from "./settings/SettingsUI";
 export { default as SystemSettings } from "./settings/SystemSettings";

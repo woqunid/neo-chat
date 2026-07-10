@@ -5,15 +5,12 @@ import {
   EncryptedSecretEnvelope,
 } from "./shared";
 import { arrayBufferToBytes, bytesToBase64Url } from "./encoding";
-import type { ModelProvider, SearchServiceConfig } from "../../types";
+import type { ModelProvider } from "../../types";
 import {
   SERVER_DEFAULT_PROVIDER_ID,
   SERVER_PROVIDER_ID_PREFIX,
 } from "../defaultConfig/shared";
-import {
-  resolveProviderApiKey,
-  resolveSearchApiKey,
-} from "../security/localSecretResolvers";
+import { resolveProviderApiKey } from "../security/localSecretResolvers";
 
 let publicKeyPromise: Promise<ByokPublicKeyResponse> | null = null;
 
@@ -182,22 +179,5 @@ export async function buildProviderRuntimeConfig(provider: ModelProvider) {
       apiKey,
       BYOK_CONTEXTS.provider(provider.type),
     ),
-  };
-}
-
-export async function buildSearchRuntimeConfig(
-  provider: string,
-  config: SearchServiceConfig,
-) {
-  if (provider === "default") {
-    return {
-      useDefault: true,
-    };
-  }
-
-  const apiKey = await resolveSearchApiKey(provider, config);
-  return {
-    baseUrl: config.baseUrl,
-    apiKeySecret: await encryptSecret(apiKey, BYOK_CONTEXTS.search(provider)),
   };
 }

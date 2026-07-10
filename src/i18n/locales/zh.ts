@@ -7,7 +7,6 @@ import Voice from "./zh/Voice.json";
 import DefaultModels from "./zh/DefaultModels.json";
 import Memory from "./zh/Memory.json";
 import RAG from "./zh/RAG.json";
-import Search from "./zh/Search.json";
 import Providers from "./zh/Providers.json";
 import ModelEditor from "./zh/ModelEditor.json";
 import Sidebar from "./zh/Sidebar.json";
@@ -36,7 +35,6 @@ const messages = {
   DefaultModels,
   Memory,
   RAG,
-  Search,
   Providers,
   ModelEditor,
   Sidebar,

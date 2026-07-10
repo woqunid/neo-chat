@@ -91,13 +91,6 @@ export const RAG_LIMITS = {
   maxNamespaceChars: 200,
 } as const;
 
-export const SEARCH_CONFIG_LIMITS = {
-  minResultsLimit: 1,
-  maxResultsLimit: 10,
-  maxApiKeyChars: 16_384,
-  maxBaseUrlChars: 2_048,
-} as const;
-
 export const SEARCH_RESULT_LIMITS = {
   maxSources: 20,
   maxImages: 20,
@@ -105,6 +98,10 @@ export const SEARCH_RESULT_LIMITS = {
   maxContentChars: 20_000,
   maxUrlChars: 4_096,
   maxImageDescriptionChars: 500,
+} as const;
+
+export const GROK_SEARCH_LIMITS = {
+  maxQueryChars: 4_000,
 } as const;
 
 export const MEMORY_LIMITS = {

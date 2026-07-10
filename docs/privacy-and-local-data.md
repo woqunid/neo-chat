@@ -1,8 +1,8 @@
 # Privacy And Local Data
 
 Neo Chat is local-first. Durable user data stays in browser storage whenever
-possible, while server routes act as controlled proxies for providers, search,
-RAG, document parsing, voice, and plugin execution.
+possible, while server routes act as controlled proxies for model providers,
+Grok web search, RAG, document parsing, voice, and plugin execution.
 
 ## Browser Storage
 
@@ -46,8 +46,13 @@ call networks.
 ## BYOK Envelopes
 
 User-entered secrets are encrypted in the browser before they are sent to API
-routes. These include model provider keys, plugin auth values, search keys, RAG
-tokens, document parsing keys, and voice provider keys.
+routes. These include model provider keys, plugin auth values, RAG tokens,
+document parsing keys, and voice provider keys.
+
+The Grok web-search API key is different: an administrator enters it in
+`/superadmin`, and the server stores it in memory for local single-instance use
+or in the configured `MODEL_PROVIDER_STORE` for hosted deployments. It is a
+deployment-wide secret and is never returned to the browser after saving.
 
 Production deployments should configure a stable BYOK private key:
 
@@ -63,8 +68,8 @@ until users re-enter the affected secrets.
 ## Server Proxy Boundaries
 
 Server routes can receive prompts, message context, applied skill instructions,
-generated tool calls, search queries, document parsing jobs, audio payloads,
-plugin requests, and BYOK envelopes. Local memory tool results may also be
+generated tool calls, Grok search queries, document parsing jobs, audio
+payloads, plugin requests, and BYOK envelopes. Local memory tool results may also be
 present in model request context. Deployments should treat server logs,
 observability tools, and hosting provider logs as sensitive.
 
@@ -77,13 +82,19 @@ the content required to complete user-requested actions.
 Depending on configuration, user content may be sent to:
 
 - Model providers such as Gemini, OpenAI, or OpenAI-compatible endpoints.
-- Search providers such as Tavily, Firecrawl, Exa, Bocha, or SearXNG.
+- The administrator-configured Grok-compatible Responses API endpoint.
 - RAG/vector services and document parsers such as Mineru or LlamaParse.
 - Voice providers such as ElevenLabs or Mimo.
 - Plugin APIs enabled by the user.
 
 Text-only skills themselves are local prompt instructions, but applied skill
 content can be sent to the selected model provider as part of the prompt.
+
+When web search is enabled for a message, the user query is first sent to the
+configured Grok endpoint. The returned research summary and citation URLs are
+then included in the request to the selected chat model, which produces the
+final answer. Both upstream services can therefore receive data derived from
+the same user request.
 
 Review each third-party service's privacy, retention, and logging policy before
 using it with sensitive data.

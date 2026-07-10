@@ -19,6 +19,5 @@
   "capImageGeneration": "图片生成",
   "capAudio": "音频",
   "capReasoning": "推理",
-  "capToolCall": "工具调用",
-  "capBuiltInSearch": "内置联网"
+  "capToolCall": "工具调用"
 }

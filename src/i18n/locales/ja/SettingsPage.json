@@ -4,7 +4,6 @@
   "sections": "設定セクション",
   "tabProviders": "モデルプロバイダー",
   "tabDefaults": "デフォルトモデル",
-  "tabSearch": "検索サービス",
   "tabRag": "RAG サービス",
   "tabVoice": "音声とスピーチ",
   "tabMemory": "メモリ",

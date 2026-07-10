@@ -19,7 +19,6 @@ describe("model metadata normalization", () => {
       name: "x".repeat(MODEL_METADATA_LIMITS.maxNameChars + 10),
       family: " family ",
       attachment: true,
-      built_in_search: false,
       reasoning: "yes",
       modalities: {
         input: [" text ", "text", "", "image"],
@@ -40,7 +39,6 @@ describe("model metadata normalization", () => {
       id: "model-a",
       family: "family",
       attachment: true,
-      built_in_search: false,
       modalities: {
         input: ["text", "image"],
         output: ["audio"],

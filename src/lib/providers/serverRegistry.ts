@@ -6,7 +6,10 @@ import {
   SERVER_PROVIDER_ID_PREFIX,
   type PublicModelProviderConfig,
 } from "../defaultConfig/shared";
-import { getDeploymentMode } from "../security/deployment";
+import {
+  createServerJsonStore,
+  type ServerJsonStore,
+} from "../serverConfig/jsonStore";
 import { isProviderType } from "./providerTypes";
 import { normalizeProviderModelId } from "./models";
 
@@ -21,31 +24,11 @@ export interface ServerModelProvider {
   updatedAt: string;
 }
 
-interface ServerModelProviderStore {
-  getAll(): Promise<ServerModelProvider[]>;
-  setAll(providers: ServerModelProvider[]): Promise<void>;
-  clear?(): void;
-}
-
 declare global {
   var __neoChatServerModelProviders: ServerModelProvider[] | undefined;
 }
 
 const REGISTRY_KEY = "neo:server-model-providers";
-const SHARED_PROVIDER_STORE_ERROR =
-  "MODEL_PROVIDER_STORE=upstash with UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN is required in hosted mode";
-
-function env(name: string): string {
-  return process.env[name]?.trim() || "";
-}
-
-function isSharedStoreName(store: string): boolean {
-  return store === "upstash" || store === "redis" || store === "kv";
-}
-
-function canUseMemoryStore(): boolean {
-  return getDeploymentMode() === "local";
-}
 
 function trimString(value: unknown, maxChars: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxChars) : "";
@@ -110,70 +93,25 @@ function getMemoryProviders(): ServerModelProvider[] {
   return globalThis.__neoChatServerModelProviders;
 }
 
-class UpstashServerModelProviderStore implements ServerModelProviderStore {
-  constructor(
-    private readonly url: string,
-    private readonly token: string,
-  ) {}
+let configuredStore: ServerJsonStore<ServerModelProvider[]> | null = null;
 
-  private endpoint(path: string): string {
-    return `${this.url.replace(/\/+$/, "")}/${path}`;
-  }
-
-  async getAll(): Promise<ServerModelProvider[]> {
-    const response = await fetch(
-      this.endpoint(`get/${encodeURIComponent(REGISTRY_KEY)}`),
-      { headers: { Authorization: `Bearer ${this.token}` }, cache: "no-store" },
-    );
-    if (!response.ok) {
-      throw new Error(`Provider store failed with status ${response.status}`);
-    }
-    const data = (await response.json()) as { result?: string | null };
-    return normalizeServerProviders(data.result ? JSON.parse(data.result) : []);
-  }
-
-  async setAll(providers: ServerModelProvider[]): Promise<void> {
-    const response = await fetch(this.endpoint("set"), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
+function createStore(): ServerJsonStore<ServerModelProvider[]> {
+  return createServerJsonStore({
+    key: REGISTRY_KEY,
+    normalize: normalizeServerProviders,
+    memory: {
+      read: getMemoryProviders,
+      write: (providers) => {
+        globalThis.__neoChatServerModelProviders = providers;
       },
-      body: JSON.stringify([REGISTRY_KEY, JSON.stringify(providers)]),
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`Provider store failed with status ${response.status}`);
-    }
-  }
+      clear: () => {
+        globalThis.__neoChatServerModelProviders = [];
+      },
+    },
+  });
 }
 
-let configuredStore: ServerModelProviderStore | null = null;
-
-function createStore(): ServerModelProviderStore {
-  const store = env("MODEL_PROVIDER_STORE").toLowerCase();
-  const upstashUrl = env("UPSTASH_REDIS_REST_URL");
-  const upstashToken = env("UPSTASH_REDIS_REST_TOKEN");
-  if (isSharedStoreName(store) && upstashUrl && upstashToken) {
-    return new UpstashServerModelProviderStore(upstashUrl, upstashToken);
-  }
-  if (isSharedStoreName(store) || !canUseMemoryStore()) {
-    throw new Error(SHARED_PROVIDER_STORE_ERROR);
-  }
-  return {
-    async getAll() {
-      return getMemoryProviders();
-    },
-    async setAll(providers) {
-      globalThis.__neoChatServerModelProviders = providers;
-    },
-    clear() {
-      globalThis.__neoChatServerModelProviders = [];
-    },
-  };
-}
-
-function getStore(): ServerModelProviderStore {
+function getStore(): ServerJsonStore<ServerModelProvider[]> {
   if (!configuredStore) configuredStore = createStore();
   return configuredStore;
 }
@@ -185,7 +123,7 @@ export function createServerProviderId(): string {
 export async function listServerModelProviders(): Promise<
   ServerModelProvider[]
 > {
-  return normalizeServerProviders(await getStore().getAll());
+  return normalizeServerProviders(await getStore().get());
 }
 
 export async function getServerModelProvider(
@@ -200,7 +138,7 @@ export async function saveServerModelProviders(
   values: ServerModelProvider[],
 ): Promise<ServerModelProvider[]> {
   const providers = normalizeServerProviders(values);
-  await getStore().setAll(providers);
+  await getStore().set(providers);
   globalThis.__neoChatServerModelProviders = providers;
   return providers;
 }

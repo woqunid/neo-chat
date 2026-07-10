@@ -23,7 +23,6 @@ export interface ModelMetadata {
   attachment?: boolean;
   reasoning?: boolean;
   tool_call?: boolean;
-  built_in_search?: boolean;
   temperature?: boolean;
   knowledge?: string;
   release_date?: string;

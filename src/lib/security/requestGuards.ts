@@ -26,7 +26,7 @@ const RATE_LIMIT_RULES: Array<[RegExp, RateLimitRule]> = [
   [/^\/api\/access\/verify$/, { windowMs: 60_000, maxRequests: 10 }],
   [/^\/api\/superadmin(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],
   [/^\/api\/chat(?:\/|$)/, { windowMs: 60_000, maxRequests: 60 }],
-  [/^\/api\/search$/, { windowMs: 60_000, maxRequests: 30 }],
+  [/^\/api\/grok-search$/, { windowMs: 60_000, maxRequests: 30 }],
   [/^\/api\/rag(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],
   [/^\/api\/voice(?:\/|$)/, { windowMs: 60_000, maxRequests: 20 }],
   [/^\/api\/doc-parse(?:\/|$)/, { windowMs: 60_000, maxRequests: 10 }],
@@ -103,12 +103,15 @@ export function getRateLimitClientIp(request: NextRequest): string {
 }
 
 function getRequestOrigin(request: NextRequest): string {
+  const protocol = request.nextUrl.protocol.replace(":", "");
   const forwardedProto = request.headers.get("x-forwarded-proto");
   const forwardedHost = request.headers.get("x-forwarded-host");
   if (shouldTrustProxyHeaders() && forwardedHost) {
-    return `${forwardedProto || request.nextUrl.protocol.replace(":", "")}://${forwardedHost}`;
+    return `${forwardedProto || protocol}://${forwardedHost}`;
   }
 
+  const host = request.headers.get("host");
+  if (host) return `${protocol}://${host}`;
   return request.nextUrl.origin;
 }
 

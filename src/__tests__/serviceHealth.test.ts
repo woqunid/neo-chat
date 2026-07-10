@@ -1,11 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  grokConfig: null as null | {
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    enabled: boolean;
+    updatedAt: string;
+  },
+}));
+
 vi.mock("server-only", () => ({}));
+vi.mock("../lib/search/grokRegistry", () => ({
+  getServerGrokSearchConfig: vi.fn(async () => mocks.grokConfig),
+  isGrokSearchReady: vi.fn((config) =>
+    Boolean(config?.enabled && config.baseUrl && config.apiKey && config.model),
+  ),
+}));
 
 describe("service health status", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
+    mocks.grokConfig = null;
   });
 
   it("publishes non-sensitive hosted health status", async () => {
@@ -18,8 +35,6 @@ describe("service health status", () => {
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://redis.internal");
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "redis-secret");
     vi.stubEnv("DEFAULT_PROVIDER_API_KEY", "provider-secret");
-    vi.stubEnv("DEFAULT_SEARCH_PROVIDER", "tavily");
-    vi.stubEnv("DEFAULT_SEARCH_API_KEY", "search-secret");
     vi.stubEnv("DEFAULT_RAG_BASE_URL", "https://rag.internal");
     vi.stubEnv("DEFAULT_RAG_TOKEN", "rag-secret");
     vi.stubEnv("DEFAULT_DOCUMENT_PARSE_PROVIDER", "mineru");
@@ -28,10 +43,17 @@ describe("service health status", () => {
     vi.stubEnv("DEFAULT_VOICE_PROVIDER", "elevenlabs");
     vi.stubEnv("DEFAULT_ELEVENLABS_API_KEY", "voice-secret");
     vi.stubEnv("DEFAULT_ELEVENLABS_TTS_MODEL", "eleven_flash_v2_5");
+    mocks.grokConfig = {
+      baseUrl: "https://grok.internal/v1",
+      apiKey: "grok-secret",
+      model: "grok-4",
+      enabled: true,
+      updatedAt: "2026-07-10T00:00:00.000Z",
+    };
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
     const serialized = JSON.stringify(health);
 
     expect(health.deploymentMode).toBe("hosted");
@@ -49,7 +71,8 @@ describe("service health status", () => {
       "redis-secret",
       "redis.internal",
       "provider-secret",
-      "search-secret",
+      "grok-secret",
+      "grok.internal",
       "rag-secret",
       "mineru-secret",
       "llama-secret",
@@ -65,7 +88,7 @@ describe("service health status", () => {
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.voice).toMatchObject({
       status: "unconfigured",
@@ -76,7 +99,7 @@ describe("service health status", () => {
   it("marks Mineru no-token document parsing as available by default", async () => {
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.rag).toMatchObject({
       status: "available",
@@ -92,7 +115,7 @@ describe("service health status", () => {
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.rateLimitStore).toMatchObject({
       status: "policy_blocked",
@@ -110,7 +133,7 @@ describe("service health status", () => {
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.hostedMode).toMatchObject({
       status: "policy_blocked",
@@ -124,7 +147,7 @@ describe("service health status", () => {
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.hostedMode).toMatchObject({
       status: "local_only",
@@ -138,7 +161,7 @@ describe("service health status", () => {
 
     const { getServiceHealthStatus } =
       await import("../lib/services/serviceHealth");
-    const health = getServiceHealthStatus({ now: 1_700_000_000_000 });
+    const health = await getServiceHealthStatus({ now: 1_700_000_000_000 });
 
     expect(health.services.apiProof).toMatchObject({
       status: "missing_key",

@@ -85,7 +85,7 @@ describe("client API response helpers", () => {
     expect(data.body).toBe(JSON.stringify({ ok: true }));
     expect(data.signal).toBe("present");
 
-    await signedApiFetch("/api/search", { method: "POST" });
+    await signedApiFetch("/api/grok-search", { method: "POST" });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 

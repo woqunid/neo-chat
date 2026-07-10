@@ -3,47 +3,72 @@
 import { Plus } from "lucide-react";
 import type { AdminProvider } from "./types";
 
+interface ProviderListProps {
+  providers: AdminProvider[];
+  selectedIndex: number;
+  busy: boolean;
+  onAdd: () => void;
+  onSelect: (index: number) => void;
+}
+
 export default function ProviderList({
   providers,
   selectedIndex,
+  busy,
   onAdd,
   onSelect,
-}: {
-  providers: AdminProvider[];
-  selectedIndex: number;
-  onAdd: () => void;
-  onSelect: (index: number) => void;
-}) {
+}: ProviderListProps) {
   return (
-    <aside className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">全局模型供应商</h1>
+    <aside className="border-b border-border bg-muted/20 lg:border-b-0 lg:border-r">
+      <div className="flex h-14 items-center justify-between border-b border-border px-4">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-sm font-semibold">服务商</h2>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {providers.length}
+          </span>
+        </div>
         <button
           type="button"
+          aria-label="添加服务商"
+          title="添加服务商"
+          disabled={busy}
           onClick={onAdd}
-          className="rounded-md p-2 text-blue-600 hover:bg-blue-50"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
         >
-          <Plus size={16} />
+          <Plus size={17} aria-hidden="true" />
         </button>
       </div>
-      <div className="space-y-2">
-        {providers.map((provider, index) => (
-          <button
-            key={provider.id || index}
-            type="button"
-            onClick={() => onSelect(index)}
-            className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-              index === selectedIndex
-                ? "border-blue-300 bg-blue-50 text-blue-700"
-                : "border-border bg-card"
-            }`}
-          >
-            <span className="block truncate font-medium">{provider.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {provider.type}
-            </span>
-          </button>
-        ))}
+      <div className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-y-auto">
+        {providers.map((provider, index) => {
+          const selected = index === selectedIndex;
+          return (
+            <button
+              key={provider.id || index}
+              type="button"
+              onClick={() => onSelect(index)}
+              className={`min-w-48 rounded-md px-3 py-2.5 text-left transition-colors lg:min-w-0 ${
+                selected
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    provider.enabled ? "bg-emerald-500" : "bg-zinc-400"
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="truncate text-sm font-medium">
+                  {provider.name}
+                </span>
+              </span>
+              <span className="mt-1 block truncate pl-3.5 text-[11px]">
+                {provider.type} · {provider.models.length} models
+              </span>
+            </button>
+          );
+        })}
       </div>
     </aside>
   );

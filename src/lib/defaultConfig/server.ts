@@ -2,7 +2,6 @@ import "server-only";
 
 import {
   RAG_LIMITS,
-  SEARCH_CONFIG_LIMITS,
   SYSTEM_SETTINGS_LIMITS,
   getRuntimeMaxAttachmentFileBytes,
 } from "../../config/limits";
@@ -15,7 +14,6 @@ import type {
   MimoVoiceID,
   ModelMetadata,
   ProviderType,
-  SearchProviderID,
   ServerDefaultVoiceProvider,
   SystemSettings,
   VoiceSettings,
@@ -38,8 +36,12 @@ import {
   isElevenLabsSTTModel,
   isElevenLabsTTSModel,
 } from "../utils/voiceModels";
-import { normalizeDocumentParseProvider } from "../settings/searchRag";
+import { normalizeDocumentParseProvider } from "../settings/rag";
 import { getApiProofPublicStatus } from "../security/requestProof";
+import {
+  getServerGrokSearchConfig,
+  isGrokSearchReady,
+} from "../search/grokRegistry";
 
 const DEFAULT_PROVIDER_NAME = "Default";
 const DEFAULT_ELEVENLABS_STT_MODEL = "scribe_v2";
@@ -58,19 +60,6 @@ const MIMO_TTS_VOICE_IDS = new Set<MimoVoiceID>([
   "Chloe",
   "Milo",
   "Dean",
-]);
-
-type ConfigurableSearchProvider = Exclude<
-  SearchProviderID,
-  "default" | "google"
->;
-
-const SEARCH_PROVIDERS = new Set<ConfigurableSearchProvider>([
-  "tavily",
-  "firecrawl",
-  "exa",
-  "bocha",
-  "searxng",
 ]);
 
 function env(name: string): string {
@@ -306,45 +295,6 @@ function normalizeDefaultModels(
         Boolean(entry[1]),
       ),
   ) as Partial<DefaultModels>;
-}
-
-export function getDefaultSearchRuntimeConfig(): {
-  provider: ConfigurableSearchProvider;
-  apiKey?: string;
-  baseUrl?: string;
-} | null {
-  const provider = env("DEFAULT_SEARCH_PROVIDER").toLowerCase();
-  if (!SEARCH_PROVIDERS.has(provider as ConfigurableSearchProvider)) {
-    return null;
-  }
-
-  const typedProvider = provider as ConfigurableSearchProvider;
-  const baseUrl = env("DEFAULT_SEARCH_BASE_URL").slice(
-    0,
-    SEARCH_CONFIG_LIMITS.maxBaseUrlChars,
-  );
-  if (typedProvider === "searxng") {
-    return baseUrl ? { provider: typedProvider, baseUrl } : null;
-  }
-
-  const apiKey = env("DEFAULT_SEARCH_API_KEY");
-  if (typedProvider === "firecrawl") {
-    return {
-      provider: typedProvider,
-      ...(apiKey
-        ? { apiKey: apiKey.slice(0, SEARCH_CONFIG_LIMITS.maxApiKeyChars) }
-        : {}),
-      ...(baseUrl ? { baseUrl } : {}),
-    };
-  }
-
-  if (!apiKey) return null;
-
-  return {
-    provider: typedProvider,
-    apiKey: apiKey.slice(0, SEARCH_CONFIG_LIMITS.maxApiKeyChars),
-    ...(baseUrl ? { baseUrl } : {}),
-  };
 }
 
 export function getDefaultRagRuntimeConfig(): {
@@ -595,7 +545,7 @@ export function getPublicServerConfig(): PublicServerConfig {
         : {},
     },
     search: {
-      available: Boolean(getDefaultSearchRuntimeConfig()),
+      available: false,
     },
     rag: {
       vectorStoreAvailable: Boolean(rag),
@@ -668,7 +618,11 @@ function getLegacyPublicModelProvider(
 
 export async function getPublicServerConfigWithManagedProviders(): Promise<PublicServerConfig> {
   const config = getPublicServerConfig();
-  const managedProviders = (await listServerModelProviders())
+  const [providerValues, grokSearch] = await Promise.all([
+    listServerModelProviders(),
+    getServerGrokSearchConfig(),
+  ]);
+  const managedProviders = providerValues
     .filter((provider) => provider.enabled)
     .map(toPublicModelProviderConfig)
     .filter((provider) => provider.available);
@@ -676,6 +630,7 @@ export async function getPublicServerConfigWithManagedProviders(): Promise<Publi
 
   return {
     ...config,
+    search: { available: isGrokSearchReady(grokSearch) },
     modelProviders: [
       ...(legacyProvider ? [legacyProvider] : []),
       ...managedProviders,

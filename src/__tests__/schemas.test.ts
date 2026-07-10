@@ -11,7 +11,6 @@ import {
   EncryptedSecretEnvelopeSchema,
   ImageGenerateRequestSchema,
   MessageSchema,
-  SearchRequestSchema,
   SimpleGenerateRequestSchema,
   ToolExecutionSchema,
   VoiceSynthesizeRequestSchema,
@@ -65,17 +64,6 @@ describe("api schemas", () => {
         unexpected: true,
       }),
     ).toThrow();
-
-    expect(() =>
-      SearchRequestSchema.parse({
-        provider: "tavily",
-        query: "hello",
-        config: {
-          apiKeySecret: { ...encryptedSecret, context: "search:tavily" },
-          extra: "field",
-        },
-      }),
-    ).toThrow();
   });
 
   it("fills legacy tool call status defaults", () => {
@@ -121,15 +109,6 @@ describe("api schemas", () => {
         newMessage: "regenerate",
       }),
     ).not.toThrow();
-  });
-
-  it("rejects native search in the external search route schema", () => {
-    expect(() =>
-      SearchRequestSchema.parse({
-        provider: "google",
-        query: "hello",
-      }),
-    ).toThrow();
   });
 
   it("rejects chat requests with too much attachment payload", () => {

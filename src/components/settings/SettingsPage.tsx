@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import {
   X,
   Server,
-  Globe,
   Mic,
   Settings,
   Cpu,
@@ -14,7 +13,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import ProviderSettings from "./ProviderSettings";
-import SearchSettings from "./SearchSettings";
 import RAGSettings from "./RAGSettings";
 import VoiceSettings from "./VoiceSettings";
 import SystemSettings from "./SystemSettings";
@@ -30,7 +28,6 @@ const SETTINGS_TABS: Array<{
 }> = [
   { id: "providers", labelKey: "tabProviders", Icon: Server },
   { id: "defaults", labelKey: "tabDefaults", Icon: Cpu },
-  { id: "search", labelKey: "tabSearch", Icon: Globe },
   { id: "rag", labelKey: "tabRag", Icon: FolderSearch },
   { id: "voice", labelKey: "tabVoice", Icon: Mic },
   { id: "memory", labelKey: "tabMemory", Icon: Brain },
@@ -44,8 +41,6 @@ const renderTabContent = (activeTab: SettingsTabId) => {
       return <ProviderSettings />;
     case "defaults":
       return <DefaultModelSettings />;
-    case "search":
-      return <SearchSettings />;
     case "rag":
       return <RAGSettings />;
     case "voice":

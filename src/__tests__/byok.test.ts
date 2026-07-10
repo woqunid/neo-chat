@@ -245,16 +245,16 @@ describe("BYOK secret envelopes", () => {
       Response.json(await getByokPublicKey()),
     );
 
-    const envelope = await encryptSecret("secret", "search:tavily");
+    const envelope = await encryptSecret("secret", "provider:model-a");
 
     await expect(
       decryptSecretEnvelope(
         { ...envelope!, kid: "other-key" },
-        "search:tavily",
+        "provider:model-a",
       ),
     ).rejects.toMatchObject({ name: "AuthenticationError" });
     await expect(
-      decryptSecretEnvelope(envelope!, "search:exa"),
+      decryptSecretEnvelope(envelope!, "provider:model-b"),
     ).rejects.toMatchObject({ name: "AuthenticationError" });
   });
 

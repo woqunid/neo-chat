@@ -19,6 +19,5 @@
   "capImageGeneration": "Image Generation",
   "capAudio": "Audio",
   "capReasoning": "Reasoning",
-  "capToolCall": "Tool Call",
-  "capBuiltInSearch": "Built-in Search"
+  "capToolCall": "Tool Call"
 }

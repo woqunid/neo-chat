@@ -14,10 +14,11 @@ instead of being written into assistant content as `Error: ...`. The UI renders
 these errors as recoverable status blocks so retry, regenerate, branch, and
 stop flows do not confuse model output with application errors.
 
-Search failures are also rendered as search blocks instead of disappearing from
-the conversation. The block keeps the failed search visible with sanitized
-error text, while successful search updates merge sources and images without
-duplicating previously streamed entries.
+Grok search failures are rendered as search blocks and abort the model request
+instead of disappearing or silently continuing without live results. The block
+keeps the failed search visible with sanitized error text. Successful research
+must include both a summary and at least one web citation before it is injected
+into the selected chat model.
 
 ## Skills Runtime
 
@@ -106,8 +107,8 @@ The planner uses model metadata when available:
 - A stable character estimate is used when token metadata is unavailable.
 
 Current allocation bands are history, attachments, search, RAG, and tools.
-Search context injection already uses this planner before adding web results to
-the model input. Other context producers should use the same helper instead of
+Grok research context injection uses this planner before adding the summary and
+citations to the model input. Other context producers should use the same helper instead of
 adding independent truncation rules.
 
 ## Rendering And Sandbox Boundaries

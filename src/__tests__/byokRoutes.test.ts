@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   safeFetchText: vi.fn(),
   safeFetchArrayBuffer: vi.fn(),
   decryptSecretEnvelope: vi.fn(),
-  decryptOptionalSecret: vi.fn(),
   resolveProviderRuntimeConfig: vi.fn(),
 }));
 
@@ -58,10 +57,6 @@ vi.mock("@/lib/providers/providerTypes", async () =>
   vi.importActual("../lib/providers/providerTypes"),
 );
 
-vi.mock("@/lib/security/searchPolicy", async () =>
-  vi.importActual("../lib/security/searchPolicy"),
-);
-
 vi.mock("@/lib/security/urlPolicy", async () =>
   vi.importActual("../lib/security/urlPolicy"),
 );
@@ -82,7 +77,6 @@ vi.mock("@/lib/defaultConfig/shared", async () =>
 
 vi.mock("@/lib/byok/server", () => ({
   decryptSecretEnvelope: mocks.decryptSecretEnvelope,
-  decryptOptionalSecret: mocks.decryptOptionalSecret,
   resolveProviderRuntimeConfig: mocks.resolveProviderRuntimeConfig,
 }));
 
@@ -93,7 +87,7 @@ const apiKeySecret = {
   iv: "iv",
   wrappedKey: "wrapped",
   ciphertext: "ciphertext",
-  context: "search:tavily",
+  context: "provider:env-provider",
 } as const;
 
 const mineruTokenSecret = {
@@ -108,55 +102,7 @@ describe("BYOK route integration", () => {
     mocks.safeFetchText.mockReset();
     mocks.safeFetchArrayBuffer.mockReset();
     mocks.decryptSecretEnvelope.mockReset();
-    mocks.decryptOptionalSecret.mockReset();
     mocks.resolveProviderRuntimeConfig.mockReset();
-  });
-
-  it("decrypts search credentials before calling the upstream API", async () => {
-    mocks.decryptOptionalSecret.mockResolvedValue("tvly-secret");
-    mocks.safeFetchJson.mockResolvedValue({
-      response: new Response(null, { status: 200 }),
-      data: {
-        results: [
-          {
-            title: "Result",
-            url: "https://example.com/result",
-            content: "Body",
-          },
-        ],
-        images: [],
-      },
-    });
-
-    const { POST } = await import("../app/api/search/route");
-    const response = await POST(
-      new Request("https://neo.test/api/search", {
-        method: "POST",
-        body: JSON.stringify({
-          provider: "tavily",
-          query: "neo",
-          config: {
-            apiKeySecret,
-          },
-        }),
-      }) as any,
-    );
-
-    expect(response.status).toBe(200);
-    expect(mocks.decryptOptionalSecret).toHaveBeenCalledWith(
-      apiKeySecret,
-      "search:tavily",
-    );
-    expect(mocks.safeFetchJson).toHaveBeenCalledWith(
-      "https://api.tavily.com/search",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer tvly-secret",
-        }),
-      }),
-      expect.any(Object),
-    );
-    expect(JSON.stringify(await response.json())).not.toContain("tvly-secret");
   });
 
   it("rejects provider model requests that only have legacy environment keys", async () => {

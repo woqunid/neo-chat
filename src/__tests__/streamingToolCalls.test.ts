@@ -39,13 +39,6 @@ function contentMessages(messages: SSEMessage[]) {
   );
 }
 
-function searchMessages(messages: SSEMessage[]) {
-  return messages.filter(
-    (message): message is Extract<SSEMessage, { type: "search" }> =>
-      message.type === "search",
-  );
-}
-
 function createSseResponse(events: unknown[]) {
   const encoder = new TextEncoder();
   const body = events
@@ -754,92 +747,6 @@ describe("streamed tool-call normalization", () => {
     });
   });
 
-  it("uses OpenAI Responses native web search without reasoning controls", async () => {
-    const messages: SSEMessage[] = [];
-    const client = {
-      responses: {
-        create: vi.fn(async () =>
-          asyncChunks([
-            {
-              type: "response.output_item.done",
-              item: {
-                type: "web_search_call",
-                id: "ws_1",
-                status: "completed",
-                action: {
-                  type: "search",
-                  queries: ["neo chat"],
-                  sources: [{ type: "url", url: "https://example.com/a" }],
-                },
-              },
-            },
-            {
-              type: "response.output_item.done",
-              item: {
-                type: "reasoning",
-                summary: [{ type: "summary_text", text: "Need current info." }],
-              },
-            },
-            {
-              type: "response.output_item.done",
-              item: {
-                type: "message",
-                content: [
-                  {
-                    type: "output_text",
-                    text: "Result",
-                    annotations: [
-                      {
-                        type: "url_citation",
-                        title: "Example B",
-                        url: "https://example.com/b",
-                      },
-                    ],
-                  },
-                ],
-              },
-            },
-          ]),
-        ),
-      },
-    };
-
-    await streamOpenAIResponses({
-      client: client as any,
-      model: "gpt-test",
-      input: [],
-      enableWebSearch: true,
-      onChunk: (message) => messages.push(message),
-    });
-
-    const request = (client.responses.create as any).mock.calls[0][0];
-    expect(request).not.toHaveProperty("reasoning");
-    expect(request.tools).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "web_search_preview" }),
-      ]),
-    );
-    expect(request.include).toEqual(
-      expect.arrayContaining([
-        "web_search_call.results",
-        "web_search_call.action.sources",
-      ]),
-    );
-    expect(
-      reasoningMessages(messages).map((message) => message.content),
-    ).toEqual(["Need current info."]);
-    expect(
-      searchMessages(messages).flatMap(
-        (message) => message.results?.sources || [],
-      ),
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ url: "https://example.com/a" }),
-        expect.objectContaining({ url: "https://example.com/b" }),
-      ]),
-    );
-  });
-
   it("does not request OpenAI Responses reasoning summaries in auto mode", async () => {
     const client = {
       responses: {
@@ -954,7 +861,7 @@ describe("streamed tool-call normalization", () => {
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
 
-  it("streams Gemini thought parts and grounding metadata as reasoning and search", async () => {
+  it("streams Gemini thought parts as reasoning", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       models: {
@@ -967,16 +874,6 @@ describe("streamed tool-call normalization", () => {
                     parts: [
                       { thought: true, text: "I should search. " },
                       { text: "Answer" },
-                    ],
-                  },
-                  groundingMetadata: {
-                    groundingChunks: [
-                      {
-                        web: { uri: "https://example.com/g", title: "Gemini" },
-                      },
-                    ],
-                    groundingSupports: [
-                      { segment: { text: "Grounded snippet" } },
                     ],
                   },
                 },
@@ -1001,13 +898,6 @@ describe("streamed tool-call normalization", () => {
       reasoningMessages(messages).map((message) => message.content),
     ).toEqual(["I should search. "]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
-    expect(searchMessages(messages)[0].results?.sources).toEqual([
-      expect.objectContaining({
-        title: "Gemini",
-        url: "https://example.com/g",
-        content: "Grounded snippet",
-      }),
-    ]);
   });
 
   it("does not map Gemini 2.5 reasoning modes to thinking budgets", async () => {

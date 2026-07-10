@@ -1,12 +1,9 @@
 import type {
   ChatConfig,
   ModelMetadata,
-  ModelProvider,
   Plugin,
   PluginConfig,
   RAGConfig,
-  SearchProviderID,
-  SearchServiceConfig,
   Session,
   SystemPersonality,
   Workspace,
@@ -21,10 +18,6 @@ import {
   hasPluginAuthValue,
   hasRagVectorStore,
 } from "../security/localSecretResolvers";
-import {
-  getSearchCompatibility,
-  type SearchCompatibilityResult,
-} from "../settings/searchRag";
 import { buildDiagramPromptInstruction } from "./diagramPrompt";
 import { buildHtmlVisualPromptInstruction } from "./htmlVisualPrompt";
 import { parseModelString, supportsModality } from "../utils/model";
@@ -59,7 +52,6 @@ export interface EffectiveChatContext {
   activePluginIds: string[];
   activeSkillIds: string[];
   modelCapabilities: ModelCapabilities;
-  searchCompatibility: SearchCompatibilityResult;
   capabilityStatuses: CapabilityStatus[];
 }
 
@@ -71,14 +63,10 @@ export interface ResolveEffectiveChatContextOptions {
   enableHtmlVisualPrompt?: boolean;
   now?: Date | number;
   selectedModel: string;
-  provider?: Pick<ModelProvider, "type"> | null;
   modelMetadata: Record<string, ModelMetadata>;
   customModelMetadata: Record<string, ModelMetadata>;
   chatConfig: ChatConfig;
-  search: {
-    provider: SearchProviderID;
-    configs: Record<string, SearchServiceConfig>;
-  };
+  searchAvailable: boolean;
   rag: RAGConfig;
   installedPlugins: Plugin[];
   installedSkills?: SkillCatalogEntry[];
@@ -219,11 +207,10 @@ export function resolveEffectiveChatContext(
     enableHtmlVisualPrompt,
     now,
     selectedModel,
-    provider,
     modelMetadata,
     customModelMetadata,
     chatConfig,
-    search,
+    searchAvailable,
     rag,
     installedPlugins,
     installedSkills = [],
@@ -231,17 +218,6 @@ export function resolveEffectiveChatContext(
     activePlugins,
   } = options;
 
-  const { modelName } = parseModelString(selectedModel);
-  const selectedModelMetadata =
-    customModelMetadata[modelName] || modelMetadata[modelName];
-  const searchConfig =
-    search.provider === "google" ? undefined : search.configs[search.provider];
-  const searchCompatibility = getSearchCompatibility({
-    searchProvider: search.provider,
-    searchConfig,
-    modelProviderType: provider?.type,
-    modelBuiltInSearch: selectedModelMetadata?.built_in_search,
-  });
   const modelCapabilities = getModelCapabilities({
     selectedModel,
     modelMetadata,
@@ -260,12 +236,11 @@ export function resolveEffectiveChatContext(
   );
   const statuses: CapabilityStatus[] = [];
 
-  if (chatConfig.useSearch && !searchCompatibility.enabled) {
+  if (chatConfig.useSearch && !searchAvailable) {
     statuses.push({
       code: "search_unavailable",
       level: "warning",
-      message:
-        "Search is enabled but the selected model or provider configuration cannot use it.",
+      message: "Search is enabled but Grok web search is not configured.",
     });
   }
 
@@ -307,7 +282,6 @@ export function resolveEffectiveChatContext(
     activePluginIds,
     activeSkillIds,
     modelCapabilities,
-    searchCompatibility,
     capabilityStatuses: statuses.length
       ? statuses
       : [{ code: "ok", level: "info", message: "Ready" }],

@@ -43,6 +43,5 @@
   "capAudio": "音声認識 (Audio)",
   "capReasoning": "推論 (Reasoning)",
   "capFunctionCalling": "ツール呼び出し (Function Calling)",
-  "capBuiltInSearch": "内蔵検索",
   "modelCapabilitiesAria": "モデル機能"
 }

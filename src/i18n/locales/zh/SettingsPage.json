@@ -4,7 +4,6 @@
   "sections": "设置分区",
   "tabProviders": "模型供应商",
   "tabDefaults": "默认模型",
-  "tabSearch": "搜索服务",
   "tabRag": "RAG 服务",
   "tabVoice": "语音与朗读",
   "tabMemory": "记忆",

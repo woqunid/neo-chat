@@ -18,6 +18,10 @@ import {
 import { getDeploymentMode } from "../security/deployment";
 import { getApiProofPublicStatus } from "../security/requestProof";
 import { isLocalhostName, isPrivateIpAddress } from "../security/urlPolicy";
+import {
+  getServerGrokSearchConfig,
+  isGrokSearchReady,
+} from "../search/grokRegistry";
 
 type StoreEnvName =
   "RATE_LIMIT_STORE" | "DOCUMENT_PARSE_JOB_STORE" | "PLUGIN_REGISTRY_STORE";
@@ -138,22 +142,15 @@ function defaultModelHealth(): ServiceHealthItem {
   return item("defaultModel", "missing_key", "DEFAULT_PROVIDER_KEY_MISSING");
 }
 
-function searchHealth(): ServiceHealthItem {
-  const provider = env("DEFAULT_SEARCH_PROVIDER").toLowerCase();
-  if (!provider) {
-    return item("search", "unconfigured", "SEARCH_UNCONFIGURED");
+async function searchHealth(): Promise<ServiceHealthItem> {
+  const config = await getServerGrokSearchConfig();
+  if (isGrokSearchReady(config)) {
+    return item("search", "available", "GROK_SEARCH_CONFIGURED");
   }
-  if (provider === "searxng") {
-    return env("DEFAULT_SEARCH_BASE_URL")
-      ? item("search", "available", "SEARCH_CONFIGURED")
-      : item("search", "missing_key", "SEARCH_BASE_URL_MISSING");
+  if (config?.enabled) {
+    return item("search", "missing_key", "GROK_SEARCH_CONFIG_INCOMPLETE");
   }
-  if (provider === "firecrawl") {
-    return item("search", "available", "SEARCH_CONFIGURED");
-  }
-  return env("DEFAULT_SEARCH_API_KEY")
-    ? item("search", "available", "SEARCH_CONFIGURED")
-    : item("search", "missing_key", "SEARCH_API_KEY_MISSING");
+  return item("search", "unconfigured", "GROK_SEARCH_DISABLED");
 }
 
 function ragHealth(): ServiceHealthItem {
@@ -198,9 +195,9 @@ function voiceHealth(): ServiceHealthItem {
   return item("voice", "unconfigured", "VOICE_UNCONFIGURED");
 }
 
-export function getServiceHealthStatus(
+export async function getServiceHealthStatus(
   options: { now?: number } = {},
-): ServiceHealthStatus {
+): Promise<ServiceHealthStatus> {
   const deploymentMode = getDeploymentMode();
   const hosted = deploymentMode === "hosted";
 
@@ -224,7 +221,7 @@ export function getServiceHealthStatus(
         hosted,
       ),
       defaultModel: defaultModelHealth(),
-      search: searchHealth(),
+      search: await searchHealth(),
       rag: ragHealth(),
       voice: voiceHealth(),
     },

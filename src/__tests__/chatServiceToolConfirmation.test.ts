@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   settingsState: {} as Record<string, unknown>,
   memoryState: {} as Record<string, unknown>,
   coreState: {} as Record<string, unknown>,
+  searchWithGrok: vi.fn(),
   supportsImageGeneration: vi.fn<(metadata?: ModelMetadata) => boolean>(
     () => false,
   ),
@@ -74,11 +75,6 @@ vi.mock("@/lib/utils/model", () => ({
   supportsTextOutput: mocks.supportsTextOutput,
 }));
 
-vi.mock("@/lib/settings/searchRag", () => ({
-  getSearchCompatibility: vi.fn(() => ({ enabled: true, mode: "native" })),
-  getSearchCompatibilityErrorMessage: vi.fn(() => "Search is unavailable"),
-}));
-
 vi.mock("@/lib/utils/chatInput", () => ({
   appendContextToChatInput: vi.fn(
     (message: string, context: string) => `${message}\n\n${context}`,
@@ -106,8 +102,8 @@ vi.mock("@/lib/utils/devLogger", () => ({
   logDevWarn: vi.fn(),
 }));
 
-vi.mock("../services/api/searchService", () => ({
-  createSearchProvider: vi.fn(),
+vi.mock("../services/api/grokSearchService", () => ({
+  searchWithGrok: mocks.searchWithGrok,
 }));
 
 const encoder = new TextEncoder();
@@ -172,8 +168,8 @@ describe("chat service tool execution", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mocks.executePluginFunction.mockReset();
+    mocks.searchWithGrok.mockReset();
     mocks.settingsState = {
-      search: { provider: "google", configs: {} },
       installedPlugins: [writePlugin],
       pluginConfigs: {},
     };
@@ -873,9 +869,8 @@ describe("chat service tool execution", () => {
     expect(outputSnapshots.at(-1)).toEqual([]);
   });
 
-  it("uses a text fallback model for external search decisions when the selected model is image-only", async () => {
+  it("runs Grok research before an image-only model request", async () => {
     mocks.coreState = {
-      defaultModels: { promptOptimization: "openai:gpt-4o-mini" },
       providers: [
         {
           id: "krill",
@@ -885,27 +880,14 @@ describe("chat service tool execution", () => {
           apiKey: "test-key",
           models: ["gpt-image-2"],
         },
-        {
-          id: "openai",
-          enabled: true,
-          type: "OpenAI",
-          name: "OpenAI",
-          apiKey: "test-key",
-          models: ["gpt-4o-mini"],
-        },
       ],
     };
     mocks.settingsState = {
       ...mocks.settingsState,
-      search: { provider: "tavily", configs: { tavily: { apiKey: "search" } } },
       modelMetadata: {
         "gpt-image-2": {
           id: "gpt-image-2",
           modalities: { input: ["text"], output: ["image"] },
-        },
-        "gpt-4o-mini": {
-          id: "gpt-4o-mini",
-          modalities: { input: ["text"], output: ["text"] },
         },
       },
     };
@@ -920,22 +902,23 @@ describe("chat service tool execution", () => {
         metadata.modalities.output.includes("text"),
     );
 
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementationOnce(async (_url, init) => {
-        const body = JSON.parse(String(init?.body));
-        expect(body.modelName).toBe("gpt-task");
-        return sseResponse([
-          { type: "content", content: '{"shouldSearch":false}' },
-          { type: "done" },
-        ]);
-      })
-      .mockImplementationOnce(async () =>
-        Response.json({
-          images: [{ id: "img_1", mimeType: "image/png", data: "aW1hZ2U=" }],
-          message: "Generated image",
-        }),
-      );
+    mocks.searchWithGrok.mockResolvedValue({
+      summary: "Current market research.",
+      sources: [
+        {
+          title: "Market source",
+          url: "https://example.com/market",
+          content: "Current data",
+        },
+      ],
+      images: [],
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        images: [{ id: "img_1", mimeType: "image/png", data: "aW1hZ2U=" }],
+        message: "Generated image",
+      }),
+    );
     const { streamChatResponse } = await import("../services/api/chatService");
 
     await streamChatResponse(
@@ -948,9 +931,35 @@ describe("chat service tool execution", () => {
       () => undefined,
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/chat/generate");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/chat/generate-image");
+    expect(mocks.searchWithGrok).toHaveBeenCalledWith(
+      "Draw current market mood.",
+      undefined,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/chat/generate-image");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.prompt).toContain("Grok Web Research");
+    expect(body.prompt).toContain("https://example.com/market");
+  });
+
+  it("surfaces Grok search failures without sending the model request", async () => {
+    mocks.searchWithGrok.mockRejectedValue(new Error("Grok upstream failed"));
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const { streamChatResponse } = await import("../services/api/chatService");
+
+    await expect(
+      streamChatResponse(
+        "session-1",
+        "openai:gpt-4",
+        [],
+        "Find current news",
+        [],
+        { useSearch: true },
+        () => undefined,
+      ),
+    ).rejects.toThrow("Grok upstream failed");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("uses the centralized high tool-round limit before stopping recursive calls", async () => {

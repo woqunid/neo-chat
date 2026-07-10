@@ -41,7 +41,6 @@ export {
   usePluginSettings,
   useAgentSettings,
   useSystemSettings,
-  useSearchSettings,
   useRAGSettings,
   useVoiceSettings,
   // Knowledge Store

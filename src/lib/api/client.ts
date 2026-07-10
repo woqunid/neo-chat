@@ -8,7 +8,7 @@ const API_PROOF_HEADERS = {
 
 const protectedApiProofPathPatterns = [
   /^\/api\/chat(?:\/|$)/,
-  /^\/api\/search$/,
+  /^\/api\/grok-search$/,
   /^\/api\/rag(?:\/|$)/,
   /^\/api\/voice(?:\/|$)/,
   /^\/api\/doc-parse(?:\/|$)/,

@@ -179,17 +179,6 @@ export const useSystemSettings = () => {
   );
 };
 
-export const useSearchSettings = () => {
-  return useSettingsStore(
-    useShallow((state) => ({
-      search: state.search,
-      setSearchProvider: state.setSearchProvider,
-      updateSearchConfig: state.updateSearchConfig,
-      setSearchResultsLimit: state.setSearchResultsLimit,
-    })),
-  );
-};
-
 export const useRAGSettings = () => {
   return useSettingsStore(
     useShallow((state) => ({

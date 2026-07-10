@@ -11,7 +11,6 @@ import {
   finalizeOpenAIToolCalls,
   finalizeStreamedToolCall,
 } from "./toolCalls";
-import { normalizeSearchSources } from "../search/results";
 import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
 import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
 
@@ -38,77 +37,6 @@ function extractTextValue(value: unknown): string {
     extractTextValue(record.summary) ||
     extractTextValue(record.delta)
   );
-}
-
-function createSourceCandidate(
-  value: unknown,
-  fallbackTitle = "Search source",
-  fallbackContent?: string,
-) {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const url =
-    extractTextValue(record.url) ||
-    extractTextValue(record.uri) ||
-    extractTextValue(record.link);
-  if (!url) return null;
-
-  const title =
-    extractTextValue(record.title) ||
-    extractTextValue(record.name) ||
-    fallbackTitle;
-  const content =
-    extractTextValue(record.content) ||
-    extractTextValue(record.snippet) ||
-    extractTextValue(record.text) ||
-    fallbackContent ||
-    title;
-
-  return { title, url, content };
-}
-
-function collectSourceCandidates(
-  value: unknown,
-  fallbackContent?: string,
-): unknown[] {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((item) =>
-        createSourceCandidate(item, "Search source", fallbackContent),
-      )
-      .filter(Boolean);
-  }
-  const candidate = createSourceCandidate(
-    value,
-    "Search source",
-    fallbackContent,
-  );
-  return candidate ? [candidate] : [];
-}
-
-function extractWebSearchSources(item: any) {
-  const rawSources = [
-    ...collectSourceCandidates(item?.results),
-    ...collectSourceCandidates(item?.action?.sources),
-    ...collectSourceCandidates(item?.sources),
-  ];
-  return normalizeSearchSources(rawSources);
-}
-
-function extractUrlCitationSources(content: any) {
-  const text = extractTextValue(content?.text);
-  const annotations = Array.isArray(content?.annotations)
-    ? content.annotations
-    : [];
-  const rawSources = annotations
-    .filter((annotation: any) => annotation?.type === "url_citation")
-    .map((annotation: any) =>
-      createSourceCandidate(annotation, "Citation", text),
-    )
-    .filter(Boolean);
-
-  return normalizeSearchSources(rawSources);
 }
 
 function extractReasoningSummary(item: any): string {
@@ -287,7 +215,6 @@ export interface OpenAIResponsesStreamOptions {
   instructions?: string;
   temperature?: number;
   tools?: any[];
-  enableWebSearch?: boolean;
   enableImageGeneration?: boolean;
   onChunk: (message: SSEMessage) => void;
 }
@@ -477,7 +404,6 @@ export async function streamOpenAIResponses(
     instructions,
     temperature,
     tools,
-    enableWebSearch,
     enableImageGeneration,
     onChunk,
   } = options;
@@ -492,13 +418,6 @@ export async function streamOpenAIResponses(
   if (instructions) requestParams.instructions = instructions;
   if (temperature !== undefined) requestParams.temperature = temperature;
   const requestTools = tools ? [...tools] : [];
-  if (enableWebSearch) {
-    requestTools.push({ type: "web_search_preview" });
-    requestParams.include = [
-      "web_search_call.results",
-      "web_search_call.action.sources",
-    ];
-  }
   if (
     enableImageGeneration &&
     !requestTools.some((tool) => tool?.type === "image_generation")
@@ -534,34 +453,8 @@ export async function streamOpenAIResponses(
         break;
       }
 
-      case "response.output_text.annotation.added": {
-        const sources = normalizeSearchSources(
-          collectSourceCandidates(event.annotation),
-        );
-        if (sources.length > 0) {
-          onChunk({
-            type: "search",
-            isSearching: false,
-            results: { sources, images: [] },
-          });
-        }
-        break;
-      }
-
       case "response.output_item.done": {
         const item = event.item;
-        if (item?.type === "web_search_call") {
-          const sources = extractWebSearchSources(item);
-          if (sources.length > 0) {
-            onChunk({
-              type: "search",
-              isSearching: false,
-              results: { sources, images: [] },
-            });
-          }
-          break;
-        }
-
         if (item?.type === "reasoning") {
           if (!hasStreamedReasoning) {
             const reasoningContent = extractReasoningSummary(item);
@@ -580,15 +473,6 @@ export async function streamOpenAIResponses(
               if (text) {
                 onChunk({ type: "content", content: text });
               }
-            }
-
-            const sources = extractUrlCitationSources(content);
-            if (sources.length > 0) {
-              onChunk({
-                type: "search",
-                isSearching: false,
-                results: { sources, images: [] },
-              });
             }
           }
           break;

@@ -39,11 +39,6 @@ vi.mock("@/lib/utils/model", () => ({
   }),
 }));
 
-vi.mock("@/lib/settings/searchRag", () => ({
-  getSearchCompatibility: vi.fn(() => ({ enabled: true, mode: "native" })),
-  getSearchCompatibilityErrorMessage: vi.fn(() => "Search is unavailable"),
-}));
-
 vi.mock("@/lib/utils/chatInput", () => ({
   appendContextToChatInput: vi.fn(
     (message: string, context: string) => `${message}\n\n${context}`,
@@ -144,7 +139,6 @@ describe("memory dream consolidation", () => {
     mocks.settingsState = {
       modelMetadata: {},
       customModelMetadata: {},
-      search: { provider: "google", configs: {} },
       installedPlugins: [],
       pluginConfigs: {},
       system: {

@@ -43,7 +43,7 @@ Neo Chat 是一个可自托管、本地优先的 AI 对话应用，基于 Next.j
 - 支持纯文本技能：本地化公共目录、安装/卸载、编辑内置技能、本地自定义技能、自动选择和工作区预设。
 - 支持 OpenAPI 风格插件工具、插件鉴权和服务端执行。
 - 内置网页阅读、天气、Unsplash 搜索、Agnes/Gemini 图片处理、OpenAI 兼容图片处理、OpenAI Responses 图片处理、Agnes 视频生成工具。Agnes 图片处理支持图生图编辑，Agnes 视频生成支持公开图片 URL 生成视频和插件级模型 ID。图片处理插件和模型原生图片输出保持分离。
-- 支持 Gemini 原生 Google Search，以及 Tavily、Firecrawl、Exa、Bocha、SearXNG 等外部搜索。
+- 支持由管理员统一配置的 Grok 联网搜索，可使用第三方 OpenAI 兼容 Responses API。
 - 知识库 RAG 支持 OPFS 文件存储、Mineru/LlamaParse 文档解析和可选向量索引。
 - 支持本地记忆、可选记忆搜索、后台记忆提取和记忆整合。
 - 支持浏览器语音 API、ElevenLabs、Mimo 或兼容配置的语音输入输出。
@@ -262,14 +262,13 @@ DEFAULT_MODEL_RAG_QUERY="model-a"
 DEFAULT_MODEL_MEMORY="model-a"
 ```
 
-搜索、RAG、文档解析和语音默认值：
+Grok 联网搜索在 `/superadmin` 中配置，与模型服务商位于同一管理后台的独立分区。
+管理员在此设置 OpenAI 兼容的 Base URL、API Key、Responses API 模型和启用状态。
+搜索不再提供环境变量回退。
+
+RAG、文档解析和语音默认值：
 
 ```bash
-DEFAULT_SEARCH_PROVIDER="firecrawl"
-# Firecrawl search works without an API key; set one for higher rate limits.
-DEFAULT_SEARCH_API_KEY=""
-DEFAULT_SEARCH_BASE_URL="https://search.example"
-
 DEFAULT_RAG_BASE_URL="https://rag.example"
 DEFAULT_RAG_TOKEN="rag-token"
 DEFAULT_RAG_TOP_K="10"
@@ -319,7 +318,7 @@ flowchart LR
   Browser --> OPFS["OPFS\n上传 + 工作区文件"]
   Browser --> ApiRoutes["Next.js API routes"]
   ApiRoutes --> Providers["模型供应商\nGemini / OpenAI / compatible"]
-  ApiRoutes --> Search["搜索供应商"]
+  ApiRoutes --> Search["Grok 联网搜索"]
   ApiRoutes --> Rag["RAG + 文档服务"]
   ApiRoutes --> Plugins["插件 API"]
   ApiRoutes --> Voice["语音供应商"]
@@ -336,13 +335,13 @@ flowchart LR
 - 通过 `/api/health` 输出部署健康状态；
 - 在 hosted 模式检查共享存储和本地网络限制。
 
-## 技能、插件、搜索、RAG 与语音
+## 技能、插件、Grok 联网、RAG 与语音
 
 技能是纯文本的提示词上下文模块。应用会从 `public/data/skills` 加载本地化元数据目录，只在需要时获取完整技能定义，并把已安装、已编辑和自定义技能保存在本地。活跃技能可以手动选择，也可以来自工作区预设，或在发送消息时自动选择。
 
 插件是 OpenAPI 风格工具，可以来自 manifest 或内置定义。启用的插件函数会以 tool 形式暴露给兼容模型，再由服务端插件路由执行。内置图片处理插件结果保留在工具详情和压缩后的对话历史中，由模型决定是否以及如何在后续回复中引用生成或编辑后的图片。OpenAI 兼容 Images API 和 OpenAI Responses 图片处理是两个独立插件，便于分别管理密钥和启用状态。受支持的内置媒体插件提供插件级 API Base URL 与 Model ID 字段、可选图片数量参数、Agnes 图生图编辑，以及基于公开 HTTPS 图片 URL 的 Agnes 图生视频；Agnes 视频仍保持显式 `create_video` / `get_video_result` 两步流程。工具调用编排使用较高但有边界的循环上限，既允许多步任务，也避免递归工具调用失控。
 
-搜索可以使用 Gemini 模型的原生 Google Search，也可以对其他模型族使用外部搜索供应商。知识库 RAG 会把源文件存在 OPFS，可选使用 Mineru 或 LlamaParse 解析文档，并可把 chunks 索引到外部向量服务。
+联网搜索只使用 Super Admin 配置的 Grok 兼容 Responses API。应用调用 `web_search` 工具，要求返回研究摘要和引用，再把研究结果交给当前聊天模型生成最终回答。Grok 搜索失败会明确显示并中止本次模型请求，不会静默跳过联网。知识库 RAG 会把源文件存在 OPFS，可选使用 Mineru 或 LlamaParse 解析文档，并可把 chunks 索引到外部向量服务。
 
 语音流程支持浏览器语音 API 和外部供应商。将 `DEFAULT_VOICE_PROVIDER` 设为 `elevenlabs` 或 `mimo` 可启用服务端默认语音供应商；留空则默认使用浏览器原生语音。默认模型值为空会禁用对应的 STT 或 TTS 能力，用户级密钥也可以由 UI 本地保存。
 

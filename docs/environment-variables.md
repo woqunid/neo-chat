@@ -68,19 +68,19 @@ that removes client-supplied forwarded headers.
 
 ## Shared Stores
 
-| Variable                   | Purpose                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_STORE`         | Store for rate-limit state. Use `upstash` for hosted or multi-instance deployments.                     |
-| `DOCUMENT_PARSE_JOB_STORE` | Store for document parsing jobs. Use `upstash` for hosted or multi-instance deployments.                |
-| `PLUGIN_REGISTRY_STORE`    | Store for server-registered plugin manifests. Use `upstash` for hosted or multi-instance deployments.   |
-| `MODEL_PROVIDER_STORE`     | Store for `/superadmin` global model providers. Use `upstash` for hosted or multi-instance deployments. |
-| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST endpoint used by shared stores.                                                      |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token used by shared stores.                                                         |
+| Variable                   | Purpose                                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_STORE`         | Store for rate-limit state. Use `upstash` for hosted or multi-instance deployments.                                                |
+| `DOCUMENT_PARSE_JOB_STORE` | Store for document parsing jobs. Use `upstash` for hosted or multi-instance deployments.                                           |
+| `PLUGIN_REGISTRY_STORE`    | Store for server-registered plugin manifests. Use `upstash` for hosted or multi-instance deployments.                              |
+| `MODEL_PROVIDER_STORE`     | Store for `/superadmin` model providers and Grok web-search configuration. Use `upstash` for hosted or multi-instance deployments. |
+| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST endpoint used by shared stores.                                                                                 |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token used by shared stores.                                                                                    |
 
 These stores may use in-memory state for one local process. Hosted, Cloudflare
 Workers, and multi-instance Docker deployments should use `upstash` so rate
 limits, document parse jobs, plugin registry lookups, and `/superadmin` model
-provider settings survive across instances.
+provider and Grok settings survive across instances.
 
 ## Upload Limits
 
@@ -97,14 +97,14 @@ provider settings survive across instances.
 
 ## Default Model Provider
 
-| Variable                    | Purpose                                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_PROVIDER_TYPE`     | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                                                     |
-| `DEFAULT_PROVIDER_NAME`     | Display name for the default provider.                                                                                                      |
-| `DEFAULT_PROVIDER_BASE_URL` | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.                                        |
-| `DEFAULT_PROVIDER_API_KEY`  | Deployment-level API key for the default provider.                                                                                          |
-| `DEFAULT_PROVIDER_MODELS`   | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays, and JSON object arrays with optional metadata. |
-| `PROVIDER_REQUEST_TIMEOUT_MS` | Provider request timeout in milliseconds. Defaults to `30000`; set to `0` to disable.                                                     |
+| Variable                      | Purpose                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_PROVIDER_TYPE`       | Default provider type, such as `Gemini`, `Anthropic`, `OpenAI`, or `OpenAI Compatible`.                                                     |
+| `DEFAULT_PROVIDER_NAME`       | Display name for the default provider.                                                                                                      |
+| `DEFAULT_PROVIDER_BASE_URL`   | Base URL for configurable providers. Leave empty for default Gemini, Anthropic, or OpenAI endpoints.                                        |
+| `DEFAULT_PROVIDER_API_KEY`    | Deployment-level API key for the default provider.                                                                                          |
+| `DEFAULT_PROVIDER_MODELS`     | Model IDs exposed by the default provider. Supports comma-separated IDs, JSON string arrays, and JSON object arrays with optional metadata. |
+| `PROVIDER_REQUEST_TIMEOUT_MS` | Provider request timeout in milliseconds. Defaults to `30000`; set to `0` to disable.                                                       |
 
 `DEFAULT_PROVIDER_MODELS` JSON object entries may include display metadata,
 capability aliases, and explicit modalities:
@@ -149,13 +149,17 @@ multiple separate images.
 | `DEFAULT_MODEL_RAG_QUERY`           | Model used for RAG query generation.                      |
 | `DEFAULT_MODEL_MEMORY`              | Model used for memory extraction and dream consolidation. |
 
-## Search Defaults
+## Grok Web Search
 
-| Variable                  | Purpose                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `DEFAULT_SEARCH_PROVIDER` | Default external search provider: `tavily`, `firecrawl`, `exa`, `bocha`, or `searxng`. |
-| `DEFAULT_SEARCH_API_KEY`  | Deployment-level search API key when required by the selected provider.                |
-| `DEFAULT_SEARCH_BASE_URL` | Base URL for configurable search providers such as SearXNG.                            |
+Grok web search has no environment-variable fallback. Configure its OpenAI-
+compatible Base URL, API key, Responses API model, and enabled state in
+`/superadmin` under **Grok Web Search**. The configuration uses the
+`MODEL_PROVIDER_STORE` backend and is shared by every user of the deployment.
+
+The configured endpoint must support `POST /v1/responses` with
+`tools: [{ "type": "web_search" }]` and return a research summary with web
+citations. Search remains unavailable until the configuration is complete and
+enabled.
 
 ## RAG And Document Processing
 

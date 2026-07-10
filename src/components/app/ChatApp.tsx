@@ -65,7 +65,6 @@ import {
   normalizeSessionMessageTree,
 } from "@/lib/chat/messageTree";
 import { normalizeActivePluginIds } from "@/lib/plugin/config";
-import { parseModelString } from "@/lib/utils/model";
 import { logDevError } from "@/lib/utils/devLogger";
 import {
   PublicServerConfig,
@@ -188,9 +187,9 @@ const ChatApp = () => {
       customModelMetadata,
       fetchModelMetadata,
       ensureBuiltInPlugins,
+      serverConfig,
       system,
       rag,
-      search,
       activePlugins,
       installedPlugins,
       pluginConfigs,
@@ -845,10 +844,6 @@ const ChatApp = () => {
   const getEffectiveContextForSession = (
     session?: typeof currentSession | null,
   ) => {
-    const { providerId } = parseModelString(selectedModel);
-    const provider = providerId
-      ? providers.find((item) => item.id === providerId)
-      : providers.find((item) => item.enabled);
     const workspace = session?.workspaceId
       ? workspaces.find((item) => item.id === session.workspaceId)
       : null;
@@ -860,14 +855,10 @@ const ChatApp = () => {
       personality: system.personality,
       enableHtmlVisualPrompt: system.enableHtmlVisualPrompt,
       selectedModel,
-      provider,
       modelMetadata,
       customModelMetadata,
       chatConfig,
-      search: {
-        provider: search.provider,
-        configs: search.configs,
-      },
+      searchAvailable: Boolean(serverConfig?.search.available),
       rag,
       installedPlugins,
       installedSkills,

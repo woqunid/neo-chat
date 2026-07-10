@@ -3,7 +3,6 @@ import type { ChatConfig } from "../chat/types";
 import type { Plugin, PluginConfig } from "../plugin/types";
 import type { ModelMetadata, ModelProvider } from "../providers/types";
 import type { LocalEncryptedSecretEnvelope } from "../security/localSecrets";
-import type { SearchProviderID, SearchServiceConfig } from "../search/types";
 import type { SkillCatalog, SkillDataLocale, TextSkill } from "../skills/types";
 import type { VoiceSettings } from "../voice/types";
 export type {
@@ -73,11 +72,6 @@ export interface AppSettings {
   providers: ModelProvider[];
   modelMetadata: Record<string, ModelMetadata>;
   defaultModels: DefaultModels;
-  search: {
-    provider: SearchProviderID;
-    resultsLimit: number;
-    configs: Record<string, SearchServiceConfig>;
-  };
   rag: RAGConfig;
   voice: VoiceSettings;
   activePlugins: string[];

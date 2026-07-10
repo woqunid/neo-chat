@@ -1,5 +1,4 @@
 import { Message, MessageOutputBlock, ToolCall } from "@/types";
-import { normalizeSearchSettings } from "../../lib/settings/searchRag";
 
 export function normalizeToolCall(toolCall: Partial<ToolCall>): ToolCall {
   let status = toolCall.status;
@@ -50,8 +49,4 @@ export function normalizeMessage(message: Message): Message {
 
 export function normalizeMessages(messages: Message[] | null | undefined) {
   return (messages || []).map((message) => normalizeMessage(message));
-}
-
-export function migrateSearchSettings(search: any) {
-  return normalizeSearchSettings(search);
 }

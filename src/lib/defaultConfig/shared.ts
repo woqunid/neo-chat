@@ -10,7 +10,6 @@ import type {
 
 export const SERVER_DEFAULT_PROVIDER_ID = "SERVER_DEFAULT";
 export const SERVER_PROVIDER_ID_PREFIX = "SERVER_PROVIDER:";
-export const SERVER_DEFAULT_SEARCH_PROVIDER_ID = "default";
 
 export type ServerDefaultProviderSource = "server-default";
 export type ServerManagedProviderSource = "server-provider";

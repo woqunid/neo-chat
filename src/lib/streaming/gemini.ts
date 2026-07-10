@@ -12,7 +12,6 @@ import { PLUGIN_EXECUTION_LIMITS } from "../../config/limits";
 import { SSEMessage } from "./sse";
 import { finalizeStreamedToolCall } from "./toolCalls";
 import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
-import { normalizeSearchSources } from "../search/results";
 
 export interface GeminiStreamOptions {
   client: GoogleGenAI;
@@ -21,7 +20,6 @@ export interface GeminiStreamOptions {
   systemInstruction?: string;
   temperature?: number;
   tools?: any[];
-  enableGoogleSearch?: boolean;
   enableImageGeneration?: boolean;
   imageCount?: number;
   onChunk: (message: SSEMessage) => void;
@@ -39,37 +37,6 @@ function appendImageCountInstruction(
     : imageInstruction;
 }
 
-function extractGeminiGroundingSources(groundingMetadata: any) {
-  const chunks = Array.isArray(groundingMetadata?.groundingChunks)
-    ? groundingMetadata.groundingChunks
-    : [];
-  const supports = Array.isArray(groundingMetadata?.groundingSupports)
-    ? groundingMetadata.groundingSupports
-    : [];
-
-  const sources = chunks
-    .map((chunk: any, index: number) => {
-      const web = chunk?.web;
-      const uri = web?.uri || web?.url;
-      if (!uri) return null;
-
-      const support = supports.find((item: any) => {
-        const indexes = item?.groundingChunkIndices;
-        return Array.isArray(indexes) ? indexes.includes(index) : index === 0;
-      });
-      const title = web?.title || uri;
-      const content = support?.segment?.text || title;
-      return {
-        title,
-        url: uri,
-        content,
-      };
-    })
-    .filter(Boolean);
-
-  return normalizeSearchSources(sources);
-}
-
 /**
  * 处理 Gemini 流式响应
  * 注意：由于 Gemini SDK 的限制，这里使用简化的实现
@@ -83,7 +50,6 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
     systemInstruction,
     temperature = 1,
     tools,
-    enableGoogleSearch,
     enableImageGeneration,
     imageCount,
     onChunk,
@@ -113,9 +79,6 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
   const geminiTools: NonNullable<GenerateContentConfig["tools"]> = [];
   if (tools && tools.length > 0) {
     geminiTools.push({ functionDeclarations: tools });
-  }
-  if (enableGoogleSearch) {
-    geminiTools.push({ googleSearch: {} });
   }
   if (geminiTools.length > 0) {
     config.tools = geminiTools;
@@ -191,17 +154,6 @@ export async function streamGeminiResponse(options: GeminiStreamOptions) {
             });
           }
         }
-      }
-
-      const sources = extractGeminiGroundingSources(
-        candidate.groundingMetadata,
-      );
-      if (sources.length > 0) {
-        onChunk({
-          type: "search",
-          isSearching: false,
-          results: { sources, images: [] },
-        });
       }
     }
 

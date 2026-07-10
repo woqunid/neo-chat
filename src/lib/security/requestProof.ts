@@ -59,7 +59,7 @@ const decoder = new TextDecoder();
 
 const protectedPathPatterns = [
   /^\/api\/chat(?:\/|$)/,
-  /^\/api\/search$/,
+  /^\/api\/grok-search$/,
   /^\/api\/rag(?:\/|$)/,
   /^\/api\/voice(?:\/|$)/,
   /^\/api\/doc-parse(?:\/|$)/,

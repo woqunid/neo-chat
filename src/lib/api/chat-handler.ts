@@ -53,8 +53,6 @@ export interface ChatHandlerOptions {
   systemInstruction?: string;
   tools?: any[];
   enableImageGeneration?: boolean;
-  enableGoogleSearch?: boolean;
-  enableOpenAIWebSearch?: boolean;
 }
 
 function getProviderBaseUrlHost(provider: ProviderConfig): string | undefined {
@@ -223,8 +221,6 @@ export async function handleChatStream(options: ChatHandlerOptions) {
     systemInstruction,
     tools,
     enableImageGeneration,
-    enableGoogleSearch,
-    enableOpenAIWebSearch,
   } = options;
 
   const stream = createStreamHandler(async (controller) => {
@@ -271,7 +267,6 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           temperature: config?.temperature,
           tools: convertToolsToOpenAIResponses(tools),
           enableImageGeneration,
-          enableWebSearch: enableOpenAIWebSearch,
           onChunk: send,
         });
       } else if (provider.type === OPENAI_COMPATIBLE_PROVIDER_TYPE) {
@@ -368,7 +363,6 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           systemInstruction,
           temperature: config?.temperature,
           tools: geminiTools,
-          enableGoogleSearch,
           enableImageGeneration,
           imageCount: config?.imageCount,
           onChunk: send,

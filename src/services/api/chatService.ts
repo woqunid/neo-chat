@@ -14,7 +14,7 @@ import { useCoreSettingsStore } from "@/store/core/coreSettingsStore";
 import { useMemoryStore } from "@/store/core/memoryStore";
 import { v7 as uuidv7 } from "uuid";
 import { executePluginFunction } from "@/utils/pluginUtils";
-import { createSearchProvider } from "./searchService";
+import { searchWithGrok, type GrokSearchResult } from "./grokSearchService";
 import { getEnabledPluginFunctions } from "@/lib/plugin/resolve";
 import {
   parseModelString,
@@ -31,18 +31,9 @@ import {
 } from "../../lib/utils/imageDisplayCache";
 import { appendDiagramRequestInstructions } from "../../lib/chat/diagramPrompt";
 import { appendHtmlVisualRequestInstructions } from "../../lib/chat/htmlVisualPrompt";
-import {
-  getSearchCompatibility,
-  getSearchCompatibilityErrorMessage,
-} from "@/lib/settings/searchRag";
 import { createMessageOutputBlockBuilder } from "../../lib/chat/messageOutputBlocks";
 import { resolveImageGenerationOptions } from "../../lib/chat/imageGenerationOptions";
-import {
-  buildSearchContextForPrompt,
-  createSearchDecisionPrompt,
-  parseSearchDecisionResult,
-  type SearchDecision,
-} from "../../lib/search/decision";
+import { buildSearchContextForPrompt } from "../../lib/search/context";
 import {
   createContextCompressionSummaryPrompt,
   mergeCompressedContent,
@@ -286,72 +277,6 @@ function getAttachmentsContextLength(attachments: Attachment[]): number {
       (attachment.url?.length || 0),
     0,
   );
-}
-
-function resolveModelStringMetadata(model: string): ModelMetadata | undefined {
-  const { modelName } = parseModelString(model);
-  return resolveModelMetadata(modelName);
-}
-
-function resolveTextGenerationModel({
-  selectedModel,
-  selectedModelMetadata,
-  providers,
-}: {
-  selectedModel: string;
-  selectedModelMetadata?: ModelMetadata;
-  providers: Array<{
-    id: string;
-    enabled?: boolean;
-    models?: string[];
-  }>;
-}): string | undefined {
-  if (supportsTextOutput(selectedModelMetadata)) return selectedModel;
-
-  const taskModel = getTaskModel("promptOptimization").trim();
-  if (taskModel && supportsTextOutput(resolveModelStringMetadata(taskModel))) {
-    return taskModel;
-  }
-
-  const fallback = providers
-    .filter((provider) => provider.enabled)
-    .flatMap((provider) =>
-      (provider.models || []).map((modelName) => ({
-        id: `${provider.id}:${modelName}`,
-        metadata: resolveModelMetadata(modelName),
-      })),
-    )
-    .find((candidate) => supportsTextOutput(candidate.metadata));
-
-  return fallback?.id;
-}
-
-async function decideExternalSearchUse({
-  model,
-  history,
-  message,
-  signal,
-}: {
-  model: string;
-  history: Message[];
-  message: string;
-  signal?: AbortSignal;
-}): Promise<SearchDecision> {
-  try {
-    const rawDecision = await streamGenerateContent(
-      model,
-      createSearchDecisionPrompt({ history, message }),
-      () => {},
-      signal,
-    );
-    return parseSearchDecisionResult(rawDecision, message);
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
-    }
-    logDevWarn("Search decision failed:", error);
-    return { shouldSearch: false, query: message };
-  }
 }
 
 export const executeCode = async (
@@ -625,6 +550,84 @@ export interface ModelInfo {
   providerName?: string;
 }
 
+interface GrokSearchPreflightOptions {
+  query: string;
+  modelName: string;
+  history: Message[];
+  attachments: Attachment[];
+  signal?: AbortSignal;
+  outputBlocks: ReturnType<typeof createMessageOutputBlockBuilder>;
+  emitOutputBlocks: () => void;
+  onSearchStatus?: (
+    isSearching: boolean,
+    results?: SearchStatusResults,
+  ) => void;
+}
+
+interface GrokContextBudgetOptions {
+  results: GrokSearchResult;
+  modelName: string;
+  history: Message[];
+  attachments: Attachment[];
+}
+
+function fitGrokSearchContext({
+  results,
+  modelName,
+  history,
+  attachments,
+}: GrokContextBudgetOptions): string {
+  const searchContext = buildSearchContextForPrompt(results);
+  const metadata = resolveModelMetadata(modelName);
+  const budget = allocateContextBudget({
+    modelInputTokenLimit: metadata?.limit?.context,
+    reservedOutputTokens: metadata?.limit?.output,
+    sources: {
+      history: getMessagesContextLength(history),
+      attachments: getAttachmentsContextLength(attachments),
+      search: searchContext.length,
+    },
+  });
+  return trimTextToEstimatedTokens(
+    searchContext,
+    budget.allocations.search.maxTokens,
+  );
+}
+
+async function prepareGrokSearchContext({
+  query,
+  modelName,
+  history,
+  attachments,
+  signal,
+  outputBlocks,
+  emitOutputBlocks,
+  onSearchStatus,
+}: GrokSearchPreflightOptions): Promise<string> {
+  outputBlocks.upsertSearch({ isSearching: true });
+  onSearchStatus?.(true);
+  emitOutputBlocks();
+  try {
+    const results = await searchWithGrok(query, signal);
+    const searchContext = fitGrokSearchContext({
+      results,
+      modelName,
+      history,
+      attachments,
+    });
+    outputBlocks.upsertSearch({ isSearching: false, results });
+    onSearchStatus?.(false, results);
+    emitOutputBlocks();
+    return searchContext;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputBlocks.upsertSearch({ isSearching: false, error: message });
+    onSearchStatus?.(false, { sources: [], images: [] });
+    emitOutputBlocks();
+    throw error;
+  }
+}
+
 // Stream chat response from backend API
 export const streamChatResponse = async (
   _sessionId: string, // Prefixed with _ to indicate intentionally unused
@@ -662,109 +665,25 @@ export const streamChatResponse = async (
   const selectedModelMetadata = resolveModelMetadata(modelName);
 
   let effectiveNewMessage = newMessage;
-  const { search } = useSettingsStore.getState();
-  const searchConfig =
-    search.provider === "google" ? undefined : search.configs[search.provider];
-  const searchCompatibility = getSearchCompatibility({
-    searchProvider: search.provider,
-    searchConfig,
-    modelProviderType: provider.type,
-    modelBuiltInSearch: resolveModelMetadata(modelName)?.built_in_search,
-  });
   const outputBlockBuilder = createMessageOutputBlockBuilder();
   const emitOutputBlocks = () => {
     onOutputBlocks?.(outputBlockBuilder.getBlocks());
   };
 
-  if (config?.useSearch && !searchCompatibility.enabled) {
-    onSearchStatus?.(false, { sources: [], images: [] });
-    throw new Error(getSearchCompatibilityErrorMessage(searchCompatibility));
-  }
-
-  if (
-    config?.useSearch &&
-    onSearchStatus &&
-    searchCompatibility.mode === "external"
-  ) {
-    let externalSearchStarted = false;
-    try {
-      const searchDecisionModel = resolveTextGenerationModel({
-        selectedModel: model,
-        selectedModelMetadata,
-        providers,
-      });
-      if (!searchDecisionModel) {
-        onSearchStatus(false, { sources: [], images: [] });
-      } else {
-        const decision = await decideExternalSearchUse({
-          model: searchDecisionModel,
-          history,
-          message: newMessage,
-          signal,
-        });
-
-        if (!decision.shouldSearch) {
-          onSearchStatus(false, { sources: [], images: [] });
-        } else {
-          outputBlockBuilder.upsertSearch({ isSearching: true });
-          externalSearchStarted = true;
-          onSearchStatus(true);
-          emitOutputBlocks();
-          const searchResults = await createSearchProvider({
-            query: decision.query,
-          });
-          outputBlockBuilder.upsertSearch({
-            isSearching: false,
-            results: searchResults,
-          });
-          onSearchStatus(false, searchResults);
-          emitOutputBlocks();
-
-          if (
-            searchResults.sources.length > 0 ||
-            searchResults.images.length > 0
-          ) {
-            const searchContext = buildSearchContextForPrompt({
-              sources: searchResults.sources,
-              images: searchResults.images,
-            });
-            const metadata = resolveModelMetadata(modelName);
-            const budget = allocateContextBudget({
-              modelInputTokenLimit: metadata?.limit?.context,
-              reservedOutputTokens: metadata?.limit?.output,
-              sources: {
-                history: getMessagesContextLength(history),
-                attachments: getAttachmentsContextLength(attachments),
-                search: searchContext.length,
-              },
-            });
-            const boundedSearchContext = trimTextToEstimatedTokens(
-              searchContext,
-              budget.allocations.search.maxTokens,
-            );
-
-            if (boundedSearchContext) {
-              effectiveNewMessage = appendContextToChatInput(
-                newMessage,
-                boundedSearchContext,
-                { separator: "\n\n" },
-              );
-            }
-          }
-        }
-      }
-    } catch (searchError) {
-      logDevWarn("Search preflight failed:", searchError);
-      if (externalSearchStarted) {
-        outputBlockBuilder.upsertSearch({
-          isSearching: false,
-          results: { sources: [], images: [] },
-          error: "Search provider failed",
-        });
-        emitOutputBlocks();
-      }
-      onSearchStatus(false, { sources: [], images: [] });
-    }
+  if (config?.useSearch) {
+    const searchContext = await prepareGrokSearchContext({
+      query: newMessage,
+      modelName,
+      history,
+      attachments,
+      signal,
+      outputBlocks: outputBlockBuilder,
+      emitOutputBlocks,
+      onSearchStatus,
+    });
+    effectiveNewMessage = appendContextToChatInput(newMessage, searchContext, {
+      separator: "\n\n",
+    });
   }
 
   // Get plugin tools if activePlugins is provided
@@ -938,12 +857,6 @@ export const streamChatResponse = async (
             enableImageGeneration:
               supportsImageGeneration(selectedModelMetadata) &&
               (provider.type === "OpenAI" || provider.type === "Gemini"),
-            enableGoogleSearch:
-              requestConfig?.useSearch &&
-              searchCompatibility.mode === "gemini-google",
-            enableOpenAIWebSearch:
-              requestConfig?.useSearch &&
-              searchCompatibility.mode === "openai-web",
           }),
           signal,
         }),

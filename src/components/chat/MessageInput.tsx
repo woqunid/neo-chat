@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useChatStore } from "@/store/core/chatStore";
 import { getTaskModel, useSettingsStore } from "@/store/core/settingsStore";
-import { useCoreSettingsStore } from "@/store/core/coreSettingsStore";
 import {
   transcribeAudio,
   startBrowserSpeechRecognition,
@@ -72,11 +71,6 @@ import {
   getChatAttachmentFileSelectionMessage,
   selectChatAttachmentFiles,
 } from "@/lib/utils/chatAttachmentFiles";
-import {
-  getSearchCompatibility,
-  getSearchProviderLabel,
-  type SearchCompatibilityReason,
-} from "@/lib/settings/searchRag";
 import { hasPluginAuthValue } from "@/lib/security/localSecretResolvers";
 import { isPluginAuthRequired } from "@/lib/plugin/config";
 import { isKnowledgeAttachment } from "@/lib/utils/knowledgeAttachments";
@@ -169,12 +163,9 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       pluginConfigs,
       voice,
       updateVoiceSettings,
-      search,
       rag,
       serverConfig,
     } = useSettingsStore();
-
-    const { providers } = useCoreSettingsStore();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -345,73 +336,11 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       return () => document.removeEventListener("keydown", handleEscape);
     }, []);
 
-    const selectedModelProvider = useMemo(() => {
-      if (!selectedModel) return providers.find((provider) => provider.enabled);
-      const { providerId } = parseModelString(selectedModel);
-      return providerId
-        ? providers.find((provider) => provider.id === providerId)
-        : providers.find((provider) => provider.enabled);
-    }, [selectedModel, providers]);
-
-    const searchCompatibility = useMemo(() => {
-      const searchConfig =
-        search.provider === "google"
-          ? undefined
-          : search.configs[search.provider];
-      const { modelName } = parseModelString(selectedModel);
-      const selectedMetadata =
-        customModelMetadata[modelName] || modelMetadata[modelName];
-
-      return getSearchCompatibility({
-        searchProvider: search.provider,
-        searchConfig,
-        modelProviderType: selectedModelProvider?.type,
-        modelBuiltInSearch: selectedMetadata?.built_in_search,
-      });
-    }, [
-      customModelMetadata,
-      modelMetadata,
-      search,
-      selectedModel,
-      selectedModelProvider?.type,
-    ]);
-
-    const getSearchUnavailableMessage = (
-      reason: SearchCompatibilityReason | undefined,
-    ) => {
-      switch (reason) {
-        case "missing_model_provider":
-          return t("searchUnavailableNoProvider");
-        case "google_requires_gemini":
-          return t("searchUnavailableGoogleGemini");
-        case "model_builtin_search_unsupported":
-          return t("searchUnavailableModelBuiltIn");
-        case "missing_search_api_key":
-          return t("searchUnavailableApiKey", {
-            provider: getSearchProviderLabel(searchCompatibility.provider),
-          });
-        case "missing_search_base_url":
-          return t("searchUnavailableBaseUrl", {
-            provider: getSearchProviderLabel(searchCompatibility.provider),
-          });
-        default:
-          return t("searchUnavailableGeneric");
-      }
-    };
-
-    const searchModeLabel =
-      searchCompatibility.mode === "gemini-google"
-        ? t("searchModeGeminiGoogle")
-        : searchCompatibility.mode === "openai-web"
-          ? t("searchModeOpenAIWeb")
-          : t("searchModeExternal", {
-              provider: getSearchProviderLabel(searchCompatibility.provider),
-            });
-
-    const isSearchUnavailable = !searchCompatibility.enabled;
+    const searchModeLabel = t("searchModeGrok");
+    const isSearchUnavailable = !serverConfig?.search.available;
     const isSearchEnableBlocked = !isSearchEnabled && isSearchUnavailable;
     const searchTooltip = isSearchEnableBlocked
-      ? getSearchUnavailableMessage(searchCompatibility.reason)
+      ? t("searchUnavailableGrok")
       : isSearchEnabled
         ? t("disableSearchWithMode", { mode: searchModeLabel })
         : t("enableSearchWithMode", { mode: searchModeLabel });
@@ -1558,9 +1487,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     type="button"
                     aria-label={
                       isSearchEnableBlocked
-                        ? getSearchUnavailableMessage(
-                            searchCompatibility.reason,
-                          )
+                        ? t("searchUnavailableGrok")
                         : isSearchEnabled
                           ? t("disableSearchAria")
                           : t("enableSearchAria")
@@ -1574,7 +1501,7 @@ const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                         : "text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent/50"
                     }`}
                     onClick={handleSearchToggle}
-                    disabled={isSessionConfigBusy}
+                    disabled={isSessionConfigBusy || isSearchEnableBlocked}
                   >
                     <Globe size={16} aria-hidden="true" />
                   </button>

@@ -56,11 +56,6 @@ vi.mock("@/lib/utils/chatInput", () => ({
   clampChatInputText: vi.fn((value) => value),
 }));
 
-vi.mock("@/lib/settings/searchRag", () => ({
-  getSearchCompatibility: vi.fn(() => ({ enabled: true, mode: "none" })),
-  getSearchCompatibilityErrorMessage: vi.fn(() => "Search is unavailable"),
-}));
-
 vi.mock("@/lib/utils/contextCompression", () => ({
   createContextCompressionSummaryPrompt: vi.fn(() => ""),
   mergeCompressedContent: vi.fn((value) => value),
@@ -109,13 +104,7 @@ describe("BYOK service requests", () => {
       providers: [providerWithoutLocalKey],
     });
     mocks.getTaskModel.mockReturnValue("env-provider:gemini-title");
-    mocks.settingsGetState.mockReturnValue({
-      search: {
-        provider: "google",
-        configs: {},
-        resultsLimit: 5,
-      },
-    });
+    mocks.settingsGetState.mockReturnValue({});
   });
 
   it("allows chat helper calls to use server env fallback without sending apiKey", async () => {
