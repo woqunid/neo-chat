@@ -9,19 +9,19 @@ import {
   AdminToggle,
 } from "./AdminFormControls";
 import type { AdminGrokSearchConfig, AdminNotice } from "./types";
+import { getGrokSearchReadiness } from "./grokSearchReadiness";
 import { useGrokSearchAdmin } from "./useGrokSearchAdmin";
 
 export default function GrokSearchEditor() {
   const admin = useGrokSearchAdmin();
-  const ready = Boolean(
-    admin.config.baseUrl &&
-    admin.config.model &&
-    (admin.config.apiKey || admin.config.hasApiKey),
-  );
+  const readiness = getGrokSearchReadiness(admin.config);
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-background">
-      <GrokHeader enabled={admin.config.enabled} ready={ready} />
+      <GrokHeader
+        enabled={admin.config.enabled}
+        ready={readiness.canTestConnection}
+      />
       <GrokFields
         config={admin.config}
         models={admin.models}
@@ -29,7 +29,8 @@ export default function GrokSearchEditor() {
       />
       <GrokFooter
         busy={admin.busy}
-        canConnect={ready}
+        canFetchModels={readiness.canFetchModels}
+        canTestConnection={readiness.canTestConnection}
         notice={admin.notice}
         onFetchModels={admin.fetchModels}
         onTest={admin.test}
@@ -117,14 +118,16 @@ function GrokFields({
 
 function GrokFooter({
   busy,
-  canConnect,
+  canFetchModels,
+  canTestConnection,
   notice,
   onFetchModels,
   onTest,
   onSave,
 }: {
   busy: boolean;
-  canConnect: boolean;
+  canFetchModels: boolean;
+  canTestConnection: boolean;
   notice: AdminNotice | null;
   onFetchModels: () => void;
   onTest: () => void;
@@ -136,14 +139,14 @@ function GrokFooter({
       <div className="flex flex-wrap justify-end gap-2">
         <AdminActionButton
           icon={RefreshCw}
-          disabled={busy || !canConnect}
+          disabled={busy || !canFetchModels}
           onClick={onFetchModels}
         >
           获取模型
         </AdminActionButton>
         <AdminActionButton
           icon={FlaskConical}
-          disabled={busy || !canConnect}
+          disabled={busy || !canTestConnection}
           onClick={onTest}
         >
           测试联网
