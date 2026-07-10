@@ -428,7 +428,9 @@ const ChatApp = () => {
   >("hidden");
   const {
     messagesScrollRef,
+    isUserScrollingRef,
     handleScroll: handleMessagesScroll,
+    handleScrollEnd: handleMessagesScrollEnd,
     handleWheel: handleMessagesWheel,
     handleTouchStart: handleMessagesTouchStart,
     handleTouchMove: handleMessagesTouchMove,
@@ -774,6 +776,7 @@ const ChatApp = () => {
   const createStreamCommitter = (sessionId: string, messageId: string) =>
     createStreamingMessageCommitter({
       scheduler: BROWSER_FRAME_SCHEDULER,
+      shouldDefer: () => isUserScrollingRef.current,
       commit: ({ content, reasoning, outputBlocks }) => {
         updateMessageContent(
           sessionId,
@@ -2147,6 +2150,7 @@ const ChatApp = () => {
             <div
               ref={messagesScrollRef}
               onScroll={handleMessagesScroll}
+              onScrollEnd={handleMessagesScrollEnd}
               onWheel={handleMessagesWheel}
               onTouchStart={handleMessagesTouchStart}
               onTouchMove={handleMessagesTouchMove}

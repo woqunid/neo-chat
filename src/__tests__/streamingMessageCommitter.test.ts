@@ -35,6 +35,7 @@ describe("streaming message committer", () => {
     const committer = createStreamingMessageCommitter({
       commit,
       scheduler: harness.scheduler,
+      shouldDefer: () => false,
     });
 
     committer.enqueue({ content: "hel" });
@@ -50,12 +51,38 @@ describe("streaming message committer", () => {
     });
   });
 
+  it("keeps the latest snapshot pending while interaction has priority", () => {
+    const harness = createSchedulerHarness();
+    const commit = vi.fn<(snapshot: StreamingMessageSnapshot) => void>();
+    let shouldDefer = true;
+    const committer = createStreamingMessageCommitter({
+      commit,
+      scheduler: harness.scheduler,
+      shouldDefer: () => shouldDefer,
+    });
+
+    committer.enqueue({ content: "first" });
+    harness.runFrame();
+    committer.enqueue({ content: "latest" });
+
+    expect(commit).not.toHaveBeenCalled();
+    expect(harness.scheduler.request).toHaveBeenCalledTimes(2);
+    shouldDefer = false;
+    harness.runFrame();
+    expect(commit).toHaveBeenCalledWith({
+      content: "latest",
+      reasoning: undefined,
+      outputBlocks: undefined,
+    });
+  });
+
   it("flushes the final pending snapshot before completion", () => {
     const harness = createSchedulerHarness();
     const commit = vi.fn<(snapshot: StreamingMessageSnapshot) => void>();
     const committer = createStreamingMessageCommitter({
       commit,
       scheduler: harness.scheduler,
+      shouldDefer: () => true,
     });
 
     committer.enqueue({ content: "answer" });

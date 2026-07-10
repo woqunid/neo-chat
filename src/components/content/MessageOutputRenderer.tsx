@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useDeferredValue, useMemo } from "react";
 import { ImageOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Attachment, Message, MessageOutputBlock, Source } from "@/types";
@@ -135,14 +135,13 @@ const MessageOutputRenderer: React.FC<MessageOutputRendererProps> = ({
   onImageCached,
 }) => {
   const t = useTranslations("Message");
+  const deferredMessage = useDeferredValue(isTyping ? message : null);
+  const renderMessage = isTyping ? (deferredMessage ?? message) : message;
+  const renderContent = isTyping ? renderMessage.content : displayedContent;
   const blocks = useMemo(() => {
-    const orderedBlocks = getMessageOutputBlocks(message);
-    return trimTextBlocksForStreaming(
-      orderedBlocks,
-      displayedContent,
-      isTyping,
-    );
-  }, [displayedContent, isTyping, message]);
+    const orderedBlocks = getMessageOutputBlocks(renderMessage);
+    return trimTextBlocksForStreaming(orderedBlocks, renderContent, isTyping);
+  }, [isTyping, renderContent, renderMessage]);
 
   if (blocks.length === 0) return null;
 

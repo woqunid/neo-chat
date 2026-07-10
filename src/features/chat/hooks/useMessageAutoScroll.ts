@@ -9,6 +9,7 @@ import {
 const DETACH_THRESHOLD_PX = 160;
 const RESUME_THRESHOLD_PX = 8;
 const TOUCH_DIRECTION_THRESHOLD_PX = 4;
+const SCROLL_IDLE_DELAY_MS = 120;
 
 interface ScrollMetrics {
   scrollHeight: number;
@@ -21,7 +22,7 @@ interface MessageAutoScrollOptions {
   updateKey: unknown;
 }
 
-interface MutableFlagRef {
+export interface MutableFlagRef {
   current: boolean;
 }
 
@@ -41,24 +42,29 @@ export function resolveFollowingState(
   return distanceFromBottom <= threshold;
 }
 
-function useTouchScrollIntent(isFollowingRef: MutableFlagRef) {
+function useTouchScrollIntent(
+  isFollowingRef: MutableFlagRef,
+  markUserScrolling: () => void,
+) {
   const touchStartYRef = useRef<number | null>(null);
   const handleTouchStart: TouchEventHandler<HTMLDivElement> = useCallback(
     (event) => {
       touchStartYRef.current = event.touches[0]?.clientY ?? null;
+      markUserScrolling();
     },
-    [],
+    [markUserScrolling],
   );
   const handleTouchMove: TouchEventHandler<HTMLDivElement> = useCallback(
     (event) => {
       const startY = touchStartYRef.current;
       const currentY = event.touches[0]?.clientY;
       if (startY === null || currentY === undefined) return;
+      markUserScrolling();
       if (currentY - startY > TOUCH_DIRECTION_THRESHOLD_PX) {
         isFollowingRef.current = false;
       }
     },
-    [isFollowingRef],
+    [isFollowingRef, markUserScrolling],
   );
   const handleTouchEnd = useCallback(() => {
     touchStartYRef.current = null;
@@ -67,28 +73,55 @@ function useTouchScrollIntent(isFollowingRef: MutableFlagRef) {
   return { handleTouchStart, handleTouchMove, handleTouchEnd };
 }
 
+function useUserScrollingTracker() {
+  const isUserScrollingRef = useRef(false);
+  const scrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endUserScrolling = useCallback(() => {
+    isUserScrollingRef.current = false;
+    if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
+    scrollIdleTimerRef.current = null;
+  }, []);
+  const markUserScrolling = useCallback(() => {
+    isUserScrollingRef.current = true;
+    if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
+    scrollIdleTimerRef.current = setTimeout(
+      endUserScrolling,
+      SCROLL_IDLE_DELAY_MS,
+    );
+  }, [endUserScrolling]);
+
+  useEffect(() => endUserScrolling, [endUserScrolling]);
+  return { isUserScrollingRef, markUserScrolling, endUserScrolling };
+}
+
 export function useMessageAutoScroll({
   enabled,
   updateKey,
 }: MessageAutoScrollOptions) {
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const isFollowingRef = useRef(true);
-  const touchHandlers = useTouchScrollIntent(isFollowingRef);
+  const { isUserScrollingRef, markUserScrolling, endUserScrolling } =
+    useUserScrollingTracker();
+
+  const touchHandlers = useTouchScrollIntent(isFollowingRef, markUserScrolling);
 
   const handleScroll = useCallback(() => {
     const container = messagesScrollRef.current;
     if (!container) return;
+    const wasFollowing = isFollowingRef.current;
     isFollowingRef.current = resolveFollowingState(
-      isFollowingRef.current,
+      wasFollowing,
       getDistanceFromBottom(container),
     );
-  }, []);
+    if (!wasFollowing || !isFollowingRef.current) markUserScrolling();
+  }, [markUserScrolling]);
 
   const handleWheel: WheelEventHandler<HTMLDivElement> = useCallback(
     (event) => {
+      markUserScrolling();
       if (event.deltaY < 0) isFollowingRef.current = false;
     },
-    [],
+    [markUserScrolling],
   );
 
   useEffect(() => {
@@ -104,7 +137,9 @@ export function useMessageAutoScroll({
 
   return {
     messagesScrollRef,
+    isUserScrollingRef,
     handleScroll,
+    handleScrollEnd: endUserScrolling,
     handleWheel,
     ...touchHandlers,
   };
