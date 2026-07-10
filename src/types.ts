@@ -53,7 +53,7 @@ export type {
   ModelProvider,
   ProviderType,
 } from "./lib/providers/types";
-export type { ImageSource, Source } from "./lib/search/types";
+export type { GrokSearchResult, ImageSource, Source } from "./lib/search/types";
 export type {
   AppSettings,
   DefaultModels,

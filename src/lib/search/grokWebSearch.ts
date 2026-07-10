@@ -1,12 +1,8 @@
-import type { Source } from "../../types";
+import type { GrokSearchResult, Source } from "../../types";
 import { ProviderError } from "../errors";
 import { normalizeSearchSources } from "./results";
 
-export interface GrokSearchResult {
-  summary: string;
-  sources: Source[];
-  images: [];
-}
+export type { GrokSearchResult } from "./types";
 
 export type GrokResponseRequester = (
   request: Record<string, unknown>,
@@ -16,6 +12,13 @@ interface GrokWebSearchOptions {
   query: string;
   model: string;
   request: GrokResponseRequester;
+}
+
+interface CitationCandidate {
+  url: string;
+  label?: string;
+  startIndex?: number;
+  endIndex?: number;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -42,9 +45,9 @@ function extractText(value: unknown): string {
     .join("");
 }
 
-function collectAnnotationUrls(output: unknown): string[] {
+function collectAnnotationCitations(output: unknown): CitationCandidate[] {
   if (!Array.isArray(output)) return [];
-  const urls: string[] = [];
+  const citations: CitationCandidate[] = [];
   for (const item of output) {
     const content = asRecord(item)?.content;
     if (!Array.isArray(content)) continue;
@@ -54,27 +57,41 @@ function collectAnnotationUrls(output: unknown): string[] {
       for (const annotation of annotations) {
         const record = asRecord(annotation);
         if (record?.type === "url_citation" && typeof record.url === "string") {
-          urls.push(record.url);
+          citations.push({
+            url: record.url,
+            ...(typeof record.title === "string"
+              ? { label: record.title }
+              : {}),
+            ...(typeof record.start_index === "number"
+              ? { startIndex: record.start_index }
+              : {}),
+            ...(typeof record.end_index === "number"
+              ? { endIndex: record.end_index }
+              : {}),
+          });
         }
       }
     }
   }
-  return urls;
+  return citations;
 }
 
-function collectRootCitationUrls(value: unknown): string[] {
+function collectRootCitations(value: unknown): CitationCandidate[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((citation) => {
-    if (typeof citation === "string") return [citation];
+    if (typeof citation === "string") return [{ url: citation }];
     const url = asRecord(citation)?.url;
-    return typeof url === "string" ? [url] : [];
+    return typeof url === "string" ? [{ url }] : [];
   });
 }
 
-function collectInlineCitationUrls(text: string): string[] {
+function collectInlineCitations(text: string): CitationCandidate[] {
   return Array.from(
-    text.matchAll(/(?:\[\[\d+\]\]|\[\d+\])\((https?:\/\/[^\s)]+)\)/g),
-  ).map((match) => match[1]);
+    text.matchAll(/(?:\[\[(\d+)\]\]|\[(\d+)\])\((https?:\/\/[^\s)]+)\)/g),
+  ).map((match) => ({
+    url: match[3],
+    label: match[1] || match[2],
+  }));
 }
 
 function sourceTitle(url: string): string {
@@ -85,17 +102,33 @@ function sourceTitle(url: string): string {
   }
 }
 
-function buildSources(urls: string[]): Source[] {
+function citationMetadata(
+  citation: CitationCandidate,
+): Record<string, unknown> {
+  return {
+    provider: "grok",
+    ...(citation.label ? { citationLabel: citation.label } : {}),
+    ...(citation.startIndex !== undefined
+      ? { citationStartIndex: citation.startIndex }
+      : {}),
+    ...(citation.endIndex !== undefined
+      ? { citationEndIndex: citation.endIndex }
+      : {}),
+  };
+}
+
+function buildSources(citations: CitationCandidate[]): Source[] {
   const seen = new Set<string>();
-  const rawSources = urls.flatMap((url) => {
-    const normalizedUrl = url.trim();
+  const rawSources = citations.flatMap((citation) => {
+    const normalizedUrl = citation.url.trim();
     if (!normalizedUrl || seen.has(normalizedUrl)) return [];
     seen.add(normalizedUrl);
     return [
       {
         title: sourceTitle(normalizedUrl),
         url: normalizedUrl,
-        content: "Referenced by the configured Grok web search model.",
+        content: "Encountered by the configured Grok web search model.",
+        metadata: citationMetadata(citation),
       },
     ];
   });
@@ -113,12 +146,12 @@ export function parseGrokSearchResponse(response: unknown): GrokSearchResult {
     throw new ProviderError("Grok search returned no research summary", "Grok");
   }
 
-  const urls = [
-    ...collectRootCitationUrls(record?.citations),
-    ...collectAnnotationUrls(record?.output),
-    ...collectInlineCitationUrls(summary),
+  const citations = [
+    ...collectAnnotationCitations(record?.output),
+    ...collectInlineCitations(summary),
+    ...collectRootCitations(record?.citations),
   ];
-  const sources = buildSources(urls);
+  const sources = buildSources(citations);
   if (sources.length === 0) {
     throw new ProviderError("Grok search returned no web citations", "Grok");
   }

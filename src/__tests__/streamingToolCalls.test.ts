@@ -328,12 +328,85 @@ describe("streamed tool-call normalization", () => {
         model: "gpt-test",
         stream: true,
       }),
-      { maxRetries: 0, timeout: 30_000 },
+      expect.objectContaining({ maxRetries: 0, timeout: 120_000 }),
     );
+    const responsesRequestOptions = (client.responses.create as any).mock
+      .calls[0][1];
+    expect(responsesRequestOptions.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("emits final Responses API text when no text delta was streamed", async () => {
+    const messages: SSEMessage[] = [];
+    const client = {
+      responses: {
+        create: vi.fn(async () =>
+          asyncChunks([
+            {
+              type: "response.completed",
+              response: {
+                output: [
+                  {
+                    type: "message",
+                    content: [{ type: "output_text", text: "Final text" }],
+                  },
+                ],
+              },
+            },
+          ]),
+        ),
+      },
+    };
+
+    await streamOpenAIResponses({
+      client: client as any,
+      model: "gpt-test",
+      input: [],
+      onChunk: (message) => messages.push(message),
+    });
+
+    expect(messages).toContainEqual({ type: "content", content: "Final text" });
+  });
+
+  it("rejects Chat Completions data returned from a Responses endpoint", async () => {
+    const client = {
+      responses: {
+        create: vi.fn(async () =>
+          asyncChunks([{ choices: [{ delta: { content: "Wrong mode" } }] }]),
+        ),
+      },
+    };
+
+    await expect(
+      streamOpenAIResponses({
+        client: client as any,
+        model: "gpt-test",
+        input: [],
+        onChunk: () => undefined,
+      }),
+    ).rejects.toThrow(/OpenAI Compatible/);
+  });
+
+  it("rejects a Responses stream that completes without output", async () => {
+    const client = {
+      responses: {
+        create: vi.fn(async () =>
+          asyncChunks([{ type: "response.completed", response: {} }]),
+        ),
+      },
+    };
+
+    await expect(
+      streamOpenAIResponses({
+        client: client as any,
+        model: "gpt-test",
+        input: [],
+        onChunk: () => undefined,
+      }),
+    ).rejects.toThrow(/completed without output/);
   });
 
   it("allows disabling OpenAI stream request timeout", async () => {
-    vi.stubEnv("PROVIDER_REQUEST_TIMEOUT_MS", "0");
+    vi.stubEnv("CHAT_PROVIDER_TIMEOUT_MS", "0");
     const client = {
       responses: {
         create: vi.fn(async () =>
@@ -388,7 +461,11 @@ describe("streamed tool-call normalization", () => {
     const requestOptions = (client.chat.completions.create as any).mock
       .calls[0][1];
     expect(request).not.toHaveProperty("tools");
-    expect(requestOptions).toEqual({ maxRetries: 0, timeout: 30_000 });
+    expect(requestOptions).toMatchObject({
+      maxRetries: 0,
+      timeout: 120_000,
+    });
+    expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("uses a conservative OpenAI Compatible chat request shape", async () => {
@@ -750,7 +827,11 @@ describe("streamed tool-call normalization", () => {
   it("does not request OpenAI Responses reasoning summaries in auto mode", async () => {
     const client = {
       responses: {
-        create: vi.fn(async () => asyncChunks([])),
+        create: vi.fn(async () =>
+          asyncChunks([
+            { type: "response.output_text.delta", delta: "Visible answer" },
+          ]),
+        ),
       },
     };
 

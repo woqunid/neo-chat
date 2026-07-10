@@ -8,7 +8,7 @@ import type { SSEMessage } from "./sse";
 import { finalizeStreamedToolCall } from "./toolCalls";
 import {
   createProviderTimeoutSignal,
-  getProviderRequestTimeoutMs,
+  getChatProviderTimeoutMs,
 } from "../providers/requestTimeout";
 
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -74,7 +74,7 @@ function createRequestBody(options: AnthropicStreamOptions, stream: boolean) {
 async function createAnthropicResponse(options: AnthropicStreamOptions) {
   const apiKey = getProviderApiKey(options.provider);
   if (!apiKey) throw new Error("Anthropic API key is not configured");
-  const timeoutMs = getProviderRequestTimeoutMs();
+  const timeoutMs = getChatProviderTimeoutMs();
 
   const response = await fetch(getMessagesEndpoint(options.provider), {
     method: "POST",
@@ -110,7 +110,7 @@ export async function generateAnthropicMessage(
 ): Promise<string> {
   const apiKey = getProviderApiKey(options.provider);
   if (!apiKey) throw new Error("Anthropic API key is not configured");
-  const timeoutMs = getProviderRequestTimeoutMs();
+  const timeoutMs = getChatProviderTimeoutMs();
 
   const response = await fetch(getMessagesEndpoint(options.provider), {
     method: "POST",

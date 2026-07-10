@@ -1,4 +1,4 @@
-import type { ImageSource, Source } from "@/types";
+import type { GrokSearchResult, ImageSource, Source } from "@/types";
 import {
   getResponseErrorMessage,
   readJsonResponseOrThrow,
@@ -10,11 +10,7 @@ import {
 } from "../../lib/search/results";
 import { logDevError } from "../../lib/utils/devLogger";
 
-export interface GrokSearchResult {
-  summary: string;
-  sources: Source[];
-  images: ImageSource[];
-}
+export type { GrokSearchResult } from "@/types";
 
 export async function searchWithGrok(
   query: string,

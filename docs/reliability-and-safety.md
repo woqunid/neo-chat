@@ -14,11 +14,12 @@ instead of being written into assistant content as `Error: ...`. The UI renders
 these errors as recoverable status blocks so retry, regenerate, branch, and
 stop flows do not confuse model output with application errors.
 
-Grok search failures are rendered as search blocks and abort the model request
-instead of disappearing or silently continuing without live results. The block
-keeps the failed search visible with sanitized error text. Successful research
-must include both a summary and at least one web citation before it is injected
-into the selected chat model.
+Grok search failures are rendered as search and tool errors instead of
+disappearing or silently continuing without live results. For text-capable
+models, a failed search is returned as an explicit tool error in the next model
+round. Direct image-only requests abort before image generation when their
+preflight search fails. Successful research must include both a summary and at
+least one web citation before it is returned to the selected model.
 
 ## Skills Runtime
 
@@ -107,9 +108,10 @@ The planner uses model metadata when available:
 - A stable character estimate is used when token metadata is unavailable.
 
 Current allocation bands are history, attachments, search, RAG, and tools.
-Grok research context injection uses this planner before adding the summary and
-citations to the model input. Other context producers should use the same helper instead of
-adding independent truncation rules.
+Direct image-only Grok preflight research uses this planner before adding the
+summary and citations to the image prompt. Text-capable models receive Grok
+research through the normal tool-result history. Other context producers should
+use the same helper instead of adding independent truncation rules.
 
 ## Rendering And Sandbox Boundaries
 

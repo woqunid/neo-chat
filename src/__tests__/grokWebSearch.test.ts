@@ -66,6 +66,25 @@ describe("Grok web search response", () => {
     ]);
   });
 
+  it("orders inline citations before root-only research URLs", () => {
+    const result = parseGrokSearchResponse({
+      output_text: "Supported claim [[1]](https://cited.example/report).",
+      citations: [
+        "https://encountered.example/background",
+        "https://cited.example/report",
+      ],
+    });
+
+    expect(result.sources.map((source) => source.url)).toEqual([
+      "https://cited.example/report",
+      "https://encountered.example/background",
+    ]);
+    expect(result.sources[0]?.metadata).toMatchObject({
+      provider: "grok",
+      citationLabel: "1",
+    });
+  });
+
   it("rejects responses without a research summary", () => {
     expect(() =>
       parseGrokSearchResponse({ citations: ["https://example.com"] }),

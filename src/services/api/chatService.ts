@@ -14,7 +14,9 @@ import { useCoreSettingsStore } from "@/store/core/coreSettingsStore";
 import { useMemoryStore } from "@/store/core/memoryStore";
 import { v7 as uuidv7 } from "uuid";
 import { executePluginFunction } from "@/utils/pluginUtils";
-import { searchWithGrok, type GrokSearchResult } from "./grokSearchService";
+import { searchWithGrok } from "./grokSearchService";
+import { prepareGrokSearchPreflight } from "./grokSearchPreflight";
+import { createGrokSearchStatusTracker } from "./grokSearchStatus";
 import { getEnabledPluginFunctions } from "@/lib/plugin/resolve";
 import {
   parseModelString,
@@ -33,7 +35,11 @@ import { appendDiagramRequestInstructions } from "../../lib/chat/diagramPrompt";
 import { appendHtmlVisualRequestInstructions } from "../../lib/chat/htmlVisualPrompt";
 import { createMessageOutputBlockBuilder } from "../../lib/chat/messageOutputBlocks";
 import { resolveImageGenerationOptions } from "../../lib/chat/imageGenerationOptions";
-import { buildSearchContextForPrompt } from "../../lib/search/context";
+import {
+  executeGrokSearchTool,
+  GROK_WEB_SEARCH_TOOL,
+  GROK_WEB_SEARCH_TOOL_NAME,
+} from "../../lib/search/grokTool";
 import {
   createContextCompressionSummaryPrompt,
   mergeCompressedContent,
@@ -49,10 +55,6 @@ import {
   buildProviderRuntimeConfig,
   fetchWithByokRetry,
 } from "../../lib/byok/client";
-import {
-  allocateContextBudget,
-  trimTextToEstimatedTokens,
-} from "../../lib/chat/contextBudget";
 import {
   parseMemoryDreamToolCall,
   parseMemoryRecordToolCall,
@@ -122,6 +124,14 @@ function addInternalMemoryTools(
   if (!shouldExposeMemorySearchTool(message)) return;
   tools.push(coerceToolDefinition(MEMORY_SEARCH_TOOL));
   toolNames.add(MEMORY_SEARCH_TOOL_NAME);
+}
+
+function addGrokSearchTool(
+  tools: ChatToolDefinition[],
+  toolNames: Set<string>,
+): void {
+  tools.push(coerceToolDefinition(GROK_WEB_SEARCH_TOOL));
+  toolNames.add(GROK_WEB_SEARCH_TOOL_NAME);
 }
 
 function isInternalMemoryTool(name: string | undefined): boolean {
@@ -247,35 +257,16 @@ function resolveModelMetadata(modelName: string): ModelMetadata | undefined {
   return customModelMetadata?.[modelName] || modelMetadata?.[modelName];
 }
 
-function getMessagesContextLength(messages: Message[]): number {
-  return messages.reduce((sum, message) => {
-    const attachmentLength =
-      message.attachments?.reduce(
-        (attachmentSum, attachment) =>
-          attachmentSum +
-          (attachment.fileName?.length || 0) +
-          (attachment.data?.length || 0) +
-          (attachment.url?.length || 0),
-        0,
-      ) || 0;
-
-    return (
-      sum +
-      message.content.length +
-      (message.reasoning?.length || 0) +
-      attachmentLength
-    );
-  }, 0);
-}
-
-function getAttachmentsContextLength(attachments: Attachment[]): number {
-  return attachments.reduce(
-    (sum, attachment) =>
-      sum +
-      (attachment.fileName?.length || 0) +
-      (attachment.data?.length || 0) +
-      (attachment.url?.length || 0),
-    0,
+function usesDirectImageGeneration(
+  providerType: unknown,
+  metadata: ModelMetadata | undefined,
+  modelName: string,
+): boolean {
+  return Boolean(
+    isOpenAIProviderType(providerType) &&
+    supportsImageGeneration(metadata) &&
+    (!supportsTextOutput(metadata) ||
+      modelName.toLowerCase().startsWith("gpt-image-")),
   );
 }
 
@@ -550,84 +541,6 @@ export interface ModelInfo {
   providerName?: string;
 }
 
-interface GrokSearchPreflightOptions {
-  query: string;
-  modelName: string;
-  history: Message[];
-  attachments: Attachment[];
-  signal?: AbortSignal;
-  outputBlocks: ReturnType<typeof createMessageOutputBlockBuilder>;
-  emitOutputBlocks: () => void;
-  onSearchStatus?: (
-    isSearching: boolean,
-    results?: SearchStatusResults,
-  ) => void;
-}
-
-interface GrokContextBudgetOptions {
-  results: GrokSearchResult;
-  modelName: string;
-  history: Message[];
-  attachments: Attachment[];
-}
-
-function fitGrokSearchContext({
-  results,
-  modelName,
-  history,
-  attachments,
-}: GrokContextBudgetOptions): string {
-  const searchContext = buildSearchContextForPrompt(results);
-  const metadata = resolveModelMetadata(modelName);
-  const budget = allocateContextBudget({
-    modelInputTokenLimit: metadata?.limit?.context,
-    reservedOutputTokens: metadata?.limit?.output,
-    sources: {
-      history: getMessagesContextLength(history),
-      attachments: getAttachmentsContextLength(attachments),
-      search: searchContext.length,
-    },
-  });
-  return trimTextToEstimatedTokens(
-    searchContext,
-    budget.allocations.search.maxTokens,
-  );
-}
-
-async function prepareGrokSearchContext({
-  query,
-  modelName,
-  history,
-  attachments,
-  signal,
-  outputBlocks,
-  emitOutputBlocks,
-  onSearchStatus,
-}: GrokSearchPreflightOptions): Promise<string> {
-  outputBlocks.upsertSearch({ isSearching: true });
-  onSearchStatus?.(true);
-  emitOutputBlocks();
-  try {
-    const results = await searchWithGrok(query, signal);
-    const searchContext = fitGrokSearchContext({
-      results,
-      modelName,
-      history,
-      attachments,
-    });
-    outputBlocks.upsertSearch({ isSearching: false, results });
-    onSearchStatus?.(false, results);
-    emitOutputBlocks();
-    return searchContext;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    outputBlocks.upsertSearch({ isSearching: false, error: message });
-    onSearchStatus?.(false, { sources: [], images: [] });
-    emitOutputBlocks();
-    throw error;
-  }
-}
-
 // Stream chat response from backend API
 export const streamChatResponse = async (
   _sessionId: string, // Prefixed with _ to indicate intentionally unused
@@ -663,23 +576,32 @@ export const streamChatResponse = async (
 
   if (!provider) throw new Error("No provider available");
   const selectedModelMetadata = resolveModelMetadata(modelName);
+  const directImageGeneration = usesDirectImageGeneration(
+    provider.type,
+    selectedModelMetadata,
+    modelName,
+  );
 
   let effectiveNewMessage = newMessage;
   const outputBlockBuilder = createMessageOutputBlockBuilder();
   const emitOutputBlocks = () => {
     onOutputBlocks?.(outputBlockBuilder.getBlocks());
   };
+  const trackGrokSearchStatus = createGrokSearchStatusTracker((update) => {
+    outputBlockBuilder.upsertSearch(update);
+    onSearchStatus?.(update.isSearching, update.results);
+    emitOutputBlocks();
+  });
 
-  if (config?.useSearch) {
-    const searchContext = await prepareGrokSearchContext({
+  if (config?.useSearch && directImageGeneration) {
+    const searchContext = await prepareGrokSearchPreflight({
       query: newMessage,
-      modelName,
       history,
       attachments,
+      metadata: selectedModelMetadata,
       signal,
-      outputBlocks: outputBlockBuilder,
-      emitOutputBlocks,
-      onSearchStatus,
+      search: searchWithGrok,
+      onStatus: trackGrokSearchStatus,
     });
     effectiveNewMessage = appendContextToChatInput(newMessage, searchContext, {
       separator: "\n\n",
@@ -692,6 +614,9 @@ export const streamChatResponse = async (
   const toolNames = new Set<string>();
 
   addInternalMemoryTools(tools, toolNames, newMessage);
+  if (config?.useSearch && !directImageGeneration) {
+    addGrokSearchTool(tools, toolNames);
+  }
 
   if (activePlugins && activePlugins.length > 0) {
     activePlugins.forEach((pluginId) => {
@@ -767,12 +692,7 @@ export const streamChatResponse = async (
       requestConfig = { ...requestConfig, ...imageOptions };
     }
 
-    if (
-      isOpenAIProviderType(provider.type) &&
-      supportsImageGeneration(selectedModelMetadata) &&
-      (!supportsTextOutput(selectedModelMetadata) ||
-        modelName.toLowerCase().startsWith("gpt-image-"))
-    ) {
+    if (directImageGeneration) {
       const loadingBlockId = outputBlockBuilder.appendImageGenerationStatus();
       emitOutputBlocks();
 
@@ -832,6 +752,27 @@ export const streamChatResponse = async (
         allToolCalls[index] = { ...allToolCalls[index], ...toolCall };
       }
       emitToolCalls();
+    };
+
+    const executePendingToolCall = (toolCall: ToolCall): Promise<unknown> => {
+      if (isInternalMemoryTool(toolCall.name)) {
+        return executeMemorySearchTool(toolCall.args);
+      }
+      if (toolCall.name === GROK_WEB_SEARCH_TOOL_NAME) {
+        return executeGrokSearchTool({
+          args: toolCall.args,
+          search: searchWithGrok,
+          signal,
+          onStatus: trackGrokSearchStatus,
+        });
+      }
+      return executePluginFunction(
+        toolCall.name,
+        toolCall.args,
+        toolCall.auth,
+        activePlugins,
+        signal,
+      );
     };
 
     const runRound = async (): Promise<{
@@ -1080,15 +1021,7 @@ export const streamChatResponse = async (
       const executedToolCalls = await Promise.all(
         pendingToolCalls.map(async (toolCall) => {
           try {
-            const resultData = isInternalMemoryTool(toolCall.name)
-              ? await executeMemorySearchTool(toolCall.args)
-              : await executePluginFunction(
-                  toolCall.name,
-                  toolCall.args,
-                  toolCall.auth,
-                  activePlugins,
-                  signal,
-                );
+            const resultData = await executePendingToolCall(toolCall);
             const isError =
               !!resultData &&
               typeof resultData === "object" &&

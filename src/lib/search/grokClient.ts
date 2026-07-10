@@ -2,9 +2,10 @@ import "server-only";
 
 import { ApiError, ProviderError } from "../errors";
 import { ProviderFactory } from "../providers/base";
-import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
+import { getGrokSearchTimeoutMs } from "../providers/requestTimeout";
 import type { ServerGrokSearchConfig } from "./grokRegistry";
-import { runGrokWebSearch, type GrokSearchResult } from "./grokWebSearch";
+import type { GrokSearchResult } from "./types";
+import { runGrokWebSearch } from "./grokWebSearch";
 
 function assertConnectionConfig(config: ServerGrokSearchConfig): void {
   if (!config.baseUrl || !config.apiKey || !config.model) {
@@ -42,7 +43,7 @@ export async function runGrokSearchWithConfig(
   };
   await ProviderFactory.assertProviderOutboundAllowed(provider);
   const client = ProviderFactory.createOpenAIClient(provider);
-  const timeout = getProviderRequestTimeoutMs();
+  const timeout = getGrokSearchTimeoutMs();
 
   try {
     return await runGrokWebSearch({

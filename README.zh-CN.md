@@ -341,7 +341,7 @@ flowchart LR
 
 插件是 OpenAPI 风格工具，可以来自 manifest 或内置定义。启用的插件函数会以 tool 形式暴露给兼容模型，再由服务端插件路由执行。内置图片处理插件结果保留在工具详情和压缩后的对话历史中，由模型决定是否以及如何在后续回复中引用生成或编辑后的图片。OpenAI 兼容 Images API 和 OpenAI Responses 图片处理是两个独立插件，便于分别管理密钥和启用状态。受支持的内置媒体插件提供插件级 API Base URL 与 Model ID 字段、可选图片数量参数、Agnes 图生图编辑，以及基于公开 HTTPS 图片 URL 的 Agnes 图生视频；Agnes 视频仍保持显式 `create_video` / `get_video_result` 两步流程。工具调用编排使用较高但有边界的循环上限，既允许多步任务，也避免递归工具调用失控。
 
-联网搜索只使用 Super Admin 配置的 Grok 兼容 Responses API。应用调用 `web_search` 工具，要求返回研究摘要和引用，再把研究结果交给当前聊天模型生成最终回答。Grok 搜索失败会明确显示并中止本次模型请求，不会静默跳过联网。知识库 RAG 会把源文件存在 OPFS，可选使用 Mineru 或 LlamaParse 解析文档，并可把 chunks 索引到外部向量服务。
+联网搜索只使用 Super Admin 配置的 Grok 兼容 Responses API。对可输出文本的聊天模型，启用搜索会暴露 `grok_web_search` 工具，由当前模型选择和细化查询、接收结构化研究结果，并在需要时继续搜索。纯图片模型无法调用工具，因此会显式地在图片生成前执行搜索。Grok 失败会作为搜索和工具错误清楚显示，不会被静默忽略。知识库 RAG 会把源文件存在 OPFS，可选使用 Mineru 或 LlamaParse 解析文档，并可把 chunks 索引到外部向量服务。
 
 语音流程支持浏览器语音 API 和外部供应商。将 `DEFAULT_VOICE_PROVIDER` 设为 `elevenlabs` 或 `mimo` 可启用服务端默认语音供应商；留空则默认使用浏览器原生语音。默认模型值为空会禁用对应的 STT 或 TTS 能力，用户级密钥也可以由 UI 本地保存。
 

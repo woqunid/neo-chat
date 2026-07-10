@@ -9,3 +9,9 @@ export interface ImageSource {
   url: string;
   description?: string;
 }
+
+export interface GrokSearchResult {
+  summary: string;
+  sources: Source[];
+  images: ImageSource[];
+}

@@ -180,5 +180,9 @@ describe("settings UI primitives", () => {
     expect(providerTypeSection).not.toContain("openaiCompatibleDesc");
     expect(providerTypeSection).not.toContain("openaiResponsesDesc");
     expect(providerTypeSection).not.toContain("geminiDesc");
+    expect(en.Providers.openaiResponses).toContain("Responses API");
+    expect(en.Providers.openaiCompatible).toContain("Chat Completions");
+    expect(zh.Providers.openaiResponses).toContain("Responses API");
+    expect(zh.Providers.openaiCompatible).toContain("Chat Completions");
   });
 });

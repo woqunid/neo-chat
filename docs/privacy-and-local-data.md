@@ -90,11 +90,14 @@ Depending on configuration, user content may be sent to:
 Text-only skills themselves are local prompt instructions, but applied skill
 content can be sent to the selected model provider as part of the prompt.
 
-When web search is enabled for a message, the user query is first sent to the
-configured Grok endpoint. The returned research summary and citation URLs are
-then included in the request to the selected chat model, which produces the
-final answer. Both upstream services can therefore receive data derived from
-the same user request.
+When web search is enabled for a text-capable model, the selected chat model
+first receives the user request and the Grok search-tool definition. If the
+model calls that tool, its generated search query is sent to the configured
+Grok endpoint, and the returned research summary and citation URLs are sent
+back to the selected model as tool output. Direct image-only models send the
+request to Grok before image generation because they cannot call tools. Both
+upstream services can therefore receive data derived from the same user
+request.
 
 Review each third-party service's privacy, retention, and logging policy before
 using it with sensitive data.

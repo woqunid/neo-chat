@@ -11,7 +11,10 @@ import {
   finalizeOpenAIToolCalls,
   finalizeStreamedToolCall,
 } from "./toolCalls";
-import { getProviderRequestTimeoutMs } from "../providers/requestTimeout";
+import {
+  createProviderTimeoutSignal,
+  getChatProviderTimeoutMs,
+} from "../providers/requestTimeout";
 import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
 
 export interface OpenAIStreamOptions {
@@ -52,14 +55,16 @@ function extractReasoningSummary(item: any): string {
 async function createOpenAIStreamRequest(
   create: (
     params: any,
-    options: { maxRetries: number; timeout?: number },
+    options: { maxRetries: number; timeout?: number; signal?: AbortSignal },
   ) => Promise<unknown>,
   params: any,
 ): Promise<unknown> {
-  const timeout = getProviderRequestTimeoutMs();
+  const timeout = getChatProviderTimeoutMs();
   return create(params, {
     maxRetries: 0,
-    ...(timeout > 0 ? { timeout } : {}),
+    ...(timeout > 0
+      ? { timeout, signal: createProviderTimeoutSignal(timeout) }
+      : {}),
   });
 }
 
@@ -89,7 +94,7 @@ function extractImageDataValue(value: unknown): string {
 function emitResponsesImageGeneration(
   event: any,
   onChunk: (message: SSEMessage) => void,
-): void {
+): boolean {
   const item = event?.item || event?.output || event;
   const data = extractImageDataValue([
     item?.result,
@@ -110,7 +115,28 @@ function emitResponsesImageGeneration(
     fileName: item?.file_name || item?.fileName || "generated-image.png",
   });
 
-  if (image) onChunk({ type: "image", image });
+  if (!image) return false;
+  onChunk({ type: "image", image });
+  return true;
+}
+
+const RESPONSES_MODE_MISMATCH_ERROR =
+  "Provider returned Chat Completions data to an OpenAI Responses request. Change its API type to OpenAI Compatible.";
+const RESPONSES_EMPTY_OUTPUT_ERROR =
+  "OpenAI Responses stream completed without output. This provider may only support Chat Completions; change its API type to OpenAI Compatible.";
+
+function assertResponsesEventShape(event: any): void {
+  if (Array.isArray(event?.choices)) {
+    throw new Error(RESPONSES_MODE_MISMATCH_ERROR);
+  }
+}
+
+function extractCompletedResponseText(response: any): string {
+  const output = Array.isArray(response?.output) ? response.output : [];
+  return output
+    .filter((item: any) => item?.type === "message")
+    .map((item: any) => extractTextValue(item.content))
+    .join("");
 }
 
 type ThinkTagStreamEvent = {
@@ -433,8 +459,12 @@ export async function streamOpenAIResponses(
   let toolCallPosition = 0;
   let hasStreamedOutputText = false;
   let hasStreamedReasoning = false;
+  let hasStreamedToolCall = false;
+  let hasStreamedImage = false;
+  let hasProviderError = false;
 
   for await (const event of stream) {
+    assertResponsesEventShape(event);
     switch (event?.type) {
       case "response.output_text.delta":
         if (event.delta) {
@@ -453,12 +483,22 @@ export async function streamOpenAIResponses(
         break;
       }
 
+      case "response.refusal.delta": {
+        const refusal = extractTextValue(event.delta);
+        if (refusal) {
+          hasStreamedOutputText = true;
+          onChunk({ type: "content", content: refusal });
+        }
+        break;
+      }
+
       case "response.output_item.done": {
         const item = event.item;
         if (item?.type === "reasoning") {
           if (!hasStreamedReasoning) {
             const reasoningContent = extractReasoningSummary(item);
             if (reasoningContent) {
+              hasStreamedReasoning = true;
               onChunk({ type: "reasoning", content: reasoningContent });
             }
           }
@@ -471,6 +511,7 @@ export async function streamOpenAIResponses(
             if (!hasStreamedOutputText) {
               const text = extractTextValue(content?.text);
               if (text) {
+                hasStreamedOutputText = true;
                 onChunk({ type: "content", content: text });
               }
             }
@@ -493,19 +534,28 @@ export async function streamOpenAIResponses(
         );
         toolCallPosition += 1;
         if (toolCall) {
+          hasStreamedToolCall = true;
           onChunk({ type: "tool_call", toolCall });
         }
         break;
       }
 
       case "response.image_generation_call.completed":
-        emitResponsesImageGeneration(event, onChunk);
+        hasStreamedImage =
+          emitResponsesImageGeneration(event, onChunk) || hasStreamedImage;
         break;
 
       case "response.image_generation_call.partial_image":
         break;
 
       case "response.completed": {
+        if (!hasStreamedOutputText) {
+          const completedText = extractCompletedResponseText(event.response);
+          if (completedText) {
+            hasStreamedOutputText = true;
+            onChunk({ type: "content", content: completedText });
+          }
+        }
         const usage = event.response?.usage;
         if (usage) {
           onChunk({
@@ -522,6 +572,7 @@ export async function streamOpenAIResponses(
 
       case "response.failed":
       case "response.error": {
+        hasProviderError = true;
         const errorMessage =
           event.error?.message ||
           event.response?.error?.message ||
@@ -530,6 +581,16 @@ export async function streamOpenAIResponses(
         break;
       }
     }
+  }
+
+  if (
+    !hasProviderError &&
+    !hasStreamedOutputText &&
+    !hasStreamedReasoning &&
+    !hasStreamedToolCall &&
+    !hasStreamedImage
+  ) {
+    throw new Error(RESPONSES_EMPTY_OUTPUT_ERROR);
   }
 
   const endTime = Date.now();

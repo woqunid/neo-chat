@@ -942,26 +942,6 @@ describe("chat service tool execution", () => {
     expect(body.prompt).toContain("https://example.com/market");
   });
 
-  it("surfaces Grok search failures without sending the model request", async () => {
-    mocks.searchWithGrok.mockRejectedValue(new Error("Grok upstream failed"));
-    const fetchMock = vi.spyOn(globalThis, "fetch");
-    const { streamChatResponse } = await import("../services/api/chatService");
-
-    await expect(
-      streamChatResponse(
-        "session-1",
-        "openai:gpt-4",
-        [],
-        "Find current news",
-        [],
-        { useSearch: true },
-        () => undefined,
-      ),
-    ).rejects.toThrow("Grok upstream failed");
-
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it("uses the centralized high tool-round limit before stopping recursive calls", async () => {
     expect(PLUGIN_EXECUTION_LIMITS.maxToolRounds).toBe(20);
     mocks.executePluginFunction.mockResolvedValue({ ok: true });
