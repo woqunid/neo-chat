@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { getSourceBlockPresentation } from "../lib/search/sourceBlock";
+
+const sourceBlockSource = readFileSync(
+  new URL("../components/content/SourceBlock.tsx", import.meta.url),
+  "utf8",
+);
+const toolCallBlockSource = readFileSync(
+  new URL("../components/content/ToolCallBlock.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("source block presentation", () => {
   it("renders safe image-only result blocks", () => {
@@ -56,5 +66,16 @@ describe("source block presentation", () => {
       shouldRender: true,
       label: "Searching...",
     });
+  });
+
+  it("keeps failed search and tool details collapsed by default", () => {
+    expect(sourceBlockSource).toContain(
+      "const [isExpanded, setIsExpanded] = useState(false);",
+    );
+    expect(sourceBlockSource).toContain("{isExpanded && !isSearching && (");
+    expect(sourceBlockSource).not.toContain("isExpanded || error");
+    expect(toolCallBlockSource).toContain(
+      "const [isExpanded, setIsExpanded] = useState(false);",
+    );
   });
 });

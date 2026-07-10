@@ -76,7 +76,7 @@ const SourceBlock: React.FC<SourceBlockProps> = ({
         aria-expanded={isExpanded && !isSearching}
         aria-controls={panelId}
         aria-busy={isSearching || undefined}
-        onClick={() => !isSearching && setIsExpanded(!isExpanded)}
+        onClick={() => !isSearching && setIsExpanded((expanded) => !expanded)}
         className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 dark:text-muted-foreground transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${isSearching ? "cursor-wait" : "cursor-pointer hover:bg-gray-100/50 dark:hover:bg-accent/30"}`}
       >
         {isSearching ? (
@@ -103,11 +103,11 @@ const SourceBlock: React.FC<SourceBlockProps> = ({
         id={panelId}
         role="region"
         aria-label={t("searchSourcesAndImages")}
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${(isExpanded || error) && !isSearching ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded && !isSearching ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
         <div className="overflow-hidden">
           {/* Lazy Render Content */}
-          {(isExpanded || error) && !isSearching && (
+          {isExpanded && !isSearching && (
             <div className="px-3 py-3 border-t border-gray-200/50 dark:border-border bg-white/40 dark:bg-card/40">
               {error && (
                 <div
