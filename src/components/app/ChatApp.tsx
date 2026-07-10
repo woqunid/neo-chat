@@ -49,7 +49,12 @@ import {
   useChatGenerationController,
   useChatShellState,
   useChatThemeEffects,
+  useMessageAutoScroll,
 } from "@/features/chat";
+import {
+  createStreamingMessageCommitter,
+  type FrameScheduler,
+} from "@/features/chat/streamingMessageCommitter";
 import { resolveEffectiveChatContext } from "@/lib/chat/effectiveChatContext";
 import { resolveEffectiveChatRequestConfig } from "@/lib/chat/effectiveChatConfig";
 import { buildDirectMemoryPromptContext } from "@/lib/memory/entities";
@@ -117,6 +122,17 @@ const SettingsPage = dynamic(
 const logChatAppError = logDevError;
 const EMPTY_MESSAGES: Message[] = [];
 const loadChatService = () => import("@/services/api/chatService");
+const BROWSER_FRAME_SCHEDULER: FrameScheduler = {
+  request: (callback) => window.requestAnimationFrame(callback),
+  cancel: (frameId) => window.cancelAnimationFrame(frameId),
+};
+
+function findLastUserMessageId(messages: Message[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") return messages[index].id;
+  }
+  return undefined;
+}
 
 const createGenerationTiming = (startTime: number, endTime: number) => ({
   startTime,
@@ -254,9 +270,6 @@ const ChatApp = () => {
     customModelMetadata,
   ]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const isNearMessageBottomRef = useRef(true);
   const messageInputRef = useRef<MessageInputRef>(null);
   const actionErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -276,6 +289,10 @@ const ChatApp = () => {
 
   const currentSession = getCurrentSession(); // This is just metadata now
   const messages = activeMessages ?? EMPTY_MESSAGES; // Use activeMessages from store
+  const lastUserMessageId = useMemo(
+    () => findLastUserMessageId(messages),
+    [messages],
+  );
   const currentSessionConfig = currentSession?.config;
   const currentSessionWorkspaceId = currentSession?.workspaceId;
   useChatThemeEffects(theme, system.fontSize);
@@ -409,6 +426,17 @@ const ChatApp = () => {
   const [welcomeState, setWelcomeState] = useState<
     "visible" | "exiting" | "hidden"
   >("hidden");
+  const {
+    messagesScrollRef,
+    handleScroll: handleMessagesScroll,
+    handleWheel: handleMessagesWheel,
+    handleTouchStart: handleMessagesTouchStart,
+    handleTouchMove: handleMessagesTouchMove,
+    handleTouchEnd: handleMessagesTouchEnd,
+  } = useMessageAutoScroll({
+    enabled: welcomeState === "hidden" && (isGenerating || messages.length > 0),
+    updateKey: messages,
+  });
   const messageInputVariant = welcomeState === "visible" ? "hero" : "default";
   const shouldShowChatTitleBar = welcomeState === "hidden";
   const prevSessionIdRef = useRef(currentSessionId);
@@ -741,36 +769,21 @@ const ChatApp = () => {
     selectSession,
   ]);
 
-  const updateIsNearMessageBottom = useCallback(() => {
-    const container = messagesScrollRef.current;
-    if (!container) {
-      isNearMessageBottomRef.current = true;
-      return;
-    }
-
-    const distanceFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-    isNearMessageBottomRef.current = distanceFromBottom < 160;
-  }, []);
-
-  // Scroll to bottom when the user is already following the live stream.
-  useEffect(() => {
-    if (
-      welcomeState === "hidden" &&
-      (isGenerating || messages.length > 0) &&
-      isNearMessageBottomRef.current
-    ) {
-      const reduceMotion =
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      messagesEndRef.current?.scrollIntoView({
-        behavior: reduceMotion ? "auto" : "smooth",
-        block: "end",
-      });
-    }
-  }, [messages, isGenerating, welcomeState]);
-
   // --- Handlers ---
+
+  const createStreamCommitter = (sessionId: string, messageId: string) =>
+    createStreamingMessageCommitter({
+      scheduler: BROWSER_FRAME_SCHEDULER,
+      commit: ({ content, reasoning, outputBlocks }) => {
+        updateMessageContent(
+          sessionId,
+          messageId,
+          content,
+          reasoning,
+          outputBlocks,
+        );
+      },
+    });
 
   const showActionError = (message: string) => {
     if (actionErrorTimerRef.current) {
@@ -1065,91 +1078,79 @@ const ChatApp = () => {
         });
       }
 
-      let latestStreamText = "";
-      let latestStreamReasoning = "";
-
-      await streamChatResponse(
+      const streamCommitter = createStreamCommitter(
         targetSessionId,
-        selectedModel,
-        historyForLLM,
-        finalText, // Injected context included here
-        finalAttachments, // Injected files included here (excluding original KB refs)
-        effectiveConfig,
-        (streamText, streamReasoning, outputBlocks) => {
-          if (!isGenerationRunActive(generation)) return;
-          latestStreamText = streamText;
-          if (streamReasoning !== undefined) {
-            latestStreamReasoning = streamReasoning;
-          }
-          // Update active state in memory only
-          updateMessageContent(
-            targetSessionId!,
-            currentBotMsgId,
-            streamText,
-            streamReasoning,
-            outputBlocks,
-          );
-        },
-        effectiveContext.systemInstruction,
-        (isSearching, results) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentMessage = useChatStore
-            .getState()
-            .activeMessages.find((message) => message.id === currentBotMsgId);
-          const updates = buildSearchUpdate(
-            currentMessage,
-            isSearching,
-            results,
-          );
-          updateMessage(targetSessionId!, currentBotMsgId, {
-            ...updates,
-            generationStatus: "streaming",
-          });
-        },
-        (toolCalls) => {
-          if (!isGenerationRunActive(generation)) return;
-          updateMessage(targetSessionId!, currentBotMsgId, {
-            toolCalls,
-            generationStatus: "streaming",
-          });
-        },
-        (images) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentActiveMsgs = useChatStore.getState().activeMessages;
-          const msg = currentActiveMsgs.find((m) => m.id === currentBotMsgId);
-          const currentAttachments = msg?.attachments || [];
-
-          updateMessage(targetSessionId!, currentBotMsgId, {
-            attachments: [...currentAttachments, ...images],
-            generationStatus: "streaming",
-          });
-        },
-        (usage) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentMessages = useChatStore.getState().activeMessages;
-          handleTokenUsageUpdate(
-            usage,
-            currentMessages,
-            userMessage.id,
-            currentBotMsgId,
-            targetSessionId!,
-            updateMessage,
-          );
-        },
-        generation.controller.signal,
-        effectiveContext.activePluginIds,
-        skillResolution.context,
-        (outputBlocks) => {
-          if (!isGenerationRunActive(generation)) return;
-          updateMessageContent(
-            targetSessionId!,
-            currentBotMsgId,
-            latestStreamText,
-            latestStreamReasoning || undefined,
-            outputBlocks,
-          );
-        },
+        currentBotMsgId,
       );
+      try {
+        await streamChatResponse(
+          targetSessionId,
+          selectedModel,
+          historyForLLM,
+          finalText, // Injected context included here
+          finalAttachments, // Injected files included here (excluding original KB refs)
+          effectiveConfig,
+          (content, reasoning, outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ content, reasoning, outputBlocks });
+          },
+          effectiveContext.systemInstruction,
+          (isSearching, results) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentMessage = useChatStore
+              .getState()
+              .activeMessages.find((message) => message.id === currentBotMsgId);
+            const updates = buildSearchUpdate(
+              currentMessage,
+              isSearching,
+              results,
+            );
+            updateMessage(targetSessionId, currentBotMsgId, {
+              ...updates,
+              generationStatus: "streaming",
+            });
+          },
+          (toolCalls) => {
+            if (!isGenerationRunActive(generation)) return;
+            updateMessage(targetSessionId, currentBotMsgId, {
+              toolCalls,
+              generationStatus: "streaming",
+            });
+          },
+          (images) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentActiveMsgs = useChatStore.getState().activeMessages;
+            const msg = currentActiveMsgs.find((m) => m.id === currentBotMsgId);
+            const currentAttachments = msg?.attachments || [];
+
+            updateMessage(targetSessionId, currentBotMsgId, {
+              attachments: [...currentAttachments, ...images],
+              generationStatus: "streaming",
+            });
+          },
+          (usage) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentMessages = useChatStore.getState().activeMessages;
+            handleTokenUsageUpdate(
+              usage,
+              currentMessages,
+              userMessage.id,
+              currentBotMsgId,
+              targetSessionId,
+              updateMessage,
+            );
+          },
+          generation.controller.signal,
+          effectiveContext.activePluginIds,
+          skillResolution.context,
+          (outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ outputBlocks });
+          },
+        );
+      } finally {
+        streamCommitter.flush();
+      }
 
       if (!isGenerationRunActive(generation)) return;
       const endTime = Date.now();
@@ -1472,94 +1473,83 @@ const ChatApp = () => {
       );
       if (!isGenerationRunActive(generation)) return;
 
-      let latestStreamText = "";
-      let latestStreamReasoning = "";
-
-      await streamChatResponse(
+      const streamCommitter = createStreamCommitter(
         currentSessionId,
-        selectedModel,
-        historyForApi, // Don't include lastUserMsg here, it's sent as newMessage
-        finalText,
-        finalAttachments,
-        resolveEffectiveChatRequestConfig({
-          chatConfig,
-          selectedModel,
-          modelMetadata,
-          customModelMetadata,
-        }),
-        (streamText, streamReasoning, outputBlocks) => {
-          if (!isGenerationRunActive(generation)) return;
-          latestStreamText = streamText;
-          if (streamReasoning !== undefined) {
-            latestStreamReasoning = streamReasoning;
-          }
-          updateMessageContent(
-            currentSessionId,
-            branchMessageId,
-            streamText,
-            streamReasoning,
-            outputBlocks,
-          );
-        },
-        effectiveContext.systemInstruction,
-        (isSearching, results) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentMessage = useChatStore
-            .getState()
-            .activeMessages.find((message) => message.id === branchMessageId);
-          const updates = buildSearchUpdate(
-            currentMessage,
-            isSearching,
-            results,
-          );
-          updateMessage(currentSessionId, branchMessageId, {
-            ...updates,
-            generationStatus: "streaming",
-          });
-        },
-        (toolCalls) => {
-          if (!isGenerationRunActive(generation)) return;
-          updateMessage(currentSessionId, branchMessageId, {
-            toolCalls,
-            generationStatus: "streaming",
-          });
-        },
-        (images) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentActiveMsgs = useChatStore.getState().activeMessages;
-          const msg = currentActiveMsgs.find((m) => m.id === branchMessageId);
-          const currentAttachments = msg?.attachments || [];
-          updateMessage(currentSessionId, branchMessageId, {
-            attachments: [...currentAttachments, ...images],
-            generationStatus: "streaming",
-          });
-        },
-        (usage) => {
-          if (!isGenerationRunActive(generation)) return;
-          const currentMessages = useChatStore.getState().activeMessages;
-          handleTokenUsageUpdate(
-            usage,
-            currentMessages,
-            lastUserMsg.id,
-            branchMessageId,
-            currentSessionId,
-            updateMessage,
-          );
-        },
-        generation.controller.signal,
-        effectiveContext.activePluginIds,
-        skillResolution.context,
-        (outputBlocks) => {
-          if (!isGenerationRunActive(generation)) return;
-          updateMessageContent(
-            currentSessionId,
-            branchMessageId,
-            latestStreamText,
-            latestStreamReasoning || undefined,
-            outputBlocks,
-          );
-        },
+        branchMessageId,
       );
+      try {
+        await streamChatResponse(
+          currentSessionId,
+          selectedModel,
+          historyForApi, // Don't include lastUserMsg here, it's sent as newMessage
+          finalText,
+          finalAttachments,
+          resolveEffectiveChatRequestConfig({
+            chatConfig,
+            selectedModel,
+            modelMetadata,
+            customModelMetadata,
+          }),
+          (content, reasoning, outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ content, reasoning, outputBlocks });
+          },
+          effectiveContext.systemInstruction,
+          (isSearching, results) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentMessage = useChatStore
+              .getState()
+              .activeMessages.find((message) => message.id === branchMessageId);
+            const updates = buildSearchUpdate(
+              currentMessage,
+              isSearching,
+              results,
+            );
+            updateMessage(currentSessionId, branchMessageId, {
+              ...updates,
+              generationStatus: "streaming",
+            });
+          },
+          (toolCalls) => {
+            if (!isGenerationRunActive(generation)) return;
+            updateMessage(currentSessionId, branchMessageId, {
+              toolCalls,
+              generationStatus: "streaming",
+            });
+          },
+          (images) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentActiveMsgs = useChatStore.getState().activeMessages;
+            const msg = currentActiveMsgs.find((m) => m.id === branchMessageId);
+            const currentAttachments = msg?.attachments || [];
+            updateMessage(currentSessionId, branchMessageId, {
+              attachments: [...currentAttachments, ...images],
+              generationStatus: "streaming",
+            });
+          },
+          (usage) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentMessages = useChatStore.getState().activeMessages;
+            handleTokenUsageUpdate(
+              usage,
+              currentMessages,
+              lastUserMsg.id,
+              branchMessageId,
+              currentSessionId,
+              updateMessage,
+            );
+          },
+          generation.controller.signal,
+          effectiveContext.activePluginIds,
+          skillResolution.context,
+          (outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ outputBlocks });
+          },
+        );
+      } finally {
+        streamCommitter.flush();
+      }
 
       if (!isGenerationRunActive(generation)) return;
       const endTime = Date.now();
@@ -1751,9 +1741,10 @@ const ChatApp = () => {
       }
 
       editedUserMessageId = branchIds.userMessageId;
-      modelMessageId = branchIds.modelMessageId;
+      const streamMessageId = branchIds.modelMessageId;
+      modelMessageId = streamMessageId;
       if (skillResolution.invocations.length > 0) {
-        updateMessage(sessionId, modelMessageId, {
+        updateMessage(sessionId, streamMessageId, {
           skillInvocations: skillResolution.invocations,
         });
       }
@@ -1768,103 +1759,85 @@ const ChatApp = () => {
       );
       if (!isGenerationRunActive(generation)) return;
 
-      let latestStreamText = "";
-      let latestStreamReasoning = "";
-
-      await streamChatResponse(
-        sessionId,
-        selectedModel,
-        historyForApi,
-        finalText,
-        finalAttachments,
-        resolveEffectiveChatRequestConfig({
-          chatConfig,
+      const streamCommitter = createStreamCommitter(sessionId, streamMessageId);
+      try {
+        await streamChatResponse(
+          sessionId,
           selectedModel,
-          modelMetadata,
-          customModelMetadata,
-        }),
-        (streamText, streamReasoning, outputBlocks) => {
-          if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          latestStreamText = streamText;
-          if (streamReasoning !== undefined) {
-            latestStreamReasoning = streamReasoning;
-          }
-          updateMessageContent(
-            sessionId,
-            modelMessageId,
-            streamText,
-            streamReasoning,
-            outputBlocks,
-          );
-        },
-        effectiveContext.systemInstruction,
-        (isSearching, results) => {
-          if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          const currentMessage = useChatStore
-            .getState()
-            .activeMessages.find((message) => message.id === modelMessageId);
-          const updates = buildSearchUpdate(
-            currentMessage,
-            isSearching,
-            results,
-          );
-          updateMessage(sessionId, modelMessageId, {
-            ...updates,
-            generationStatus: "streaming",
-          });
-        },
-        (toolCalls) => {
-          if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          updateMessage(sessionId, modelMessageId, {
-            toolCalls,
-            generationStatus: "streaming",
-          });
-        },
-        (images) => {
-          if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          const currentActiveMsgs = useChatStore.getState().activeMessages;
-          const msg = currentActiveMsgs.find(
-            (message) => message.id === modelMessageId,
-          );
-          const currentAttachments = msg?.attachments || [];
+          historyForApi,
+          finalText,
+          finalAttachments,
+          resolveEffectiveChatRequestConfig({
+            chatConfig,
+            selectedModel,
+            modelMetadata,
+            customModelMetadata,
+          }),
+          (content, reasoning, outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ content, reasoning, outputBlocks });
+          },
+          effectiveContext.systemInstruction,
+          (isSearching, results) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentMessage = useChatStore
+              .getState()
+              .activeMessages.find((message) => message.id === streamMessageId);
+            const updates = buildSearchUpdate(
+              currentMessage,
+              isSearching,
+              results,
+            );
+            updateMessage(sessionId, streamMessageId, {
+              ...updates,
+              generationStatus: "streaming",
+            });
+          },
+          (toolCalls) => {
+            if (!isGenerationRunActive(generation)) return;
+            updateMessage(sessionId, streamMessageId, {
+              toolCalls,
+              generationStatus: "streaming",
+            });
+          },
+          (images) => {
+            if (!isGenerationRunActive(generation)) return;
+            const currentActiveMsgs = useChatStore.getState().activeMessages;
+            const msg = currentActiveMsgs.find(
+              (message) => message.id === streamMessageId,
+            );
+            const currentAttachments = msg?.attachments || [];
 
-          updateMessage(sessionId, modelMessageId, {
-            attachments: [...currentAttachments, ...images],
-            generationStatus: "streaming",
-          });
-        },
-        (usage) => {
-          if (
-            !isGenerationRunActive(generation) ||
-            !modelMessageId ||
-            !editedUserMessageId
-          ) {
-            return;
-          }
-          const currentMessages = useChatStore.getState().activeMessages;
-          handleTokenUsageUpdate(
-            usage,
-            currentMessages,
-            editedUserMessageId,
-            modelMessageId,
-            sessionId,
-            updateMessage,
-          );
-        },
-        generation.controller.signal,
-        effectiveContext.activePluginIds,
-        skillResolution.context,
-        (outputBlocks) => {
-          if (!isGenerationRunActive(generation) || !modelMessageId) return;
-          updateMessageContent(
-            sessionId,
-            modelMessageId,
-            latestStreamText,
-            latestStreamReasoning || undefined,
-            outputBlocks,
-          );
-        },
-      );
+            updateMessage(sessionId, streamMessageId, {
+              attachments: [...currentAttachments, ...images],
+              generationStatus: "streaming",
+            });
+          },
+          (usage) => {
+            if (!isGenerationRunActive(generation) || !editedUserMessageId) {
+              return;
+            }
+            const currentMessages = useChatStore.getState().activeMessages;
+            handleTokenUsageUpdate(
+              usage,
+              currentMessages,
+              editedUserMessageId,
+              streamMessageId,
+              sessionId,
+              updateMessage,
+            );
+          },
+          generation.controller.signal,
+          effectiveContext.activePluginIds,
+          skillResolution.context,
+          (outputBlocks) => {
+            if (!isGenerationRunActive(generation)) return;
+            streamCommitter.enqueue({ outputBlocks });
+          },
+        );
+      } finally {
+        streamCommitter.flush();
+      }
 
       if (!isGenerationRunActive(generation) || !modelMessageId) return;
       const endTime = Date.now();
@@ -2173,8 +2146,13 @@ const ChatApp = () => {
             {/* Content */}
             <div
               ref={messagesScrollRef}
-              onScroll={updateIsNearMessageBottom}
-              className="flex-1 px-4 md:px-8 pt-4 md:pt-6 pb-[calc(8rem+env(safe-area-inset-bottom))] relative motion-safe:scroll-smooth scrollbar-overlay"
+              onScroll={handleMessagesScroll}
+              onWheel={handleMessagesWheel}
+              onTouchStart={handleMessagesTouchStart}
+              onTouchMove={handleMessagesTouchMove}
+              onTouchEnd={handleMessagesTouchEnd}
+              onTouchCancel={handleMessagesTouchEnd}
+              className="flex-1 px-4 md:px-8 pt-4 md:pt-6 pb-[calc(8rem+env(safe-area-inset-bottom))] relative scrollbar-overlay"
             >
               <div className="w-full max-w-3xl mx-auto min-h-full flex flex-col">
                 {/* Assistant / System Instruction Header */}
@@ -2211,8 +2189,7 @@ const ChatApp = () => {
                   <div className="space-y-1 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500 fill-mode-forwards">
                     {messages.map((msg, idx) => {
                       const isLastUserMessage =
-                        msg.role === "user" &&
-                        !messages.slice(idx + 1).some((m) => m.role === "user");
+                        msg.role === "user" && msg.id === lastUserMessageId;
                       const isLastMessage = idx === messages.length - 1;
 
                       return (
@@ -2254,8 +2231,6 @@ const ChatApp = () => {
                         </React.Fragment>
                       );
                     })}
-
-                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </div>

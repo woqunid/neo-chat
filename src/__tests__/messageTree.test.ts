@@ -11,6 +11,7 @@ import {
   removeActivePathAfter,
   removeMessageFromTree,
   switchMessageBranch,
+  updateMessageInTree,
 } from "../lib/chat/messageTree";
 
 const makeMessage = (
@@ -25,6 +26,25 @@ const makeMessage = (
 });
 
 describe("message tree utilities", () => {
+  it("preserves untouched node and message references during an update", () => {
+    const tree = normalizeSessionMessageTree([
+      makeMessage("u1", "user", "hello"),
+      makeMessage("m1", "model", "before"),
+    ]);
+    const untouchedNode = tree.nodesById.u1;
+    const updated = updateMessageInTree(tree, "m1", (message) => ({
+      ...message,
+      content: "after",
+    }));
+
+    expect(updated).not.toBe(tree);
+    expect(updated.nodesById.u1).toBe(untouchedNode);
+    expect(updated.nodesById.u1.message).toBe(untouchedNode.message);
+    expect(updated.nodesById.m1).not.toBe(tree.nodesById.m1);
+    expect(updated.nodesById.m1.message.content).toBe("after");
+    expect(tree.nodesById.m1.message.content).toBe("before");
+  });
+
   it("normalizes a legacy linear message list into a single active path", () => {
     const messages = [
       makeMessage("u1", "user", "hello"),

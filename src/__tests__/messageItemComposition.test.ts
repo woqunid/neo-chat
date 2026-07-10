@@ -17,7 +17,7 @@ describe("MessageItem composition", () => {
 
     expect(messageItem).toContain("MessageAttachmentView");
     expect(messageItem).toContain(
-      "const skillInvocations = message.skillInvocations || []",
+      "message.skillInvocations ?? EMPTY_SKILL_INVOCATIONS",
     );
     expect(messageItem).toContain("portal");
     expect(messageItem).toContain("AddToKnowledgeModal");
@@ -41,6 +41,8 @@ describe("MessageItem composition", () => {
     expect(messageItem).not.toContain("activeSkillIds");
     expect(messageItem).not.toContain("onBranch");
     expect(messageItem).not.toContain("<Split");
+    expect(messageItem).not.toContain("getNextTypewriterFrame");
+    expect(messageItem).not.toContain("useChatStore();");
     expect(attachmentView).toContain("AudioPlayer");
     expect(attachmentView).toContain("resolveObjectUrlWithLifecycle");
   });

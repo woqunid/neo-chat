@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { useShallow } from "zustand/react/shallow";
 import { toPng } from "html-to-image";
 import type { Attachment, Message } from "@/types";
 import MarkdownRenderer from "../content/MarkdownRenderer";
@@ -69,7 +70,6 @@ import {
   type MarkdownGeneratedFile,
 } from "@/lib/utils/markdownFiles";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
-import { getNextTypewriterFrame } from "@/lib/utils/typewriter";
 import {
   createSpeechSynthesisPoller,
   type DisposablePoller,
@@ -103,6 +103,10 @@ interface MessageItemProps {
   isLast: boolean;
   isTyping?: boolean;
 }
+
+const EMPTY_SEARCH_SOURCES: NonNullable<Message["searchSources"]> = [];
+const EMPTY_RAG_SOURCES: NonNullable<Message["ragSources"]> = [];
+const EMPTY_SKILL_INVOCATIONS: NonNullable<Message["skillInvocations"]> = [];
 
 type CopyStatus = "idle" | "copied" | "error";
 
@@ -460,11 +464,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const [attachmentToRead, setAttachmentToRead] =
     useState<ReadableAttachmentDocument | null>(null);
 
-  // Typewriter effect state
-  const [displayedContent, setDisplayedContent] = useState(
-    isTyping ? "" : message.content,
-  );
-  const displayedContentRef = useRef(displayedContent);
+  const displayedContent = message.content;
 
   // TTS State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -489,10 +489,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const originalDocumentTitleRef = useRef<string | null>(null);
 
   // Get Store Data
-  const { getCurrentSession, selectedModel, activeMessages, updateMessage } =
-    useChatStore();
-  const { openImagePreview } = useUIStore();
-  const { system, voice } = useSettingsStore();
+  const { getCurrentSession, selectedModel, updateMessage } = useChatStore(
+    useShallow((state) => ({
+      getCurrentSession: state.getCurrentSession,
+      selectedModel: state.selectedModel,
+      updateMessage: state.updateMessage,
+    })),
+  );
+  const openImagePreview = useUIStore((state) => state.openImagePreview);
+  const { system, voice } = useSettingsStore(
+    useShallow((state) => ({
+      system: state.system,
+      voice: state.voice,
+    })),
+  );
 
   const stopCurrentAudio = () => {
     currentAudioRef.current?.dispose();
@@ -768,47 +778,6 @@ const MessageItem: React.FC<MessageItemProps> = ({
     };
   }, [imageExportJob, t]);
 
-  // Typewriter Effect Logic using requestAnimationFrame
-  useEffect(() => {
-    const updateDisplayedContent = (value: string) => {
-      displayedContentRef.current = value;
-      setDisplayedContent(value);
-    };
-
-    if (!isTyping) {
-      updateDisplayedContent(message.content);
-      return;
-    }
-
-    // Immediate reset if content is cleared (e.g. regeneration start)
-    if (message.content.length === 0) {
-      updateDisplayedContent("");
-      return;
-    }
-
-    let animationFrameId: number | null = null;
-    let cancelled = false;
-
-    const animate = () => {
-      const nextFrame = getNextTypewriterFrame(
-        displayedContentRef.current,
-        message.content,
-      );
-      updateDisplayedContent(nextFrame.content);
-
-      if (!cancelled && !nextFrame.done) {
-        animationFrameId = requestAnimationFrame(animate);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(animate);
-
-    return () => {
-      cancelled = true;
-      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
-    };
-  }, [isTyping, message.content]);
-
   const handleCopy = async () => {
     const copied = await copyTextToClipboard(message.content);
     setCopyFeedback(copied ? "copied" : "error");
@@ -819,6 +788,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const getMessageDownloadBaseName = () => {
+    const activeMessages = useChatStore.getState().activeMessages;
     const msgIndex = activeMessages.findIndex((m) => m.id === message.id);
     let filename = `message_${message.id.slice(0, 8)}`;
 
@@ -1090,13 +1060,13 @@ const MessageItem: React.FC<MessageItemProps> = ({
   });
 
   // Search Data from Message
-  const sources = message.searchSources || [];
+  const sources = message.searchSources ?? EMPTY_SEARCH_SOURCES;
 
   // RAG Data
-  const ragSources = message.ragSources || [];
+  const ragSources = message.ragSources ?? EMPTY_RAG_SOURCES;
 
   // Tool Data
-  const skillInvocations = message.skillInvocations || [];
+  const skillInvocations = message.skillInvocations ?? EMPTY_SKILL_INVOCATIONS;
   const usesRoleBasedPosition = system.enableRoleBasedMessagePosition;
   const isRightAlignedUserMessage =
     usesRoleBasedPosition && message.role === "user";

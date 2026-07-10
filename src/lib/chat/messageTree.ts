@@ -273,12 +273,20 @@ export function updateMessageInTree(
   messageId: string,
   update: (message: Message) => Message,
 ): SessionMessageTree {
-  const nextTree = cloneTree(tree);
-  const node = nextTree.nodesById[messageId];
-  if (!node) return nextTree;
+  const node = tree.nodesById[messageId];
+  if (!node) return tree;
 
-  node.message = stripLegacyVersions(update(node.message));
-  return nextTree;
+  const nextNode: MessageTreeNode = {
+    ...node,
+    message: stripLegacyVersions(update(node.message)),
+  };
+  return {
+    ...tree,
+    nodesById: {
+      ...tree.nodesById,
+      [messageId]: nextNode,
+    },
+  };
 }
 
 export function createModelResponseBranch(
