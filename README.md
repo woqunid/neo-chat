@@ -1,88 +1,154 @@
 # Neo Chat
 
 <p align="center">
-  <img src="public/logo.png" width="96" alt="Neo Chat logo" />
+  <img src="public/logo.png" width="96" alt="Neo Chat Logo" />
 </p>
 
 <p align="center">
-  <strong>A local-first AI chat workspace for models, agents, skills, plugins, search, RAG, voice, memory, and artifacts.</strong>
+  <strong>面向自部署场景的本地优先、多模型 AI 对话工作台</strong>
 </p>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/u14app/neo-chat/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/u14app/neo-chat/actions/workflows/ci.yml/badge.svg" /></a>
-  <a href="https://github.com/u14app/neo-chat/actions/workflows/docker.yml"><img alt="Docker" src="https://github.com/u14app/neo-chat/actions/workflows/docker.yml/badge.svg" /></a>
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
   <img alt="React" src="https://img.shields.io/badge/React-19-149eca" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178c6" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178c6" />
+  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-10.30.3-f69220" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-green" /></a>
 </p>
 
-Neo Chat is a self-hostable, local-first AI chat application built with Next.js, React, TypeScript, and Zustand. It brings multi-provider chat, assistant presets, text-only Skills, OpenAPI-style plugin tools, web search, knowledge-base RAG, local memory, voice, generated media, rich message rendering, citations, and editable artifacts into one clean workspace.
+Neo Chat 是基于 [u14app/neo-chat](https://github.com/u14app/neo-chat)
+持续二次开发的 AI 对话项目。它保留了上游项目本地优先、多供应商、插件、
+Skills、知识库和语音能力，并围绕实际自部署体验重新完善了服务端模型管理、
+Grok 联网搜索、Anthropic 接入、流式交互、消息排队、错误透传和内容导出。
 
-It is designed for people who want the power of modern AI workspaces without giving up local data ownership. Chat history, workspace metadata, skills, plugin configuration, memories, and files stay in the browser by default; server routes act as controlled proxies for model providers, search, RAG, document parsing, voice, plugin execution, and deployment health.
+项目适合个人、团队内网或受控站点部署。对话、设置、工作区、技能、插件和
+知识库元数据默认保存在浏览器本地；模型请求、联网搜索、插件执行、RAG、
+文档解析和语音能力通过 Next.js API 路由统一代理。
 
-## v2.1.0 Highlights
+> 这是一个独立维护的二开版本，并非上游仓库的原样镜像。当前版本号为
+> `2.1.0`。
 
-- Rebuilt System Settings with clearer grouped controls, deployment health visibility, and local data export/reset actions.
-- Added native model image generation/editing with ordered mixed text/image output blocks and OPFS-backed image display caching.
-- Expanded built-in plugin media tools with Agnes/Gemini image processing, separate OpenAI-compatible Images API and OpenAI Responses image processing plugins, plugin-level Base URL/Model ID controls, image count parameters where supported, compact image tool results, and Agnes image/video processing upgrades.
-- Added thinking intensity controls for reasoning-capable Gemini and OpenAI-compatible models.
-- Added Japanese localization for the app shell, SEO metadata, assistant locale routing, voice language handling, and the public Skills catalog.
-- Hardened hosted deployments with API request proof, shared-store checks, service health coverage, safer URL/secret handling, and Cloudflare Worker command fixes.
-- Added changelog-driven GitHub Release automation and a fork-only upstream sync workflow.
+## 二开重点
 
-## Features
+| 方向           | 当前实现                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| 服务端模型管理 | 新增 `/superadmin` 管理页，可集中添加、编辑、启停模型供应商并拉取模型列表                     |
+| 管理权限       | `SUPERADMIN_PASSWORD` 独立保护超级管理员页面和管理 API，与站点访问密码分离                    |
+| 配置持久化     | 本地部署支持内存存储，托管或多实例部署可使用 Upstash 保存模型与 Grok 配置                     |
+| Grok 联网      | 使用管理员统一配置的 Grok/OpenAI Responses 兼容接口，支持模型工具调用、多轮检索和显式错误展示 |
+| 模型供应商     | 在 Gemini、OpenAI 和 OpenAI Compatible 基础上补充 Anthropic 原生请求与流式响应支持            |
+| 对话体验       | 支持生成过程中继续输入并排队发送，修复停止生成后的残留状态                                    |
+| 流式性能       | 优化长回答渲染、消息提交和自动滚动，用户主动上滑后不会被强制拉回底部                          |
+| 兼容与诊断     | 修复 OpenAI 多轮消息格式，增加主模型与 Grok 请求超时，并保留上游真实错误信息                  |
+| 内容导出       | 单条回答可导出 Markdown、PNG 或 PDF；视觉导出只保留正文与图片，不混入思考和工具详情           |
+| 界面调整       | 支持切换对话消息位置、动态用户消息宽度，并精简不适合当前项目的设置入口                        |
 
-- Multi-provider chat with Gemini, Anthropic, OpenAI, and OpenAI-compatible endpoints.
-- Native image generation and image editing for models whose metadata exposes image output/input, with ordered mixed text/image message blocks and OPFS-backed Blob URL display caching.
-- Local-first sessions, branches, pinned chats, workspaces, workspace files, and assistant instructions.
-- Assistant presets from the LobeHub agent registry plus local custom assistants.
-- Text-only Skills with localized public catalogs, install/uninstall flows, local edits, custom skills, auto-selection, and workspace presets.
-- OpenAPI-based plugin tools with per-plugin authentication and server-side execution.
-- Built-in tools for web reading, weather, Unsplash search, Agnes/Gemini image processing, OpenAI-compatible image processing, OpenAI Responses image processing, and Agnes video generation. Agnes image processing supports image-to-image edits, and Agnes video generation supports public image URL to video plus plugin-level model IDs. Image processing plugins remain separate from native model image output.
-- Deployment-wide Grok web search through a configurable OpenAI-compatible Responses API.
-- Knowledge-base RAG with OPFS file storage, Mineru/LlamaParse document parsing, and optional vector indexing.
-- Local memory with optional memory search, background extraction, and dream consolidation.
-- Voice input and output through browser APIs, ElevenLabs, Mimo, or compatible configured providers.
-- Rich message rendering for Markdown, safe inline HTML visual blocks, GFM tables, math, code highlighting, Mermaid diagrams, mind maps, citations, reasoning, tool calls, images, audio, and artifacts.
-- Local BYOK encryption for user-entered provider, plugin, search, RAG, and voice secrets.
-- Deployment health checks for BYOK, access password, shared stores, default model, search, RAG, and voice readiness.
-- Docker and Cloudflare Workers deployment paths.
+## 核心能力
 
-## Screenshots
+- 支持 Gemini、Anthropic、OpenAI 和 OpenAI Compatible 模型供应商。
+- 支持服务端统一模型配置，也支持用户在浏览器内配置自己的 API Key。
+- 支持文本、图片、附件、推理内容、工具调用和混合内容流式输出。
+- 支持具备图像能力的模型进行图片生成与图片编辑。
+- 支持会话分支、置顶、搜索、工作区、工作区文件和自定义系统提示词。
+- 支持助理预设、本地自定义助理和 LobeHub 助理市场数据。
+- 支持文本型 Skills 的安装、编辑、自定义、手动选择和自动选择。
+- 支持 OpenAPI 风格插件，以及网页读取、图片处理、视频生成等内置工具。
+- 支持管理员统一启用 Grok 联网搜索，模型可按需发起一次或多次检索。
+- 支持知识库 RAG、OPFS 文件存储、MinerU/LlamaParse 文档解析和外部向量服务。
+- 支持本地记忆、记忆检索、后台提取与梦境整合。
+- 支持浏览器语音能力、ElevenLabs、Mimo 或兼容语音服务。
+- 支持 Markdown、GFM 表格、数学公式、代码高亮、Mermaid、思维导图、引用来源、
+  HTML 视觉块、音频、图片和 Artifact 渲染。
+- 支持本地数据导出、对话导出和单条回答的 Markdown/PNG/PDF 下载。
+- 支持 Docker、Vercel 和 Cloudflare Workers 部署。
 
-![Neo Chat Desktop](public/desktop.png)
+## 项目截图
 
-![Neo Chat Mobile](public/mobile.png)
+![Neo Chat 桌面端](public/desktop.png)
 
-## Quick Start
+![Neo Chat 移动端](public/mobile.png)
 
-### Requirements
+## 快速开始
+
+### 环境要求
 
 - Node.js 22
 - pnpm 10.30.3
 
-### Run Locally
+项目已在 `package.json` 中固定 pnpm 版本，建议通过 Corepack 使用。
 
 ```bash
-pnpm install
-pnpm dev
+corepack enable
+corepack pnpm install
+corepack pnpm dev
 ```
 
-Open `http://localhost:3000`, then configure at least one model provider in Settings.
+访问 `http://localhost:3000`，然后在设置中添加模型供应商，或通过
+`/superadmin` 配置站点级模型。
 
-For deployment-wide defaults, copy the environment template:
+如需使用环境变量，复制模板后按需修改：
 
 ```bash
 cp .env.example .env.local
 ```
 
-Most settings can be managed in the browser. Server environment variables are useful when you want a shared default provider, hosted deployment safety, access password protection, shared runtime stores, or managed defaults for search, RAG, document parsing, voice, memory, and HTML visual rendering.
+完整字段和中文注释见 [.env.example](.env.example) 与
+[环境变量文档](docs/environment-variables.md)。
 
-## Deployment
+## Super Admin
+
+二开版本新增了独立的超级管理员入口：
+
+```text
+http://localhost:3000/superadmin
+```
+
+最小本地配置：
+
+```bash
+SUPERADMIN_PASSWORD="change-this-password"
+MODEL_PROVIDER_STORE="memory"
+```
+
+登录后可以：
+
+- 添加、编辑、删除和启停站点级模型供应商；
+- 配置 Gemini、Anthropic、OpenAI 或 OpenAI Compatible 接口；
+- 从供应商接口拉取模型列表并选择对用户开放的模型；
+- 配置 Grok 联网搜索的 Base URL、API Key 和模型；
+- 测试 Grok 连接状态并控制是否向聊天开放联网能力。
+
+`SUPERADMIN_PASSWORD` 只负责保护管理后台。若还需要保护整个站点，请另外设置：
+
+```bash
+ACCESS_PASSWORD="site-access-password"
+```
+
+内存存储只适合本地单实例运行，进程重启后管理配置会丢失。托管环境必须使用
+共享存储：
+
+```bash
+DEPLOYMENT_MODE="hosted"
+MODEL_PROVIDER_STORE="upstash"
+UPSTASH_REDIS_REST_URL="https://..."
+UPSTASH_REDIS_REST_TOKEN="..."
+```
+
+## Grok 联网搜索
+
+本项目使用管理员统一配置的 Grok 联网能力，不再让普通用户分别维护搜索服务
+密钥。配置完成并启用后，聊天输入框会出现“Grok 联网搜索”选项。
+
+- 文本模型通过 `grok_web_search` 工具自主决定搜索关键词和搜索轮次；
+- 搜索结果以结构化来源返回，并在回答中展示引用；
+- 不支持工具调用的图片模型会使用预检索流程；
+- 配置缺失、请求失败或工具执行失败都会明确展示，不会静默忽略；
+- Grok 请求超时可通过 `GROK_SEARCH_TIMEOUT_MS` 配置。
+
+Grok 接口需要兼容 OpenAI Responses API，并由管理员在 `/superadmin` 中配置，
+当前没有搜索环境变量兜底。
+
+## 部署
 
 ### Docker Compose
 
@@ -90,391 +156,181 @@ Most settings can be managed in the browser. Server environment variables are us
 docker compose up --build
 ```
 
-The compose file publishes Neo Chat on `http://localhost:3000` and uses local/self-hosted safety defaults. For production Docker deployments, set stable BYOK values, use shared stores for hosted or multi-instance deployments, and enable `TRUST_PROXY_HEADERS` only behind a proxy that strips spoofed forwarded headers.
+默认访问地址为 `http://localhost:3000`。生产部署时应配置稳定 BYOK 私钥、访问
+密码和共享存储，不要将密钥直接写入仓库。
 
-### Docker Image
+### Docker
 
 ```bash
 docker build -t neo-chat:local .
-docker run --rm -p 3000:3000 -e BYOK_ALLOW_EPHEMERAL_KEY=true neo-chat:local
+docker run --rm -p 3000:3000 \
+  -e BYOK_ALLOW_EPHEMERAL_KEY=true \
+  neo-chat:local
 ```
 
-The Docker workflow builds pull requests and publishes `main` / `v*` tags to GitHub Container Registry:
-
-```text
-ghcr.io/u14app/neo-chat:latest
-```
+`BYOK_ALLOW_EPHEMERAL_KEY=true` 仅适合本地临时测试。生产环境应配置固定的
+`BYOK_PRIVATE_KEY_PEM` 和 `BYOK_KEY_ID`。
 
 ### Vercel
 
-Import the repository as a Next.js project. Vercel can use the framework preset
-and package manager detection from `pnpm-lock.yaml` and the `packageManager`
-field, so the project does not need a custom output directory.
-
-Recommended project settings:
+将仓库作为 Next.js 项目导入即可，推荐配置：
 
 ```text
 Framework Preset: Next.js
-Install Command: default, or corepack pnpm install --frozen-lockfile
+Install Command: corepack pnpm install --frozen-lockfile
 Build Command: pnpm build
-Output Directory: default
+Output Directory: 默认
 ```
 
-For public Vercel deployments, configure production environment variables in
-the Vercel project settings:
+公开部署至少应设置：
 
 ```bash
-DEPLOYMENT_MODE=hosted
-RATE_LIMIT_STORE=upstash
-DOCUMENT_PARSE_JOB_STORE=upstash
-PLUGIN_REGISTRY_STORE=upstash
-BYOK_ALLOW_EPHEMERAL_KEY=false
-NEXT_PUBLIC_SITE_URL=https://your-domain.com
+DEPLOYMENT_MODE="hosted"
+BYOK_ALLOW_EPHEMERAL_KEY="false"
+MODEL_PROVIDER_STORE="upstash"
+RATE_LIMIT_STORE="upstash"
+DOCUMENT_PARSE_JOB_STORE="upstash"
+PLUGIN_REGISTRY_STORE="upstash"
+NEXT_PUBLIC_SITE_URL="https://your-domain.com"
 ```
-
-Store deployment passwords, provider keys, BYOK material, and shared store
-credentials as Vercel environment variables with the appropriate Production,
-Preview, or Development scope. Do not commit these values to the repository.
-When a `NEXT_PUBLIC_*` value affects metadata or generated public links, set it
-for the environments that build those deployments.
 
 ### Cloudflare Workers
 
 ```bash
-pnpm build:worker
-pnpm preview:worker
-pnpm deploy:worker
+corepack pnpm build:worker
+corepack pnpm preview:worker
+corepack pnpm deploy:worker
 ```
 
-Workers should run in hosted mode and use public HTTPS upstreams. When using
-Cloudflare Workers Builds, use separate build and deploy commands so the
-OpenNext build output exists before deployment:
+Cloudflare 控制台中的运行时变量和密钥应配置在
+**Settings → Variables and Secrets**。构建阶段需要的 `NEXT_PUBLIC_*` 变量还要
+同步配置到 **Settings → Builds → Variables and Secrets**。
+
+部署脚本已使用 `--keep-vars`，避免覆盖 Cloudflare Dashboard 中维护的变量。
+更多生产建议见 [部署加固文档](docs/deployment-hardening.md)。
+
+## 常用环境变量
 
 ```bash
-# Build command
-pnpm build:worker
+# 站点与后台访问
+ACCESS_PASSWORD=""
+SUPERADMIN_PASSWORD=""
 
-# Deploy command
-pnpm exec opennextjs-cloudflare deploy -- --keep-vars
-```
+# 部署模式
+DEPLOYMENT_MODE="local" # local 或 hosted
+TRUST_PROXY_HEADERS="false"
 
-`--keep-vars` preserves runtime variables and secrets configured in the
-Cloudflare dashboard instead of replacing them with only the values committed in
-`wrangler.jsonc`.
-
-Production Workers should configure runtime variables in the Cloudflare
-dashboard under **Settings -> Variables and Secrets**. Use plain variables for
-non-sensitive deployment defaults:
-
-```bash
-DEPLOYMENT_MODE=hosted
-RATE_LIMIT_STORE=upstash
-DOCUMENT_PARSE_JOB_STORE=upstash
-PLUGIN_REGISTRY_STORE=upstash
-BYOK_ALLOW_EPHEMERAL_KEY=false
-NEXT_PUBLIC_SITE_URL=https://your-domain.com
-```
-
-Use secrets for deployment passwords, provider keys, BYOK material, and shared
-store credentials:
-
-```bash
-wrangler secret put BYOK_PRIVATE_KEY_PEM
-wrangler secret put BYOK_KEY_ID
-wrangler secret put UPSTASH_REDIS_REST_URL
-wrangler secret put UPSTASH_REDIS_REST_TOKEN
-wrangler secret put ACCESS_PASSWORD
-```
-
-For Cloudflare Workers Builds, also add build-time variables under
-**Settings -> Builds -> Variables and Secrets** when a value must be available
-during `next build`, especially `NEXT_PUBLIC_*` values. Runtime variables are
-not available to the build step unless they are also configured there.
-
-Do not commit personal API keys or deployment secrets to `wrangler.jsonc`.
-Deployment-level provider keys such as `DEFAULT_PROVIDER_API_KEY` are shared by
-everyone using that Worker instance; leave them unset if users should provide
-their own keys in the browser.
-
-See [Deployment Hardening](docs/deployment-hardening.md) for production configuration guidance.
-
-## Configuration
-
-Neo Chat is local-first by default:
-
-- Core settings, provider records, selected models, and provider API keys are stored in browser `localStorage`.
-- Chat metadata, messages, app settings, installed plugins, installed/custom skills, skill catalog caches, assistants, knowledge metadata, and local memories are stored in IndexedDB through `localforage`.
-- Uploaded chat, workspace, and knowledge files are stored in browser OPFS. User-sent and model-generated images also keep OPFS display-cache copies that render through runtime `blob:` URLs while preserving the original message data for model requests and export.
-- User-entered secrets are encrypted in the browser as BYOK envelopes before being sent to API routes.
-
-Important server-side settings:
-
-```bash
-# Access gate
-ACCESS_PASSWORD="your-access-password"
-
-# Stable BYOK server key for production
-BYOK_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-BYOK_KEY_ID="prod-2026-07"
+# BYOK 服务端密钥
+BYOK_PRIVATE_KEY_PEM=""
+BYOK_KEY_ID=""
 BYOK_ALLOW_EPHEMERAL_KEY="false"
 
-# Deployment safety
-DEPLOYMENT_MODE="local" # or hosted
-ALLOW_LOCAL_NETWORK_PROXY=""
+# 共享存储
+MODEL_PROVIDER_STORE="memory"
+RATE_LIMIT_STORE="memory"
+DOCUMENT_PARSE_JOB_STORE="memory"
+PLUGIN_REGISTRY_STORE="memory"
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
 
-# Shared short-lived state for hosted or multi-instance deployments
-RATE_LIMIT_STORE="upstash"
-DOCUMENT_PARSE_JOB_STORE="upstash"
-PLUGIN_REGISTRY_STORE="upstash"
-UPSTASH_REDIS_REST_URL="https://..."
-UPSTASH_REDIS_REST_TOKEN="..."
+# 请求超时，单位毫秒；设为 0 表示禁用
+CHAT_PROVIDER_TIMEOUT_MS="120000"
+GROK_SEARCH_TIMEOUT_MS="60000"
+
+# 公开站点地址
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 ```
 
-Default model provider:
+模型、RAG、文档解析、语音、默认任务模型和系统行为还有更多可选变量，请以
+[.env.example](.env.example) 为准。
 
-```bash
-DEFAULT_PROVIDER_TYPE="Gemini" # Gemini, Anthropic, OpenAI, or OpenAI Compatible
-DEFAULT_PROVIDER_NAME="Google Gemini"
-DEFAULT_PROVIDER_BASE_URL=""
-DEFAULT_PROVIDER_API_KEY="provider-key"
-DEFAULT_PROVIDER_MODELS="model-a,model-b"
-```
+## 数据与安全
 
-`DEFAULT_PROVIDER_MODELS` supports multiple formats:
+Neo Chat 采用本地优先的数据设计：
 
-```bash
-# Comma-separated model IDs
-DEFAULT_PROVIDER_MODELS="gpt-5.5,gpt-5.4-mini"
+- `localStorage`：核心设置、供应商记录、模型选择等轻量配置；
+- IndexedDB：会话、消息、插件、Skills、助理、知识库元数据和记忆；
+- OPFS：聊天附件、工作区文件、知识库文件和图片显示缓存；
+- 服务端内存或 Upstash：Super Admin 管理的模型供应商与 Grok 配置；
+- BYOK 加密信封：用户在浏览器输入的密钥不会以明文请求字段直接发送。
 
-# JSON string array
-DEFAULT_PROVIDER_MODELS='["gpt-5.5","gpt-5.4-mini"]'
+`DEPLOYMENT_MODE=hosted` 会限制本机、内网和非 HTTPS 代理目标。项目提供请求
+校验、URL 安全策略、上传限制、速率限制和部署健康检查，但它仍不是完整的
+公共多租户 SaaS 系统。
 
-# JSON object array with optional display names, capability aliases, and modalities
-DEFAULT_PROVIDER_MODELS='[{"id":"gpt-image-2","name":"GPT Image 2","capabilities":["image_generation"]},{"id":"gemini-3.1-flash-image","modalities":{"input":["text","image"],"output":["text","image"]}},"gpt-5.4-mini"]'
-```
+如果要开放给不受信任的公共用户，还需要自行补充账号体系、租户隔离、服务端
+密钥托管、配额、审计、滥用防护和供应商消费限制。
 
-For JSON object entries, `name` is optional and falls back to `id`.
-`capabilities` accepts aliases such as `vision`, `attachment`, `reasoning`,
-`tool_call`, `image_generation`, `image_output`, and `image_editing`.
-Explicit `modalities.input` / `modalities.output` are preferred when present.
-
-Default task models:
-
-```bash
-DEFAULT_MODEL_TITLE_GENERATION="model-a"
-DEFAULT_MODEL_RELATED_QUESTIONS="model-a"
-DEFAULT_MODEL_CONTEXT_COMPRESSION="model-a"
-DEFAULT_MODEL_PROMPT_OPTIMIZATION="model-a"
-DEFAULT_MODEL_RAG_QUERY="model-a"
-DEFAULT_MODEL_MEMORY="model-a"
-```
-
-Grok web search is configured in `/superadmin`, alongside model providers but
-in a separate section. Set its OpenAI-compatible Base URL, API key, Responses
-API model, and enabled state there. There is no search environment-variable
-fallback.
-
-RAG, document parsing, and voice defaults:
-
-```bash
-DEFAULT_RAG_BASE_URL="https://rag.example"
-DEFAULT_RAG_TOKEN="rag-token"
-DEFAULT_RAG_TOP_K="10"
-DEFAULT_RAG_CHUNK_SIZE="512"
-DEFAULT_RAG_NAMESPACE="default"
-DEFAULT_DOCUMENT_PARSE_PROVIDER="mineru"
-DEFAULT_MINERU_API_TOKEN=""
-DEFAULT_LLAMA_PARSE_API_KEY="llama-parse-key"
-
-DEFAULT_VOICE_PROVIDER="elevenlabs"
-DEFAULT_ELEVENLABS_API_KEY="elevenlabs-key"
-DEFAULT_ELEVENLABS_STT_MODEL="scribe_v2"
-DEFAULT_ELEVENLABS_TTS_MODEL="eleven_flash_v2_5"
-DEFAULT_ELEVENLABS_TTS_VOICE_ID="bIHbv24MWmeRgasZH58o"
-
-DEFAULT_MIMO_API_KEY="mimo-key"
-DEFAULT_MIMO_STT_MODEL="mimo-v2.5-asr"
-DEFAULT_MIMO_TTS_MODEL="mimo-v2.5-tts"
-DEFAULT_MIMO_TTS_VOICE_ID="mimo_default"
-```
-
-Default system behavior:
-
-```bash
-DEFAULT_SYSTEM_PROMPT=""
-DEFAULT_ENABLE_AUTO_TITLE="true"
-DEFAULT_ENABLE_RELATED_QUESTIONS="true"
-DEFAULT_ENABLE_AUTO_COMPRESSION="true"
-DEFAULT_ENABLE_CODE_COLLAPSE="true"
-DEFAULT_ENABLE_HTML_VISUAL_PROMPT="true"
-```
-
-Public site URL:
-
-```bash
-NEXT_PUBLIC_SITE_URL="https://your-domain.com"
-```
-
-For the full template, see [.env.example](.env.example).
-
-## Architecture
+## 架构概览
 
 ```mermaid
 flowchart LR
-  Browser["Browser app\nReact + Zustand"] --> LocalStorage["localStorage\nproviders + settings"]
-  Browser --> IndexedDB["IndexedDB\nsessions + plugins + skills + knowledge + memories"]
-  Browser --> OPFS["OPFS\nuploads + workspace files"]
-  Browser --> ApiRoutes["Next.js API routes"]
-  ApiRoutes --> Providers["Model providers\nGemini / OpenAI / compatible"]
-  ApiRoutes --> Search["Grok web search"]
-  ApiRoutes --> Rag["RAG + document services"]
-  ApiRoutes --> Plugins["Plugin APIs"]
-  ApiRoutes --> Voice["Voice providers"]
-  ApiRoutes --> Health["Deployment health"]
-  Browser -. encrypted BYOK envelopes .-> ApiRoutes
+  Browser["浏览器应用<br/>React + Zustand"] --> Local["本地数据<br/>localStorage / IndexedDB / OPFS"]
+  Browser --> API["Next.js API Routes"]
+  Admin["Super Admin"] --> Config["服务端配置<br/>Memory / Upstash"]
+  Config --> API
+  API --> Models["Gemini / Anthropic / OpenAI / Compatible"]
+  API --> Grok["Grok 联网搜索"]
+  API --> Services["插件 / RAG / 文档解析 / 语音"]
 ```
 
-The app keeps durable user data in browser storage whenever possible. API routes provide:
-
-- provider request normalization and streaming;
-- BYOK decryption on the server side;
-- URL safety gates for proxied upstreams;
-- plugin execution through registered plugin IDs and function names;
-- deployment health reporting through `/api/health`;
-- hosted-mode checks for shared stores and local-network restrictions.
-
-## Skills, Plugins, Grok Search, RAG, and Voice
-
-Skills are text-only prompt-context modules. The app loads localized metadata catalogs from `public/data/skills`, fetches full skill definitions only when needed, and stores installed, edited, and custom skills locally. Active skills can be selected manually, inherited from workspace presets, or auto-selected for a message.
-
-Plugins are OpenAPI-style tools installed from manifests or built-in definitions. Enabled plugin functions are exposed to compatible models as tools, then executed by the server-side plugin route. Built-in image processing plugin results stay in the tool details and compact conversation history, so the model can decide whether and how to reference generated or edited images in its follow-up message. OpenAI-compatible Images API and OpenAI Responses image processing are separate plugins so their credentials and activation can be managed independently. Supported built-in media plugins expose plugin-level API Base URL and Model ID fields, optional image count parameters, Agnes image-to-image editing, and Agnes video generation from a public HTTPS image URL while keeping Agnes video as the explicit `create_video` / `get_video_result` two-step flow. Tool-call orchestration uses a high but bounded loop limit to avoid runaway recursive calls while still allowing multi-step tasks.
-
-Web search runs only through the Grok-compatible Responses API configured by a Super Admin. For text-capable chat models, enabling search exposes a `grok_web_search` tool so the selected model can choose and refine queries, receive structured research results, and search again when needed. Direct image-only models use an explicit preflight search because they cannot call tools. Grok failures remain visible as search and tool errors instead of being silently ignored. Knowledge-base RAG stores source files in OPFS, optionally parses documents with Mineru or LlamaParse, and can index chunks into an external vector service.
-
-Voice workflows support browser speech APIs and configured external providers. Set `DEFAULT_VOICE_PROVIDER` to `elevenlabs` or `mimo` to enable a server default; leaving it empty keeps browser-native speech as the default. Empty default model values disable the matching STT or TTS capability, and the UI can store user-specific secrets locally.
-
-Deployment health is available from Settings and `/api/health`. It reports non-secret readiness for BYOK, access password, hosted mode, shared stores, default model, search, RAG, and voice configuration.
-
-## Security Model
-
-Neo Chat is self-hosting friendly, not a turnkey public SaaS security boundary.
-
-- `DEPLOYMENT_MODE=local` allows local and private-network proxy targets for private deployments.
-- `DEPLOYMENT_MODE=hosted` blocks localhost, private-network, and plain-HTTP proxy targets unless explicitly overridden.
-- BYOK envelopes prevent plain user-entered secrets from being sent in request bodies.
-- API schemas reject unknown high-risk fields and oversized payloads.
-- Plugin execution remains server-proxied and validated, but runtime tool calls no longer require a user confirmation modal.
-- `ACCESS_PASSWORD` is a deployment gate, not an account system.
-
-Before exposing Neo Chat as a public multi-user service, add account authentication, tenant isolation, server-side secret storage, quotas, audit logs, abuse controls, and provider spend limits.
-
-See [Reliability and Safety Model](docs/reliability-and-safety.md) for runtime behavior and recovery notes.
-
-## Development
-
-Quality checks:
+## 开发命令
 
 ```bash
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm audit --audit-level low
+corepack pnpm dev             # 启动开发服务器
+corepack pnpm build           # 构建 Next.js 生产版本
+corepack pnpm start           # 启动生产服务器
+corepack pnpm lint            # ESLint 检查
+corepack pnpm typecheck       # TypeScript 类型检查
+corepack pnpm test            # 运行 Vitest
+corepack pnpm format          # 使用 Prettier 格式化
+corepack pnpm format:check    # 检查代码格式
+corepack pnpm build:worker    # 构建 Cloudflare Worker
+corepack pnpm byok:generate   # 生成 BYOK 密钥配置
 ```
 
-Useful scripts:
+提交代码前建议执行：
 
 ```bash
-pnpm dev              # Start Next.js dev server
-pnpm build            # Production build
-pnpm start            # Start production server
-pnpm format           # Format the repository with Prettier
-pnpm format:check     # Check repository formatting
-pnpm build:worker     # Build for Cloudflare Workers
-pnpm preview:worker   # Preview Worker build
-pnpm deploy:worker    # Deploy Worker build while preserving dashboard vars
-pnpm byok:generate    # Generate copyable BYOK key values
+corepack pnpm format:check
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
 ```
 
-Project layout:
+## 目录结构
 
 ```text
-src/app/              Next.js routes and API routes
-src/components/       Chat UI, settings, plugin market, knowledge base
-src/lib/              Server/client domain helpers and safety gates
-src/services/         Provider, search, voice, RAG, and plugin service clients
-src/store/            Zustand stores and persistence migrations
-src/__tests__/        Vitest coverage for utilities, routes, and workflows
-docs/                 Deployment and reliability notes
+src/app/          Next.js 页面、路由与 API
+src/components/   聊天、设置、知识库、插件、Skills 和管理后台组件
+src/features/     聊天控制器、流式提交与自动滚动等功能逻辑
+src/lib/          领域逻辑、供应商适配、安全策略、搜索和服务端配置
+src/services/     浏览器侧 API 服务封装
+src/store/        Zustand Store、持久化与数据迁移
+src/__tests__/    Vitest 测试
+public/           图片资源与 Skills 数据
+docs/             部署、安全、隐私和插件开发文档
 ```
 
-Project documentation:
+## 相关文档
 
-- [Environment Variables](docs/environment-variables.md)
-- [Plugin Development](docs/plugin-development.md)
-- [Privacy and Local Data](docs/privacy-and-local-data.md)
-- [Deployment Hardening](docs/deployment-hardening.md)
-- [Reliability and Safety Model](docs/reliability-and-safety.md)
-- [Roadmap](ROADMAP.md)
-- [Changelog](CHANGELOG.md)
+- [环境变量](docs/environment-variables.md)
+- [部署加固](docs/deployment-hardening.md)
+- [隐私与本地数据](docs/privacy-and-local-data.md)
+- [可靠性与安全模型](docs/reliability-and-safety.md)
+- [插件开发](docs/plugin-development.md)
+- [更新记录](CHANGELOG.md)
+- [路线图](ROADMAP.md)
 
-### Fork Synchronization
+## 上游项目
 
-Fork maintainers can enable the `Sync upstream` workflow to fast-forward their fork from the upstream `u14app/neo-chat` `main` branch.
+本项目基于 [u14app/neo-chat](https://github.com/u14app/neo-chat) 二次开发，感谢
+上游作者和贡献者提供的基础实现。
 
-1. In the fork, open **Settings > Actions > General** and allow GitHub Actions to run.
-2. In **Workflow permissions**, select **Read and write permissions** so `GITHUB_TOKEN` can push to the fork.
-3. Open **Actions > Sync upstream > Run workflow** to trigger the first sync manually.
-4. Keep the scheduled workflow enabled if you want the fork to sync daily.
-
-The workflow is skipped in the upstream repository and only runs when GitHub marks the repository as a fork. It uses fast-forward-only merging, so it fails safely when the fork branch has diverged from upstream or a branch protection rule blocks the push.
-
-Optional repository variables can override the defaults:
-
-```text
-UPSTREAM_REPOSITORY=u14app/neo-chat
-UPSTREAM_BRANCH=main
-TARGET_BRANCH=<fork default branch>
-```
-
-## FAQ
-
-### Does Neo Chat store my data on a server?
-
-By default, durable chat and configuration data live in browser storage. API routes proxy external services, and production deployments should still treat server logs, upstream services, and configured stores according to their own privacy requirements.
-
-### Can I use OpenAI-compatible providers?
-
-Yes. Add an OpenAI-compatible provider in Settings or configure deployment defaults with `DEFAULT_PROVIDER_TYPE="OpenAI Compatible"` and a compatible `/v1` base URL.
-
-### Why do I need a stable BYOK private key in production?
-
-Browser secrets are encrypted to the server public key. If the server private key changes, existing local envelopes cannot be decrypted until users re-enter their secrets.
-
-### Can I deploy this as a public SaaS?
-
-Not as-is. Hosted mode tightens URL policy and shared-state requirements, but public SaaS still needs accounts, tenancy, quotas, auditing, and server-side secret management.
-
-### Why did a tool stop after many calls?
-
-Neo Chat keeps tool calls high but bounded. The model can run multi-step tool workflows, but recursive tool loops stop after the configured tool-round limit.
-
-### How do I retrieve previous versions?
-
-Previous versions of the project were developed solely based on the Gemini ecosystem. If you need previous versions, you can obtain them from the `gemini-next-chat` branch, **which has its code archived**.
-
-## Contributing
-
-Contributions are welcome. Keep changes focused, preserve local-first behavior, and run the quality checks before opening a pull request. For security-sensitive changes, include tests for both local and hosted deployment modes.
-
-Read [Contributing](CONTRIBUTING.md), [Security Policy](SECURITY.md), and the
-[Code of Conduct](CODE_OF_CONDUCT.md) before opening larger changes.
-
-## Community Support
-
-[LinuxDo](https://linux.do/)
+如需查看本仓库的二开改动，可比较当前分支与 `upstream/main`。本仓库会根据
+实际使用需求选择性同步上游，不保证与上游功能、配置或发布时间完全一致。
 
 ## License
 
-Neo Chat is released under the [MIT License](LICENSE).
+本项目基于 [MIT License](LICENSE) 开源。
