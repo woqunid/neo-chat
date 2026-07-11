@@ -58,4 +58,43 @@ describe("superadmin provider route", () => {
     expect(data.providers).toEqual([]);
     expect(await listServerModelProviders()).toEqual([]);
   });
+
+  it("writes hosted provider config with the Upstash command protocol", async () => {
+    vi.stubEnv("DEPLOYMENT_MODE", "hosted");
+    vi.stubEnv("MODEL_PROVIDER_STORE", "upstash");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "redis-token");
+    clearServerModelProvidersForTesting();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: null }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: "OK" }), { status: 200 }),
+      );
+
+    const { PUT } = await import("../app/api/superadmin/providers/route");
+    const response = await PUT(
+      makePutRequest({
+        providers: [
+          {
+            name: "Hosted",
+            type: "OpenAI",
+            apiKey: "secret",
+            models: ["gpt-5"],
+          },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://redis.example/",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringMatching(/^\["SET","neo:server-model-providers",/),
+      }),
+    );
+  });
 });

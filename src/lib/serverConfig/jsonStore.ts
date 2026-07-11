@@ -58,13 +58,13 @@ class UpstashJsonStore<T> implements ServerJsonStore<T> {
   }
 
   async set(value: T): Promise<void> {
-    const response = await fetch(this.endpoint("set"), {
+    const response = await fetch(this.endpoint(""), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([this.key, JSON.stringify(value)]),
+      body: JSON.stringify(["SET", this.key, JSON.stringify(value)]),
       cache: "no-store",
     });
     if (!response.ok) {
