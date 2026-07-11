@@ -10,7 +10,6 @@ interface TextFieldProps {
   type?: string;
   placeholder?: string;
   monospace?: boolean;
-  list?: string;
 }
 
 export function AdminTextField({
@@ -21,7 +20,6 @@ export function AdminTextField({
   type = "text",
   placeholder,
   monospace = false,
-  list,
 }: TextFieldProps) {
   return (
     <label className={`block space-y-2 text-sm font-medium ${className}`}>
@@ -29,7 +27,6 @@ export function AdminTextField({
       <input
         type={type}
         value={value}
-        list={list}
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}

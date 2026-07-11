@@ -11,6 +11,7 @@ import {
 import type { AdminGrokSearchConfig, AdminNotice } from "./types";
 import { getGrokSearchReadiness } from "./grokSearchReadiness";
 import { useGrokSearchAdmin } from "./useGrokSearchAdmin";
+import GrokModelField from "./GrokModelField";
 
 export default function GrokSearchEditor() {
   const admin = useGrokSearchAdmin();
@@ -90,19 +91,11 @@ function GrokFields({
         monospace
         onChange={(apiKey) => onChange((current) => ({ ...current, apiKey }))}
       />
-      <AdminTextField
-        label="模型"
+      <GrokModelField
         value={config.model}
-        placeholder="grok-4"
-        list="grok-search-models"
-        monospace
+        models={models}
         onChange={(model) => onChange((current) => ({ ...current, model }))}
       />
-      <datalist id="grok-search-models">
-        {models.map((model) => (
-          <option key={model} value={model} />
-        ))}
-      </datalist>
       <div className="md:col-span-2">
         <AdminToggle
           label="对所有用户启用"
