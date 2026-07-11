@@ -103,23 +103,22 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("handleDownloadMarkdown");
     expect(messageItem).toContain("handleDownloadPdf");
     expect(messageItem).toContain("handleDownloadImage");
-    expect(messageItem).toContain("imageExportError");
-    expect(messageItem).toContain('t("downloadImageFailed")');
+    expect(messageItem).toContain("visualExportError");
+    expect(messageItem).toContain('"downloadImageFailed"');
+    expect(messageItem).toContain('"downloadPdfFailed"');
+    expect(messageItem).toContain("t(errorKey)");
     expect(messageItem).toContain('role="alert"');
-    expect(messageItem).toContain("message-pdf-print-root");
     expect(messageItem).toContain("message-image-export-root");
-    expect(messageItem).toContain("message={pdfPrintJob.message}");
-    expect(messageItem).toContain("message={imageExportJob.message}");
-    expect(messageItem).toContain("window.print");
-    expect(messageItem).toContain("afterprint");
-    expect(messageItem).toContain("toPng");
-    expect(messageItem).toContain("html-to-image");
+    expect(messageItem).toContain("message={visualExportJob.message}");
+    expect(messageItem).toContain("createMessageExportSnapshot");
+    expect(messageItem).toContain("downloadMessageCanvasAsPdf");
+    expect(messageItem).toContain("downloadMessageCanvasAsPng");
+    expect(messageItem).not.toContain("window.print");
+    expect(messageItem).not.toContain("afterprint");
     expect(messageItem).toContain("backgroundColor");
     expect(messageItem).toContain("getImageExportBackgroundColor");
     expect(messageItem).toContain("getMessageImageExportWidth");
     expect(messageItem).toContain("visibleMessageContentRef");
-    expect(messageItem).toContain("width: imageExportJob.width");
-    expect(messageItem).toContain("canvasWidth: imageExportJob.width");
     expect(messageItem).toContain("message-image-export-canvas");
     expect(messageItem).toContain(".markdown-diagram-header");
     expect(messageItem).toContain("forceExpandCodeBlocks");
@@ -158,15 +157,9 @@ describe("MessageItem composition", () => {
       "forceExpandCodeBlocks={forceExpandCodeBlocks}",
     );
 
-    expect(globals).toContain("@page");
-    expect(globals).toContain("size: A4");
-    expect(globals).toContain(".message-pdf-print-root");
     expect(globals).toContain(".markdown-codeblock-header");
     expect(globals).toContain(
       ".message-export-content-root .markdown-diagram-header",
-    );
-    expect(globals).toContain(
-      ".message-pdf-print-root .markdown-diagram-header",
     );
     expect(globals).toContain("max-height: none !important");
     expect(globals).toContain(".markdown-codeblock-fade");
@@ -179,6 +172,7 @@ describe("MessageItem composition", () => {
     expect(globals).toContain("box-sizing: border-box");
     expect(globals).not.toContain("width: min(820px");
     expect(packageJson.dependencies?.["html-to-image"]).toBeDefined();
+    expect(packageJson.dependencies?.jspdf).toBeDefined();
     expect(en.Message.downloadMarkdown).toBe("Markdown");
     expect(en.Message.downloadPdf).toBe("PDF");
     expect(en.Message.downloadImage).toBe("Image");

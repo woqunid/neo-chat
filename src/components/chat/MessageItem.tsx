@@ -10,7 +10,6 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { useShallow } from "zustand/react/shallow";
-import { toPng } from "html-to-image";
 import type { Attachment, Message } from "@/types";
 import MarkdownRenderer from "../content/MarkdownRenderer";
 import Tooltip from "../ui/Tooltip";
@@ -82,6 +81,12 @@ import { isMessageGenerationActive } from "@/lib/chat/messageGenerationStatus";
 import { logDevError } from "@/lib/utils/devLogger";
 import { buildMobileMessageMetaTooltip } from "@/lib/utils/messageMetaTooltip";
 import { getMessageDisplayTokenCount } from "@/lib/utils/messageTokens";
+import { createMessageExportSnapshot } from "@/lib/chat/messageExport";
+import {
+  downloadMessageCanvasAsPdf,
+  downloadMessageCanvasAsPng,
+  renderMessageExportCanvas,
+} from "@/lib/utils/messageVisualExport";
 import {
   decodeAttachmentText,
   isTextDocumentMimeType,
@@ -118,19 +123,12 @@ interface ReadableAttachmentDocument {
   renderAsMarkdown: boolean;
 }
 
-interface PdfPrintJob {
+interface MessageVisualExportJob {
   id: string;
   title: string;
   message: Message;
-  searchSources: NonNullable<Message["searchSources"]>;
-}
-
-interface ImageExportJob {
-  id: string;
-  title: string;
-  message: Message;
-  searchSources: NonNullable<Message["searchSources"]>;
   width: number;
+  format: "pdf" | "png";
 }
 
 const logMessageItemError = logDevError;
@@ -259,6 +257,37 @@ const proxyMessageExportImages = (root: HTMLElement) => {
   }
 
   return didProxy;
+};
+
+const renderMessageVisualExport = async (
+  job: MessageVisualExportJob,
+  root: HTMLElement,
+) => {
+  const canvas = await renderMessageExportCanvas({
+    root,
+    width: job.width,
+    backgroundColor: getImageExportBackgroundColor(root),
+    filter: shouldIncludeMessageExportNode,
+  });
+  if (job.format === "pdf") {
+    await downloadMessageCanvasAsPdf(canvas, job.title);
+    return;
+  }
+  await downloadMessageCanvasAsPng(canvas, job.title);
+};
+
+const runMessageVisualExport = async (
+  job: MessageVisualExportJob,
+  root: HTMLElement,
+) => {
+  await waitForMessageExportImages(root);
+  try {
+    await renderMessageVisualExport(job, root);
+  } catch (firstError) {
+    if (!proxyMessageExportImages(root)) throw firstError;
+    await waitForMessageExportImages(root);
+    await renderMessageVisualExport(job, root);
+  }
 };
 
 interface UserMessageEditorProps {
@@ -448,11 +477,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const [showAddToKnowledgeModal, setShowAddToKnowledgeModal] = useState(false);
-  const [pdfPrintJob, setPdfPrintJob] = useState<PdfPrintJob | null>(null);
-  const [imageExportJob, setImageExportJob] = useState<ImageExportJob | null>(
+  const [visualExportJob, setVisualExportJob] =
+    useState<MessageVisualExportJob | null>(null);
+  const [visualExportError, setVisualExportError] = useState<string | null>(
     null,
   );
-  const [imageExportError, setImageExportError] = useState<string | null>(null);
 
   // Immersive / Reading Mode State
   const [readingMode, setReadingMode] = useState<
@@ -481,12 +510,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
   );
 
   const readingDialogRef = useRef<HTMLDivElement>(null);
-  const imageExportRootRef = useRef<HTMLDivElement>(null);
+  const visualExportRootRef = useRef<HTMLDivElement>(null);
   const visibleMessageContentRef = useRef<HTMLDivElement>(null);
   const readingRestoreFocusRef = useRef<HTMLElement | null>(null);
   const readingDialogTitleId = useId();
   const readingDialogDescriptionId = useId();
-  const originalDocumentTitleRef = useRef<string | null>(null);
 
   // Get Store Data
   const { getCurrentSession, selectedModel, updateMessage } = useChatStore(
@@ -640,135 +668,36 @@ const MessageItem: React.FC<MessageItemProps> = ({
   }, [message.id]);
 
   useEffect(() => {
-    if (!pdfPrintJob) return;
-
-    const originalTitle =
-      originalDocumentTitleRef.current === null
-        ? document.title
-        : originalDocumentTitleRef.current;
-    originalDocumentTitleRef.current = originalTitle;
-    document.title = pdfPrintJob.title;
-
-    let firstFrame: number | null = null;
-    let secondFrame: number | null = null;
-    let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
-    let cleanedUp = false;
-
-    const restoreDocumentTitle = () => {
-      document.title = originalTitle;
-      originalDocumentTitleRef.current = null;
-    };
-
-    const cleanupPrintJob = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      if (cleanupTimer) {
-        clearTimeout(cleanupTimer);
-        cleanupTimer = null;
-      }
-      restoreDocumentTitle();
-      setPdfPrintJob((current) =>
-        current?.id === pdfPrintJob.id ? null : current,
-      );
-    };
-
-    window.addEventListener("afterprint", cleanupPrintJob, { once: true });
-
-    firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => {
-        window.print();
-        cleanupTimer = setTimeout(cleanupPrintJob, 30000);
-      });
-    });
-
-    return () => {
-      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
-      window.removeEventListener("afterprint", cleanupPrintJob);
-      if (cleanupTimer) clearTimeout(cleanupTimer);
-      if (!cleanedUp) {
-        cleanedUp = true;
-        restoreDocumentTitle();
-      }
-    };
-  }, [pdfPrintJob]);
-
-  useEffect(() => {
-    if (!imageExportJob) return;
+    if (!visualExportJob) return;
 
     let firstFrame: number | null = null;
     let secondFrame: number | null = null;
     let cancelled = false;
 
-    const downloadImageDataUrl = (dataUrl: string) => {
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = imageExportJob.title;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    };
-
-    const cleanupImageExportJob = () => {
-      setImageExportJob((current) =>
-        current?.id === imageExportJob.id ? null : current,
-      );
-    };
-
-    const exportRootToPng = async (root: HTMLElement) => {
-      const backgroundColor = getImageExportBackgroundColor(root);
-      return toPng(root, {
-        cacheBust: true,
-        backgroundColor,
-        width: imageExportJob.width,
-        canvasWidth: imageExportJob.width,
-        style: {
-          width: `${imageExportJob.width}px`,
-        },
-        filter: (node) => shouldIncludeMessageExportNode(node as HTMLElement),
-      });
-    };
-
     const runExport = async () => {
-      const root = imageExportRootRef.current;
-      if (!root) {
-        cleanupImageExportJob();
-        return;
-      }
-
       try {
-        await waitForMessageExportImages(root);
-        const dataUrl = await exportRootToPng(root);
-        if (!cancelled) downloadImageDataUrl(dataUrl);
-      } catch (firstError) {
+        const root = visualExportRootRef.current;
+        if (!root) throw new Error("Message export root is unavailable.");
+        await runMessageVisualExport(visualExportJob, root);
+      } catch (error) {
         if (cancelled) return;
-
-        const didProxy = proxyMessageExportImages(root);
-        if (!didProxy) {
-          logMessageItemError("Failed to export message image", firstError);
-          setImageExportError(t("downloadImageFailed"));
-          return;
-        }
-
-        try {
-          await waitForMessageExportImages(root);
-          const dataUrl = await exportRootToPng(root);
-          if (!cancelled) downloadImageDataUrl(dataUrl);
-        } catch (retryError) {
-          if (!cancelled) {
-            logMessageItemError("Failed to export message image", retryError);
-            setImageExportError(t("downloadImageFailed"));
-          }
-        }
+        logMessageItemError("Failed to export message", error);
+        const errorKey =
+          visualExportJob.format === "pdf"
+            ? "downloadPdfFailed"
+            : "downloadImageFailed";
+        setVisualExportError(t(errorKey));
       } finally {
-        if (!cancelled) cleanupImageExportJob();
+        if (!cancelled) {
+          setVisualExportJob((current) =>
+            current?.id === visualExportJob.id ? null : current,
+          );
+        }
       }
     };
 
     firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => {
-        void runExport();
-      });
+      secondFrame = requestAnimationFrame(() => void runExport());
     });
 
     return () => {
@@ -776,7 +705,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
       if (firstFrame !== null) cancelAnimationFrame(firstFrame);
       if (secondFrame !== null) cancelAnimationFrame(secondFrame);
     };
-  }, [imageExportJob, t]);
+  }, [t, visualExportJob]);
 
   const handleCopy = async () => {
     const copied = await copyTextToClipboard(message.content);
@@ -830,23 +759,25 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleDownloadPdf = () => {
-    setPdfPrintJob({
+    setVisualExportError(null);
+    setVisualExportJob({
       id: `${message.id}-${Date.now()}`,
       title: getMessageDownloadName("pdf"),
-      message,
-      searchSources: message.searchSources || [],
+      message: createMessageExportSnapshot(message),
+      width: getMessageImageExportWidth(visibleMessageContentRef.current),
+      format: "pdf",
     });
     setShowMoreMenu(false);
   };
 
   const handleDownloadImage = () => {
-    setImageExportError(null);
-    setImageExportJob({
+    setVisualExportError(null);
+    setVisualExportJob({
       id: `${message.id}-${Date.now()}`,
       title: getMessageDownloadName("png"),
-      message,
-      searchSources: message.searchSources || [],
+      message: createMessageExportSnapshot(message),
       width: getMessageImageExportWidth(visibleMessageContentRef.current),
+      format: "png",
     });
     setShowMoreMenu(false);
   };
@@ -1208,40 +1139,28 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   return (
     <>
-      {pdfPrintJob &&
-        createPortal(
-          <div
-            className="message-pdf-print-root"
-            aria-hidden="true"
-            data-print-job-id={pdfPrintJob.id}
-          >
-            <MessageOutputRenderer
-              message={pdfPrintJob.message}
-              displayedContent={pdfPrintJob.message.content}
-              searchSources={pdfPrintJob.searchSources}
-              forcedTheme="light"
-              forceExpandCodeBlocks
-            />
-          </div>,
-          document.body,
-        )}
-      {imageExportJob &&
+      {visualExportJob &&
         createPortal(
           <div
             className="message-image-export-root"
             aria-hidden="true"
-            data-image-export-job-id={imageExportJob.id}
+            data-visual-export-job-id={visualExportJob.id}
           >
             <div
-              ref={imageExportRootRef}
-              className="message-image-export-canvas"
-              style={{ width: imageExportJob.width }}
+              ref={visualExportRootRef}
+              className={`message-image-export-canvas ${
+                visualExportJob.format === "pdf"
+                  ? "message-light-export-canvas"
+                  : ""
+              }`}
+              style={{ width: visualExportJob.width }}
             >
               <div className="message-export-content-root">
                 <MessageOutputRenderer
-                  message={imageExportJob.message}
-                  displayedContent={imageExportJob.message.content}
-                  searchSources={imageExportJob.searchSources}
+                  message={visualExportJob.message}
+                  displayedContent={visualExportJob.message.content}
+                  searchSources={EMPTY_SEARCH_SOURCES}
+                  forcedTheme="light"
                   forceExpandCodeBlocks
                 />
               </div>
@@ -1556,13 +1475,13 @@ const MessageItem: React.FC<MessageItemProps> = ({
               {ttsError}
             </div>
           ) : null}
-          {imageExportError ? (
+          {visualExportError ? (
             <div
               role="alert"
               aria-live="polite"
               className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100"
             >
-              {imageExportError}
+              {visualExportError}
             </div>
           ) : null}
 
