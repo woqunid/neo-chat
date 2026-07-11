@@ -3,6 +3,15 @@
  */
 
 import { ModelMetadata } from "@/types";
+import { SERVER_PROVIDER_ID_PREFIX } from "../defaultConfig/shared";
+
+function getProviderSeparatorIndex(modelString: string): number {
+  if (modelString.startsWith(SERVER_PROVIDER_ID_PREFIX)) {
+    return modelString.indexOf(":", SERVER_PROVIDER_ID_PREFIX.length);
+  }
+
+  return modelString.indexOf(":");
+}
 
 /**
  * 解析模型字符串（格式：providerId:modelName）
@@ -11,7 +20,7 @@ export function parseModelString(modelString: string): {
   providerId?: string;
   modelName: string;
 } {
-  const separatorIndex = modelString.indexOf(":");
+  const separatorIndex = getProviderSeparatorIndex(modelString);
   if (separatorIndex > 0) {
     const providerId = modelString.slice(0, separatorIndex);
     const modelName = modelString.slice(separatorIndex + 1);

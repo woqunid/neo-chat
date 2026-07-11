@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { parseModelString } from "../lib/utils/model";
 import { resolveSelectedModel } from "../lib/utils/models";
-import { SERVER_DEFAULT_PROVIDER_ID } from "../lib/defaultConfig/shared";
+import {
+  SERVER_DEFAULT_PROVIDER_ID,
+  SERVER_PROVIDER_ID_PREFIX,
+} from "../lib/defaultConfig/shared";
 import type { ModelInfo } from "../services/api/chatService";
 
 const availableModels: ModelInfo[] = [
@@ -30,6 +33,15 @@ describe("model string utilities", () => {
     expect(parseModelString("provider_1:vendor:model:latest")).toEqual({
       providerId: "provider_1",
       modelName: "vendor:model:latest",
+    });
+  });
+
+  it("parses managed provider ids that contain the prefix colon", () => {
+    const providerId = `${SERVER_PROVIDER_ID_PREFIX}provider-id`;
+
+    expect(parseModelString(`${providerId}:deepseek-v4-pro`)).toEqual({
+      providerId,
+      modelName: "deepseek-v4-pro",
     });
   });
 
