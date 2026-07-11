@@ -31,8 +31,10 @@ function formatLockTime(totalSeconds: number): string {
 
 export default function AccessPasswordPage({
   initialLockedUntil,
+  verifyPath = "/api/access/verify",
 }: {
   initialLockedUntil?: number;
+  verifyPath?: string;
 }) {
   const t = useTranslations("AccessPassword");
   const router = useRouter();
@@ -68,7 +70,7 @@ export default function AccessPasswordPage({
     setErrorKey(null);
 
     try {
-      const response = await fetch("/api/access/verify", {
+      const response = await fetch(verifyPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: trimmedPassword }),

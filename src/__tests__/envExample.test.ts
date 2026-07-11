@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const REQUIRED_ENV_KEYS = [
   "ACCESS_PASSWORD",
+  "SUPERADMIN_PASSWORD",
   "BYOK_PRIVATE_KEY_PEM",
   "BYOK_KEY_ID",
   "BYOK_ALLOW_EPHEMERAL_KEY",

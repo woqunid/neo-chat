@@ -36,9 +36,10 @@ the browser.
 
 ## Access Control
 
-| Variable          | Purpose                                                                           |
-| ----------------- | --------------------------------------------------------------------------------- |
-| `ACCESS_PASSWORD` | Optional deployment-level password gate. This is not an account or tenant system. |
+| Variable              | Purpose                                                                           |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `ACCESS_PASSWORD`     | Optional deployment-level password gate. This is not an account or tenant system. |
+| `SUPERADMIN_PASSWORD` | Optional password protecting only `/superadmin` and `/api/superadmin/*`.          |
 
 ## BYOK Server Key
 
