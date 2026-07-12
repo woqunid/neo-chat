@@ -33,6 +33,7 @@ async function streamEvents(
 describe("Anthropic streaming protocol", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("requires message_stop before accepting stream completion", async () => {
@@ -143,5 +144,23 @@ describe("Anthropic streaming protocol", () => {
         },
       ]),
     ).rejects.toThrow("Anthropic tool call arguments are too large");
+  });
+
+  it("uses caller cancellation when the provider timeout is disabled", async () => {
+    vi.stubEnv("CHAT_PROVIDER_TIMEOUT_MS", "0");
+    const caller = new AbortController();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(createSseResponse([{ type: "message_stop" }]));
+
+    await streamAnthropicMessages({
+      provider: { type: "Anthropic", apiKey: "secret" },
+      model: "claude-test",
+      messages: [],
+      signal: caller.signal,
+      onChunk: () => undefined,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(caller.signal);
   });
 });

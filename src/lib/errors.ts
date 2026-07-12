@@ -71,6 +71,18 @@ export class IncompleteProviderStreamError extends ApiError {
   }
 }
 
+export class ResponseTimeoutError extends ApiError {
+  constructor(
+    readonly timeoutMs: number,
+    label = "Upstream response",
+  ) {
+    super(`${label} timed out after ${timeoutMs}ms`, 504, "RESPONSE_TIMEOUT", {
+      timeoutMs,
+    });
+    this.name = "ResponseTimeoutError";
+  }
+}
+
 export class HostedProxyBlockedError extends ApiError {
   constructor(
     message: string = "Hosted deployments cannot proxy local network URLs",

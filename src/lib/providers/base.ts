@@ -14,6 +14,10 @@ import {
 } from "../security/urlPolicy";
 import { assertOutboundUrlAllowed } from "../security/safeFetch";
 import { isAnthropicProviderType, isOpenAIProviderType } from "./providerTypes";
+import {
+  createProviderTransportFetch,
+  installGoogleProviderTransport,
+} from "./transport";
 
 export type ProviderConfig = ProviderRuntimeConfig;
 
@@ -52,6 +56,7 @@ export class ProviderFactory {
 
   static async assertProviderOutboundAllowed(
     provider: ProviderConfig,
+    signal?: AbortSignal,
   ): Promise<void> {
     const baseUrl = this.getEffectiveBaseUrl(provider.baseUrl, provider.type);
     if (!baseUrl) return;
@@ -59,6 +64,7 @@ export class ProviderFactory {
     await assertOutboundUrlAllowed(baseUrl, {
       policy: getSafeUrlPolicy("provider"),
       timeoutMs: 10_000,
+      signal,
     });
   }
 
@@ -67,12 +73,17 @@ export class ProviderFactory {
    */
   static createOpenAIClient(provider: ProviderConfig): OpenAI {
     const apiKey = this.validateApiKey(provider);
-    const baseURL = this.getEffectiveBaseUrl(provider.baseUrl, "OpenAI");
+    const baseURL = this.getEffectiveBaseUrl(provider.baseUrl, provider.type);
     if (baseURL) {
       validateOutboundUrl(baseURL, getSafeUrlPolicy("provider"));
     }
 
-    return new OpenAI({ apiKey, baseURL });
+    return new OpenAI({
+      apiKey,
+      baseURL,
+      fetch: createProviderTransportFetch(),
+      maxRetries: 0,
+    });
   }
 
   /**
@@ -85,10 +96,9 @@ export class ProviderFactory {
       validateOutboundUrl(baseUrl, getSafeUrlPolicy("provider"));
     }
 
-    return new GoogleGenAI({
-      apiKey,
-      httpOptions: { baseUrl },
-    });
+    return installGoogleProviderTransport(
+      new GoogleGenAI({ apiKey, httpOptions: { baseUrl } }),
+    );
   }
 
   /**

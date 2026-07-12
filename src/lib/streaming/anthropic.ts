@@ -1,13 +1,13 @@
 import type { ProviderConfig } from "../providers/base";
 import {
   getProviderApiKey,
+  getSafeUrlPolicy,
   normalizeProviderBaseUrl,
 } from "../security/urlPolicy";
 import type { SSEMessage } from "./sse";
-import {
-  createProviderTimeoutSignal,
-  getChatProviderTimeoutMs,
-} from "../providers/requestTimeout";
+import { getChatProviderTimeoutMs } from "../providers/requestTimeout";
+import { safeFetch, safeFetchJson } from "../security/safeFetch";
+import { PROVIDER_RESPONSE_LIMITS } from "../providers/transport";
 import {
   assertAnthropicStreamCompleted,
   createAnthropicStreamState,
@@ -24,6 +24,7 @@ export interface AnthropicStreamOptions {
   systemInstruction?: string;
   temperature?: number;
   tools?: any[];
+  signal?: AbortSignal;
   onChunk: (message: SSEMessage) => void;
 }
 
@@ -73,18 +74,26 @@ async function createAnthropicResponse(options: AnthropicStreamOptions) {
   if (!apiKey) throw new Error("Anthropic API key is not configured");
   const timeoutMs = getChatProviderTimeoutMs();
 
-  const response = await fetch(getMessagesEndpoint(options.provider), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "anthropic-version": ANTHROPIC_VERSION,
-      "x-api-key": apiKey,
+  const response = await safeFetch(
+    getMessagesEndpoint(options.provider),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": ANTHROPIC_VERSION,
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify(createRequestBody(options, true)),
+      signal: options.signal,
     },
-    body: JSON.stringify(createRequestBody(options, true)),
-    ...(timeoutMs > 0
-      ? { signal: createProviderTimeoutSignal(timeoutMs) }
-      : {}),
-  });
+    {
+      policy: getSafeUrlPolicy("provider"),
+      timeoutMs,
+      maxResponseBytes: PROVIDER_RESPONSE_LIMITS.streamBytes,
+      enforceResponseLimits: true,
+      countDecodedText: true,
+    },
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -109,28 +118,34 @@ export async function generateAnthropicMessage(
   if (!apiKey) throw new Error("Anthropic API key is not configured");
   const timeoutMs = getChatProviderTimeoutMs();
 
-  const response = await fetch(getMessagesEndpoint(options.provider), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "anthropic-version": ANTHROPIC_VERSION,
-      "x-api-key": apiKey,
+  const { response, data } = await safeFetchJson<any>(
+    getMessagesEndpoint(options.provider),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": ANTHROPIC_VERSION,
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify(
+        createRequestBody({ ...options, onChunk: () => undefined }, false),
+      ),
+      signal: options.signal,
     },
-    body: JSON.stringify(
-      createRequestBody({ ...options, onChunk: () => undefined }, false),
-    ),
-    ...(timeoutMs > 0
-      ? { signal: createProviderTimeoutSignal(timeoutMs) }
-      : {}),
-  });
+    {
+      policy: getSafeUrlPolicy("provider"),
+      timeoutMs,
+      maxResponseBytes: PROVIDER_RESPONSE_LIMITS.textBytes,
+    },
+  );
 
   if (!response.ok) {
     throw new Error(
-      `Anthropic request failed: ${await readErrorResponse(response)}`,
+      `Anthropic request failed: ${data?.error?.message || data?.message || response.statusText}`,
     );
   }
 
-  return getOutputText(await response.json());
+  return getOutputText(data);
 }
 
 function parseSseEvents(buffer: string): { events: string[]; rest: string } {
