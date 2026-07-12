@@ -4,49 +4,19 @@ import {
   clearRateLimitStoreForTesting,
   incrementRateLimitBucket,
 } from "./rateLimitStore";
-import { enforceApiRequestProof } from "./requestProof";
+import {
+  getApiRateLimitPolicy,
+  isMutatingApiRouteMethod,
+} from "./apiRoutePolicy";
+import {
+  enforceApiRequestProof,
+  getRequestProofRateLimitIdentity,
+} from "./requestProof";
 
 export const REQUEST_GUARD_ERROR_CODES = {
   csrf: "CSRF_ORIGIN_BLOCKED",
   rateLimited: "RATE_LIMITED",
 } as const;
-
-interface RateLimitRule {
-  windowMs: number;
-  maxRequests: number;
-  methods?: readonly string[];
-}
-
-const DEFAULT_RATE_LIMIT: RateLimitRule = {
-  windowMs: 60_000,
-  maxRequests: 120,
-};
-
-const RATE_LIMIT_RULES: Array<[RegExp, RateLimitRule]> = [
-  [/^\/api\/access\/verify$/, { windowMs: 60_000, maxRequests: 10 }],
-  [/^\/api\/superadmin(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],
-  [/^\/api\/chat(?:\/|$)/, { windowMs: 60_000, maxRequests: 60 }],
-  [/^\/api\/grok-search$/, { windowMs: 60_000, maxRequests: 30 }],
-  [/^\/api\/rag(?:\/|$)/, { windowMs: 60_000, maxRequests: 30 }],
-  [/^\/api\/voice(?:\/|$)/, { windowMs: 60_000, maxRequests: 20 }],
-  [/^\/api\/doc-parse(?:\/|$)/, { windowMs: 60_000, maxRequests: 10 }],
-  [/^\/api\/plugins\/execute$/, { windowMs: 60_000, maxRequests: 30 }],
-  [/^\/api\/plugins\/install$/, { windowMs: 60_000, maxRequests: 20 }],
-  [
-    /^\/api\/agents(?:\/|$)/,
-    { windowMs: 60_000, maxRequests: 30, methods: ["GET"] },
-  ],
-  [
-    /^\/api\/plugins\/list$/,
-    { windowMs: 60_000, maxRequests: 15, methods: ["GET"] },
-  ],
-  [
-    /^\/api\/providers\/models$/,
-    { windowMs: 60_000, maxRequests: 30, methods: ["GET"] },
-  ],
-];
-
-const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function jsonError(
   status: number,
@@ -58,24 +28,6 @@ function jsonError(
   );
   response.headers.set("Cache-Control", "no-store");
   return response;
-}
-
-function methodMatchesRule(method: string, rule: RateLimitRule): boolean {
-  if (rule.methods) return rule.methods.includes(method);
-  return mutatingMethods.has(method);
-}
-
-function getRateLimitRule(
-  pathname: string,
-  method: string,
-): RateLimitRule | null {
-  const methodName = method.toUpperCase();
-  const pathRule = RATE_LIMIT_RULES.find(
-    ([pattern, rule]) =>
-      pattern.test(pathname) && methodMatchesRule(methodName, rule),
-  )?.[1];
-  if (pathRule) return pathRule;
-  return mutatingMethods.has(methodName) ? DEFAULT_RATE_LIMIT : null;
 }
 
 function envBool(name: string): boolean {
@@ -116,7 +68,7 @@ function getRequestOrigin(request: NextRequest): string {
 }
 
 export function isMutatingRequest(request: NextRequest): boolean {
-  return mutatingMethods.has(request.method.toUpperCase());
+  return isMutatingApiRouteMethod(request.method);
 }
 
 export function validateSameOriginRequest(
@@ -161,10 +113,25 @@ export async function enforceRateLimit(
   request: NextRequest,
   now = Date.now(),
 ): Promise<NextResponse | null> {
-  const rule = getRateLimitRule(request.nextUrl.pathname, request.method);
+  const rule = getApiRateLimitPolicy(request.nextUrl.pathname, request.method);
   if (!rule) return null;
 
-  const key = `${getRateLimitClientIp(request)}:${request.method}:${request.nextUrl.pathname}`;
+  const clientIp = getRateLimitClientIp(request);
+  const isAccessVerification = rule.routeFamily === "/api/access/verify";
+  const proofIdentity =
+    clientIp === "unknown" && !isAccessVerification
+      ? await getRequestProofRateLimitIdentity(request, now)
+      : null;
+  if (clientIp === "unknown" && !isAccessVerification && !proofIdentity) {
+    return null;
+  }
+
+  const identity = isAccessVerification
+    ? clientIp === "unknown"
+      ? "deployment"
+      : clientIp
+    : proofIdentity || clientIp;
+  const key = `${identity}:${request.method}:${rule.routeFamily}`;
   const current = await incrementRateLimitBucket(key, rule.windowMs, now);
   if (current.count <= rule.maxRequests) return null;
 

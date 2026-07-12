@@ -171,4 +171,21 @@ describe("API request proof middleware", () => {
       proxy(new NextRequest("https://neo.test/api/request-proof/session")),
     ).resolves.toMatchObject({ status: 200 });
   });
+
+  it("uses request methods for fork-specific protected routes", async () => {
+    hostedEnv();
+
+    const mcpResponse = await proxy(
+      new NextRequest("https://neo.test/api/mcp/servers", { method: "GET" }),
+    );
+    const modelsPost = await proxy(
+      new NextRequest("https://neo.test/api/providers/models", {
+        method: "POST",
+        headers: { origin: "https://neo.test" },
+      }),
+    );
+
+    expect(mcpResponse.status).toBe(401);
+    expect(modelsPost.status).toBe(401);
+  });
 });

@@ -110,4 +110,22 @@ describe("client API response helpers", () => {
 
     expect(data.headers["x-neo-api-proof-signature"]).toBeUndefined();
   });
+
+  it("uses both path and method when deciding whether to load proof", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/request-proof/session") {
+          return Response.json({ enabled: false, serverTime: Date.now() });
+        }
+        return Response.json({ ok: true });
+      });
+
+    await signedApiFetch("/api/providers/models", { method: "POST" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await signedApiFetch("/api/mcp/servers", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/request-proof/session");
+  });
 });

@@ -44,4 +44,20 @@ describe("superadmin access control", () => {
     expect(publicResponse.status).toBe(200);
     expect(allowed.status).toBe(200);
   });
+
+  it("runs administrator authentication after generic request guards", async () => {
+    vi.stubEnv("ACCESS_PASSWORD", "");
+    vi.stubEnv("SUPERADMIN_PASSWORD", "admin-secret");
+    vi.stubEnv("DEPLOYMENT_MODE", "hosted");
+    vi.stubEnv("BYOK_PRIVATE_KEY_PEM", "");
+
+    const response = await middleware(
+      new NextRequest("https://neo.test/api/superadmin/providers"),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Administrator password is required",
+    });
+  });
 });
