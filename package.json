@@ -10,6 +10,8 @@
     "dev": "next dev",
     "build": "next build",
     "build:worker": "opennextjs-cloudflare build",
+    "worker:size": "node scripts/check-worker-size.mjs",
+    "worker:dry-run": "wrangler deploy --dry-run --config wrangler.jsonc",
     "preview:worker": "opennextjs-cloudflare preview",
     "deploy:worker": "opennextjs-cloudflare deploy -- --keep-vars",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
@@ -17,6 +19,7 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "hygiene:artifacts": "node scripts/check-artifacts.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "byok:generate": "node scripts/generate-byok-key.mjs"
