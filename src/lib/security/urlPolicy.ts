@@ -1,18 +1,14 @@
-import type { EncryptedSecretEnvelope } from "../byok/shared";
-import type {
-  ServerDefaultProviderSource,
-  ServerManagedProviderSource,
-} from "../defaultConfig/shared";
-import type { ProviderType } from "../../types";
 import { HostedProxyBlockedError } from "../errors";
 import {
   getOutboundPolicyProfile,
   type OutboundPolicyProfile,
 } from "./deployment";
-import {
-  ANTHROPIC_PROVIDER_TYPE,
-  isOpenAIProviderType,
-} from "../providers/providerTypes";
+export {
+  getProviderApiKey,
+  getProviderModelsUrl,
+  normalizeProviderBaseUrl,
+} from "./providerUrl";
+export type { ProviderRuntimeConfig } from "./providerUrl";
 
 export type OutboundContext =
   | "provider"
@@ -45,74 +41,6 @@ export interface ValidatedOutboundRequest {
   policy: SafeUrlPolicy;
   hostname: string;
   protocol: string;
-}
-
-export interface ProviderRuntimeConfig {
-  type: ProviderType;
-  source?: ServerDefaultProviderSource | ServerManagedProviderSource;
-  providerId?: string;
-  apiKey?: string;
-  apiKeySecret?: EncryptedSecretEnvelope;
-  baseUrl?: string;
-  name?: string;
-}
-
-const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
-
-export function normalizeProviderBaseUrl(
-  baseUrl: string | undefined,
-  providerType: ProviderRuntimeConfig["type"] | string,
-): string {
-  if (!baseUrl || baseUrl === "default") {
-    if (providerType === ANTHROPIC_PROVIDER_TYPE) {
-      return DEFAULT_ANTHROPIC_BASE_URL;
-    }
-
-    return isOpenAIProviderType(providerType)
-      ? DEFAULT_OPENAI_BASE_URL
-      : DEFAULT_GEMINI_BASE_URL;
-  }
-
-  let normalized = baseUrl.trim();
-  if (normalized.endsWith("#")) normalized = normalized.slice(0, -1);
-  normalized = normalized.replace(/\/+$/, "");
-
-  if (isOpenAIProviderType(providerType)) {
-    return normalized.endsWith("/v1") ? normalized : `${normalized}/v1`;
-  }
-
-  if (providerType === ANTHROPIC_PROVIDER_TYPE) {
-    return normalized.endsWith("/v1") ? normalized : `${normalized}/v1`;
-  }
-
-  if (providerType === "Gemini") {
-    return normalized.replace(/\/v1beta$/, "");
-  }
-
-  return normalized;
-}
-
-export function getProviderModelsUrl(
-  baseUrl: string | undefined,
-  providerType: ProviderRuntimeConfig["type"],
-): string {
-  const normalized = normalizeProviderBaseUrl(baseUrl, providerType);
-
-  if (providerType === "Gemini") {
-    return `${normalized}/v1beta/models`;
-  }
-
-  if (providerType === ANTHROPIC_PROVIDER_TYPE) {
-    return `${normalized}/models`;
-  }
-
-  return `${normalized}/models`;
-}
-
-export function getProviderApiKey(provider: ProviderRuntimeConfig): string {
-  return provider.apiKey?.trim() || "";
 }
 
 export function redactUrl(url: string): string {
