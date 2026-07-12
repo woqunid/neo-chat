@@ -35,6 +35,7 @@ import { appendDiagramRequestInstructions } from "../../lib/chat/diagramPrompt";
 import { appendHtmlVisualRequestInstructions } from "../../lib/chat/htmlVisualPrompt";
 import { createMessageOutputBlockBuilder } from "../../lib/chat/messageOutputBlocks";
 import { resolveImageGenerationOptions } from "../../lib/chat/imageGenerationOptions";
+import { boundHistoryForRequest } from "../../lib/chat/requestContextBudget";
 import {
   executeGrokSearchTool,
   GROK_WEB_SEARCH_TOOL,
@@ -693,6 +694,14 @@ export const streamChatResponse = async (
     }
 
     if (directImageGeneration) {
+      boundHistoryForRequest([], {
+        newMessage: requestMessage,
+        attachments: requestAttachments,
+        systemInstruction: userSystemInstruction,
+        tools,
+        modelInputTokenLimit: selectedModelMetadata?.limit?.context,
+        reservedOutputTokens: selectedModelMetadata?.limit?.output,
+      });
       const loadingBlockId = outputBlockBuilder.appendImageGenerationStatus();
       emitOutputBlocks();
 
@@ -780,6 +789,14 @@ export const streamChatResponse = async (
       reasoning: string;
       toolCalls: ToolCall[];
     }> => {
+      const boundedRequestHistory = boundHistoryForRequest(requestHistory, {
+        newMessage: requestMessage,
+        attachments: requestAttachments,
+        systemInstruction: userSystemInstruction,
+        tools,
+        modelInputTokenLimit: selectedModelMetadata?.limit?.context,
+        reservedOutputTokens: selectedModelMetadata?.limit?.output,
+      });
       const response = await fetchWithByokRetry(async () =>
         signedApiFetch("/api/chat", {
           method: "POST",
@@ -789,7 +806,7 @@ export const streamChatResponse = async (
           body: JSON.stringify({
             provider: await buildProviderRuntimeConfig(provider),
             modelName,
-            history: requestHistory,
+            history: boundedRequestHistory,
             newMessage: requestMessage,
             attachments: requestAttachments,
             config: requestConfig,
