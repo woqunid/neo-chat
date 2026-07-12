@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
     const body = RequestSchema.parse(await readJsonRequestBody(request));
     const existing = await getServerGrokSearchConfig();
     const config = mergeAdminGrokSearchConfig(body.config, existing);
-    const result = await runGrokSearchWithConfig(TEST_QUERY, config);
+    const result = await runGrokSearchWithConfig(
+      TEST_QUERY,
+      config,
+      request.signal,
+    );
     return NextResponse.json({
       ok: true,
       citationCount: result.sources.length,

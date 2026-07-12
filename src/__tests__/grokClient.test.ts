@@ -51,4 +51,50 @@ describe("Grok search client", () => {
       { maxRetries: 0, timeout: 60_000 },
     );
   });
+
+  it("passes caller cancellation to the Grok provider request", async () => {
+    const controller = new AbortController();
+    const { runGrokSearchWithConfig } =
+      await import("../lib/search/grokClient");
+
+    await runGrokSearchWithConfig(
+      "latest release",
+      {
+        baseUrl: "https://proxy.example.com/v1",
+        apiKey: "test-key",
+        model: "grok-4",
+        enabled: true,
+        updatedAt: "2026-07-10T00:00:00.000Z",
+      },
+      controller.signal,
+    );
+
+    expect(mocks.createResponse.mock.calls[0]?.[1]).toMatchObject({
+      signal: controller.signal,
+      timeout: 60_000,
+    });
+  });
+
+  it("rejects a pre-aborted Grok request before provider work", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { runGrokSearchWithConfig } =
+      await import("../lib/search/grokClient");
+
+    await expect(
+      runGrokSearchWithConfig(
+        "latest release",
+        {
+          baseUrl: "https://proxy.example.com/v1",
+          apiKey: "test-key",
+          model: "grok-4",
+          enabled: true,
+          updatedAt: "2026-07-10T00:00:00.000Z",
+        },
+        controller.signal,
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(mocks.assertProviderOutboundAllowed).not.toHaveBeenCalled();
+    expect(mocks.createResponse).not.toHaveBeenCalled();
+  });
 });

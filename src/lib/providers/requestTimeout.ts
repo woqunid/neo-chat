@@ -43,3 +43,16 @@ export function createProviderTimeoutSignal(timeoutMs: number): AbortSignal {
   setTimeout(() => controller.abort(), timeoutMs);
   return controller.signal;
 }
+
+export function createProviderRequestSignal(
+  timeoutMs: number,
+  callerSignal?: AbortSignal,
+): AbortSignal | undefined {
+  const signals = callerSignal ? [callerSignal] : [];
+  if (timeoutMs > DISABLE_TIMEOUT_VALUE) {
+    signals.push(createProviderTimeoutSignal(timeoutMs));
+  }
+  if (signals.length === 0) return undefined;
+  if (signals.length === 1) return signals[0];
+  return AbortSignal.any(signals);
+}

@@ -5,7 +5,7 @@
 
 import type { Message } from "../../types";
 import { API_INPUT_LIMITS, AUXILIARY_OUTPUT_LIMITS } from "../../config/limits";
-import { handleSimpleGeneration } from "./chat-handler";
+import { handleSimpleGeneration } from "./simple-generation";
 import { ProviderConfig } from "../providers/base";
 import { normalizeSessionTitle } from "../chat/entities";
 import { logDevError } from "../utils/devLogger";
@@ -74,8 +74,9 @@ function parseAuxiliaryStringList(
 export async function generateTitle(
   provider: ProviderConfig,
   modelName: string,
-  history: Message[],
+  options: { history: Message[]; signal?: AbortSignal },
 ): Promise<string> {
+  const { history, signal } = options;
   const firstUserMsg = history.find((m) => m.role === "user");
   const firstModelMsg = history.find((m) => m.role === "model");
 
@@ -97,9 +98,15 @@ AI: "${modelMsg}"
 Title:`;
 
   try {
-    const result = await handleSimpleGeneration(provider, modelName, prompt);
+    const result = await handleSimpleGeneration(provider, modelName, {
+      prompt,
+      signal,
+    });
     return normalizeSessionTitle(result);
   } catch (e) {
+    if (signal?.aborted || (e instanceof Error && e.name === "AbortError")) {
+      throw e;
+    }
     logDevError("Error generating title:", e);
     return normalizeSessionTitle(firstUserMsg.content);
   }
@@ -111,8 +118,9 @@ Title:`;
 export async function generateRelatedQuestions(
   provider: ProviderConfig,
   modelName: string,
-  history: Message[],
+  options: { history: Message[]; signal?: AbortSignal },
 ): Promise<string[]> {
+  const { history, signal } = options;
   // Get last 2 turns (User and Model)
   const recentHistory = history.slice(-2);
   if (recentHistory.length < 2) return [];
@@ -129,7 +137,10 @@ Return the result as a JSON array of strings.
 User: "${clipForAuxiliaryPrompt(lastUserMsg.content)}"
 Model: "${clipForAuxiliaryPrompt(lastModelMsg.content)}"`;
 
-  const result = await handleSimpleGeneration(provider, modelName, prompt);
+  const result = await handleSimpleGeneration(provider, modelName, {
+    prompt,
+    signal,
+  });
   return parseAuxiliaryStringList(result, {
     maxItems: AUXILIARY_OUTPUT_LIMITS.maxRelatedQuestions,
     maxChars: AUXILIARY_OUTPUT_LIMITS.maxRelatedQuestionChars,
@@ -142,8 +153,9 @@ Model: "${clipForAuxiliaryPrompt(lastModelMsg.content)}"`;
 export async function generateRAGQueries(
   provider: ProviderConfig,
   modelName: string,
-  userMessage: string,
+  options: { userMessage: string; signal?: AbortSignal },
 ): Promise<string[]> {
+  const { userMessage, signal } = options;
   const clippedUserMessage = clipForAuxiliaryPrompt(userMessage);
   const prompt = `Generate 2-3 search queries to find relevant information for this question:
 
@@ -151,7 +163,10 @@ export async function generateRAGQueries(
 
 Return only the queries, one per line.`;
 
-  const result = await handleSimpleGeneration(provider, modelName, prompt);
+  const result = await handleSimpleGeneration(provider, modelName, {
+    prompt,
+    signal,
+  });
   return parseAuxiliaryStringList(result, {
     maxItems: AUXILIARY_OUTPUT_LIMITS.maxRagQueries,
     maxChars: AUXILIARY_OUTPUT_LIMITS.maxRagQueryChars,

@@ -35,7 +35,10 @@ export const POST = withApiHandler(async (request: NextRequest, body: any) => {
   const queries = await generateRAGQueries(
     await resolveProviderRuntimeConfig(parsed.provider),
     parsed.modelName,
-    parsed.userMessage || parsed.userPrompt || "",
+    {
+      userMessage: parsed.userMessage || parsed.userPrompt || "",
+      signal: request.signal,
+    },
   );
 
   return Response.json({ queries });

@@ -5,10 +5,7 @@
 import type { Message } from "@/types";
 import { ProviderFactory, ProviderConfig } from "../providers/base";
 import { streamGeminiResponse } from "../streaming/gemini";
-import {
-  generateAnthropicMessage,
-  streamAnthropicMessages,
-} from "../streaming/anthropic";
+import { streamAnthropicMessages } from "../streaming/anthropic";
 import {
   streamOpenAIChatCompletions,
   streamOpenAIResponses,
@@ -35,7 +32,6 @@ import { logDevWarn } from "../utils/devLogger";
 import { ApiError, ProviderError } from "../errors";
 import {
   ANTHROPIC_PROVIDER_TYPE,
-  isOpenAIProviderType,
   OPENAI_COMPATIBLE_PROVIDER_TYPE,
 } from "../providers/providerTypes";
 import { safeServerLogError } from "../utils/safeServerLog";
@@ -53,6 +49,7 @@ export interface ChatHandlerOptions {
   systemInstruction?: string;
   tools?: any[];
   enableImageGeneration?: boolean;
+  signal?: AbortSignal;
 }
 
 function getProviderBaseUrlHost(provider: ProviderConfig): string | undefined {
@@ -158,18 +155,6 @@ function convertToolsToOpenAIResponses(tools?: any[]) {
     .filter(Boolean);
 }
 
-function getResponsesOutputText(response: any): string {
-  if (typeof response?.output_text === "string") return response.output_text;
-
-  const output = Array.isArray(response?.output) ? response.output : [];
-  return output
-    .flatMap((item: any) => (Array.isArray(item?.content) ? item.content : []))
-    .map((content: any) =>
-      typeof content?.text === "string" ? content.text : "",
-    )
-    .join("");
-}
-
 function prepareOpenAICompatibleMessages({
   history,
   newMessage,
@@ -221,14 +206,16 @@ export async function handleChatStream(options: ChatHandlerOptions) {
     systemInstruction,
     tools,
     enableImageGeneration,
+    signal,
   } = options;
 
   const stream = createStreamHandler(async (controller) => {
     try {
+      signal?.throwIfAborted();
       const send = createSSESender(controller);
 
       if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
-        await ProviderFactory.assertProviderOutboundAllowed(provider);
+        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
         const messages = prepareAnthropicMessages(history);
         const content: any[] = [{ type: "text", text: newMessage }];
         if (attachments?.length) {
@@ -243,10 +230,11 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           systemInstruction,
           temperature: config?.temperature,
           tools,
+          signal,
           onChunk: send,
         });
       } else if (provider.type === "OpenAI") {
-        await ProviderFactory.assertProviderOutboundAllowed(provider);
+        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
         const client = ProviderFactory.createOpenAIClient(provider);
         const input = prepareOpenAIResponsesInput(history);
 
@@ -267,10 +255,11 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           temperature: config?.temperature,
           tools: convertToolsToOpenAIResponses(tools),
           enableImageGeneration,
+          signal,
           onChunk: send,
         });
       } else if (provider.type === OPENAI_COMPATIBLE_PROVIDER_TYPE) {
-        await ProviderFactory.assertProviderOutboundAllowed(provider);
+        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
         const providerBaseUrlHost = getProviderBaseUrlHost(provider);
         const messages = requiresTranscriptHistory(providerBaseUrlHost)
           ? createTranscriptChatMessages({
@@ -293,11 +282,12 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           messages,
           temperature: config?.temperature,
           tools,
+          signal,
           onChunk: send,
         });
       } else {
         // Gemini
-        await ProviderFactory.assertProviderOutboundAllowed(provider);
+        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
         const client = ProviderFactory.createGeminiClient(provider);
         const contents = prepareGeminiHistory(history);
 
@@ -365,10 +355,12 @@ export async function handleChatStream(options: ChatHandlerOptions) {
           tools: geminiTools,
           enableImageGeneration,
           imageCount: config?.imageCount,
+          signal,
           onChunk: send,
         });
       }
 
+      signal?.throwIfAborted();
       send({ type: "done" });
     } catch (error) {
       logChatStreamError(error, options);
@@ -377,50 +369,4 @@ export async function handleChatStream(options: ChatHandlerOptions) {
   });
 
   return createStreamResponse(stream);
-}
-
-/**
- * 简单的文本生成（用于标题、问题等）
- */
-export async function handleSimpleGeneration(
-  provider: ProviderConfig,
-  modelName: string,
-  prompt: string,
-): Promise<string> {
-  await ProviderFactory.assertProviderOutboundAllowed(provider);
-
-  if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
-    return generateAnthropicMessage({
-      provider,
-      model: modelName,
-      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
-    });
-  }
-
-  if (provider.type === "OpenAI") {
-    const client = ProviderFactory.createOpenAIClient(provider);
-    const response = await client.responses.create({
-      model: modelName,
-      input: prompt,
-      temperature: 0.7,
-    });
-    return getResponsesOutputText(response);
-  }
-
-  if (isOpenAIProviderType(provider.type)) {
-    const client = ProviderFactory.createOpenAIClient(provider);
-    const response = await client.chat.completions.create({
-      model: modelName,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-    });
-    return response.choices[0]?.message?.content || "";
-  } else {
-    const client = ProviderFactory.createGeminiClient(provider);
-    const result = await client.models.generateContent({
-      model: modelName,
-      contents: { parts: [{ text: prompt }] },
-    });
-    return result.text || "";
-  }
 }

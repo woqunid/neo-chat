@@ -32,7 +32,9 @@ export async function POST(request: NextRequest) {
         "GROK_SEARCH_UNAVAILABLE",
       );
     }
-    return NextResponse.json(await runGrokSearchWithConfig(body.query, config));
+    return NextResponse.json(
+      await runGrokSearchWithConfig(body.query, config, request.signal),
+    );
   } catch (error) {
     safeServerLogError("Grok search error:", error);
     return createApiErrorResponse(error, "Grok web search failed");

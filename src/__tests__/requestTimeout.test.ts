@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createProviderRequestSignal,
   createProviderTimeoutSignal,
   getChatProviderTimeoutMs,
   getGrokSearchTimeoutMs,
@@ -50,5 +51,25 @@ describe("provider request timeouts", () => {
     expect(signal.aborted).toBe(false);
     vi.advanceTimersByTime(1_000);
     expect(signal.aborted).toBe(true);
+  });
+
+  it("combines caller cancellation with the configured timeout", () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    const signal = createProviderRequestSignal(1_000, caller.signal);
+
+    expect(signal?.aborted).toBe(false);
+    caller.abort();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("keeps caller cancellation when the timeout is disabled", () => {
+    const caller = new AbortController();
+    const signal = createProviderRequestSignal(0, caller.signal);
+
+    expect(signal).toBe(caller.signal);
+    caller.abort();
+    expect(signal?.aborted).toBe(true);
+    expect(createProviderRequestSignal(0)).toBeUndefined();
   });
 });

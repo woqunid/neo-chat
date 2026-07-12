@@ -33,7 +33,9 @@ function upstreamErrorDetails(error: unknown): {
 export async function runGrokSearchWithConfig(
   query: string,
   config: ServerGrokSearchConfig,
+  signal?: AbortSignal,
 ): Promise<GrokSearchResult> {
+  signal?.throwIfAborted();
   assertConnectionConfig(config);
   const provider = {
     type: "OpenAI" as const,
@@ -42,6 +44,7 @@ export async function runGrokSearchWithConfig(
     apiKey: config.apiKey,
   };
   await ProviderFactory.assertProviderOutboundAllowed(provider);
+  signal?.throwIfAborted();
   const client = ProviderFactory.createOpenAIClient(provider);
   const timeout = getGrokSearchTimeoutMs();
 
@@ -53,9 +56,16 @@ export async function runGrokSearchWithConfig(
         client.responses.create(params as never, {
           maxRetries: 0,
           ...(timeout > 0 ? { timeout } : {}),
+          ...(signal ? { signal } : {}),
         }),
     });
   } catch (error) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw error;
+    }
     if (error instanceof ApiError) throw error;
     const details = upstreamErrorDetails(error);
     throw new ProviderError(

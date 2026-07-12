@@ -82,6 +82,7 @@ describe("Grok search route", () => {
     expect(mocks.runGrokSearchWithConfig).toHaveBeenCalledWith(
       "latest release",
       mocks.config,
+      expect.any(AbortSignal),
     );
     expect(body).toMatchObject({
       summary: "Current result",

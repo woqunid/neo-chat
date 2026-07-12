@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   handleSimpleGeneration: vi.fn(),
 }));
 
-vi.mock("../lib/api/chat-handler", () => ({
+vi.mock("../lib/api/simple-generation", () => ({
   handleSimpleGeneration: mocks.handleSimpleGeneration,
 }));
 
@@ -33,22 +33,25 @@ describe("auxiliary generation handlers", () => {
       "m".repeat(API_INPUT_LIMITS.maxAuxiliaryPromptContextChars + 1) +
       "MODEL_TAIL";
 
-    await generateTitle(provider, "gemini-test", [
-      {
-        id: "user_1",
-        role: "user",
-        content: longUserMessage,
-        timestamp: 0,
-      },
-      {
-        id: "model_1",
-        role: "model",
-        content: longModelMessage,
-        timestamp: 0,
-      },
-    ]);
+    await generateTitle(provider, "gemini-test", {
+      history: [
+        {
+          id: "user_1",
+          role: "user",
+          content: longUserMessage,
+          timestamp: 0,
+        },
+        {
+          id: "model_1",
+          role: "model",
+          content: longModelMessage,
+          timestamp: 0,
+        },
+      ],
+    });
 
-    const prompt = mocks.handleSimpleGeneration.mock.calls[0]?.[2] as string;
+    const prompt = mocks.handleSimpleGeneration.mock.calls[0]?.[2]
+      ?.prompt as string;
     expect(prompt).not.toContain("USER_TAIL");
     expect(prompt).not.toContain("MODEL_TAIL");
   });
@@ -69,13 +72,34 @@ describe("auxiliary generation handlers", () => {
     ];
 
     await expect(
-      generateTitle(provider, "gemini-test", [...history]),
+      generateTitle(provider, "gemini-test", { history: [...history] }),
     ).resolves.toBe("Clean title");
     await expect(
-      generateTitle(provider, "gemini-test", [...history]),
+      generateTitle(provider, "gemini-test", { history: [...history] }),
     ).resolves.toBe("Fallback title");
 
     errorSpy.mockRestore();
+  });
+
+  it("does not replace cancellation with a fallback title", async () => {
+    const controller = new AbortController();
+    const abortError = new DOMException("Aborted", "AbortError");
+    mocks.handleSimpleGeneration.mockRejectedValueOnce(abortError);
+    controller.abort();
+
+    await expect(
+      generateTitle(provider, "gemini-test", {
+        history: [
+          {
+            id: "user_1",
+            role: "user",
+            content: "Canceled request",
+            timestamp: 0,
+          },
+        ],
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(abortError);
   });
 
   it("clips long related-question and RAG query prompts", async () => {
@@ -87,25 +111,30 @@ describe("auxiliary generation handlers", () => {
       "x".repeat(API_INPUT_LIMITS.maxAuxiliaryPromptContextChars + 1) +
       "TEXT_TAIL";
 
-    await generateRelatedQuestions(provider, "gemini-test", [
-      {
-        id: "user_1",
-        role: "user",
-        content: longText,
-        timestamp: 0,
-      },
-      {
-        id: "model_1",
-        role: "model",
-        content: longText,
-        timestamp: 0,
-      },
-    ]);
-    await generateRAGQueries(provider, "gemini-test", longText);
+    await generateRelatedQuestions(provider, "gemini-test", {
+      history: [
+        {
+          id: "user_1",
+          role: "user",
+          content: longText,
+          timestamp: 0,
+        },
+        {
+          id: "model_1",
+          role: "model",
+          content: longText,
+          timestamp: 0,
+        },
+      ],
+    });
+    await generateRAGQueries(provider, "gemini-test", {
+      userMessage: longText,
+    });
 
-    const relatedPrompt = mocks.handleSimpleGeneration.mock
-      .calls[0]?.[2] as string;
-    const ragPrompt = mocks.handleSimpleGeneration.mock.calls[1]?.[2] as string;
+    const relatedPrompt = mocks.handleSimpleGeneration.mock.calls[0]?.[2]
+      ?.prompt as string;
+    const ragPrompt = mocks.handleSimpleGeneration.mock.calls[1]?.[2]
+      ?.prompt as string;
 
     expect(relatedPrompt).not.toContain("TEXT_TAIL");
     expect(ragPrompt).not.toContain("TEXT_TAIL");
@@ -124,20 +153,22 @@ describe("auxiliary generation handlers", () => {
       ]),
     );
 
-    const questions = await generateRelatedQuestions(provider, "gemini-test", [
-      {
-        id: "user_1",
-        role: "user",
-        content: "hello",
-        timestamp: 0,
-      },
-      {
-        id: "model_1",
-        role: "model",
-        content: "world",
-        timestamp: 0,
-      },
-    ]);
+    const questions = await generateRelatedQuestions(provider, "gemini-test", {
+      history: [
+        {
+          id: "user_1",
+          role: "user",
+          content: "hello",
+          timestamp: 0,
+        },
+        {
+          id: "model_1",
+          role: "model",
+          content: "world",
+          timestamp: 0,
+        },
+      ],
+    });
 
     expect(questions).toHaveLength(5);
     expect(questions[0]).toBe("Follow up?");
@@ -160,7 +191,9 @@ describe("auxiliary generation handlers", () => {
       ].join("\n"),
     );
 
-    const queries = await generateRAGQueries(provider, "gemini-test", "fruit");
+    const queries = await generateRAGQueries(provider, "gemini-test", {
+      userMessage: "fruit",
+    });
 
     expect(queries).toHaveLength(AUXILIARY_OUTPUT_LIMITS.maxRagQueries);
     expect(queries[0]).toBe("apples");
