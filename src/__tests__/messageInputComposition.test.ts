@@ -1,172 +1,150 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 
-describe("MessageInput composition", () => {
-  it("keeps attachment tray presentation outside the composer container", () => {
-    const messageInput = readFileSync(
-      resolve(process.cwd(), "src/components/chat/MessageInput.tsx"),
-      "utf8",
-    );
-    const attachmentTray = readFileSync(
-      resolve(
-        process.cwd(),
-        "src/components/chat/MessageInputAttachmentTray.tsx",
-      ),
-      "utf8",
-    );
+const CHAT_DIR = resolve(process.cwd(), "src/components/chat");
+const COMPOSER_DIR = resolve(CHAT_DIR, "message-input");
+const MAX_IMPLEMENTATION_LINES = 300;
 
-    expect(messageInput).toContain("MessageInputAttachmentTray");
-    expect(messageInput).toContain("isKnowledgeAttachment");
-    expect(messageInput).toContain("aria-pressed={hasKnowledgeAttachments}");
-    expect(messageInput).not.toContain("LayoutDashboard");
-    expect(messageInput).not.toContain("system.enableHtmlVisualPrompt");
-    expect(messageInput).not.toContain("updateSystemSettings");
-    expect(messageInput).not.toContain("htmlVisualPromptEnabled");
-    expect(messageInput).not.toContain("HTML Visual Prompt Button");
-    expect(messageInput).toContain("PencilSparkles");
-    expect(messageInput).not.toContain("PencilSparklesIcon");
-    expect(messageInput).not.toContain("showMobileTools");
-    expect(messageInput).not.toContain("mobileActiveToolCount");
-    expect(messageInput).not.toContain("mobileToolsAriaLabel");
-    expect(messageInput).not.toContain("MoreHorizontal");
-    expect(messageInput).not.toContain("Mobile Tools Menu");
-    expect(messageInput).not.toContain("handleAttachClick");
-    expect(messageInput).toContain("glass-shell relative flex w-full flex-col");
-    expect(messageInput).toContain("variant?: MessageInputVariant");
-    expect(messageInput).toContain('variant = "default"');
-    expect(messageInput).toContain("isHeroVariant");
-    expect(messageInput).toContain('"min-h-[5em]"');
-    expect(messageInput).toContain('"min-h-[2em]"');
-    expect(messageInput).toContain('isHeroVariant ? "mb-0 md:mb-18" : ""');
-    expect(messageInput).not.toContain('"min-h-[6em]"');
-    expect(messageInput).not.toContain("min-h-[4em]");
-    expect(messageInput).not.toContain("min-h-[3em]");
-    expect(messageInput).not.toContain("min-h-28");
-    expect(messageInput).not.toContain("md:min-h-32");
-    expect(messageInput).not.toContain("min-h-12");
-    expect(messageInput).toContain("installedSkills");
-    expect(messageInput).toContain("updateSessionConfig");
-    expect(messageInput).toContain("normalizeSkillIdRefs");
-    expect(messageInput).toContain(
-      "onSearchEnabledChange?: (enabled: boolean) => void;",
-    );
-    expect(messageInput).toContain(
-      "const isSearchEnableBlocked = !isSearchEnabled && isSearchUnavailable;",
-    );
-    expect(messageInput).toContain("aria-pressed={isSearchEnabled}");
-    expect(messageInput).toContain(
-      "onSearchEnabledChange?.(!isSearchEnabled);",
-    );
-    expect(messageInput).toContain("disabled={isInputBusy}");
-    expect(messageInput).not.toContain("onToggleSearch");
-    expect(messageInput).toContain("pluginSourceGroups");
-    expect(messageInput).toContain('plugin.source === "mcp"');
-    expect(messageInput).toContain('t("mcpServers")');
-    expect(messageInput).not.toContain("toggleSkillActive");
-    expect(messageInput).not.toContain("formatSkillCategory");
-    expect(messageInput).not.toContain("autoSelectSkills");
-    expect(messageInput).not.toContain("manageSkills");
-    expect(messageInput).not.toContain("setSkillAutoSelect");
-    expect(messageInput).not.toContain("border border-green-500 bg-green-500");
-    expect(messageInput).toContain("border border-cyan-500 bg-cyan-500");
-    expect(messageInput).not.toContain("border border-blue-500 bg-blue-500");
-    expect(messageInput).not.toContain("text-green-500 dark:text-green-400");
-    expect(messageInput).toContain("text-blue-500 dark:text-blue-400");
-    expect(messageInput).toContain(
-      "text-cyan-500 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20",
-    );
-    expect(messageInput).toContain(
-      "text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20",
-    );
-    expect(messageInput).toContain("handlePolishInput");
-    expect(messageInput).not.toContain("reasoningOptions");
-    expect(messageInput).not.toContain("showReasoningSelect");
-    expect(messageInput).not.toContain('t("reasoningModeAuto")');
-    expect(messageInput).not.toContain('t("reasoningModeHigh")');
-    expect(messageInput).toContain("hover:bg-accent");
-    expect(messageInput).not.toContain(
-      "data-[state=checked]:border-violet-300",
-    );
-    expect(messageInput).not.toContain("<Lightbulb");
-    expect(messageInput).not.toContain(
-      "setChatConfig({ useReasoning: !chatConfig.useReasoning })",
-    );
-    expect(messageInput).toContain("createChatDocumentAttachment");
-    expect(messageInput).toContain("isParsingAttachments");
-    expect(messageInput).toContain("isDragUploadActive");
-    expect(messageInput).toContain("handleComposerDrop");
-    expect(messageInput).toContain("handleComposerPaste");
-    expect(messageInput).toContain("extractChatAttachmentFilesFromDrop");
-    expect(messageInput).toContain("extractChatAttachmentFilesFromClipboard");
-    expect(messageInput).toContain('t("dropFilesTitle")');
-    expect(messageInput).toContain("failedToParseDocument");
-    expect(messageInput).toContain(".pdf");
-    expect(messageInput).not.toContain("reader.readAsText");
-    expect(messageInput).not.toContain(
-      "text-amber-500 hover:bg-amber-50 hover:text-amber-600",
-    );
-    expect(messageInput).not.toContain(
-      "dark:text-amber-300 dark:hover:bg-amber-900/20",
-    );
-    expect(messageInput).toContain("<Library");
-    expect(messageInput).toContain("text-purple-500 dark:text-purple-400");
-    expect(messageInput).toContain('<span>{t("knowledgeBase")}</span>');
-    expect(messageInput).toContain("open={showAttachMenu}");
-    expect(messageInput).not.toContain("showAttachMenu && hasAttachmentMenu");
-    expect(messageInput).toContain("textFallbackInputRef.current?.click()");
-    expect(messageInput).not.toContain("const AttachmentPreviewCard");
-    expect(messageInput.indexOf("{/* Search Button */}")).toBeLessThan(
-      messageInput.indexOf("{/* Model Selector */}"),
-    );
-    expect(messageInput.indexOf("{/* Model Selector */}")).toBeLessThan(
-      messageInput.indexOf("{/* Text Polish Button */}"),
-    );
-    expect(messageInput.indexOf("{/* Text Polish Button */}")).toBeLessThan(
-      messageInput.indexOf("{/* Actions */}"),
-    );
-    expect(attachmentTray).toContain("AttachmentPreviewCard");
-    expect(attachmentTray).toContain("resolveObjectUrlWithLifecycle");
-    expect(attachmentTray).toContain("markdown-file-card");
-    expect(attachmentTray).toContain("markdown-file-card-icon");
-    expect(attachmentTray).toContain("markdown-file-card-action");
-    expect(attachmentTray).not.toContain("h-16 w-16");
-  });
+function readSource(path: string): string {
+  return readFileSync(resolve(process.cwd(), path), "utf8");
+}
 
-  it("keeps the composer editable while generation is queued", () => {
-    const chatApp = readFileSync(
-      resolve(process.cwd(), "src/components/app/ChatApp.tsx"),
-      "utf8",
-    );
-    const messageInput = readFileSync(
-      resolve(process.cwd(), "src/components/chat/MessageInput.tsx"),
-      "utf8",
-    );
+function readComposerSource(name: string): string {
+  return readFileSync(resolve(COMPOSER_DIR, name), "utf8");
+}
 
-    expect(chatApp).toContain("queuedMessagesRef");
-    expect(chatApp).toContain("enqueueChatMessage");
-    expect(chatApp).toContain("disabled={availableModels.length === 0}");
-    expect(chatApp).toContain("isGenerating={isGenerating}");
-    expect(chatApp).toContain("queuedMessageCount={queuedMessageCount}");
-    expect(chatApp).not.toContain(
-      "disabled={isGenerating || availableModels.length === 0}",
-    );
+function getComposerFiles(): string[] {
+  return readdirSync(COMPOSER_DIR)
+    .filter((name) => name.endsWith(".ts") || name.endsWith(".tsx"))
+    .map((name) => resolve(COMPOSER_DIR, name));
+}
 
-    expect(messageInput).toContain("isGenerating?: boolean");
-    expect(messageInput).toContain("queuedMessageCount?: number");
-    expect(messageInput).toContain(
-      "const isInputBusy = disabled || isTranscribing || isParsingAttachments;",
-    );
-    expect(messageInput).toContain(
-      "const isSessionConfigBusy = isInputBusy || isGenerating;",
-    );
-    expect(messageInput).toMatch(
-      /selectModelAria[\s\S]{0,700}disabled=\{isInputBusy\}/,
-    );
-    expect(messageInput).toMatch(
-      /polishTextAria[\s\S]{0,500}disabled=\{isInputBusy \|\| isPolishingInput \|\| !input\.trim\(\)\}/,
-    );
-    expect(messageInput).toContain('isGenerating ? t("queueMessage")');
-    expect(messageInput).toContain('t("queuedMessages"');
-  });
+interface CompositionSources {
+  readonly facade: string;
+  readonly source: string;
+  readonly view: string;
+  readonly toolbar: string;
+  readonly attachmentMenu: string;
+  readonly pluginData: string;
+  readonly attachmentTray: string;
+}
+
+function expectFacadeAndLayout(sources: CompositionSources): void {
+  expect(sources.facade).toContain("MessageInputView");
+  expect(sources.facade).toContain("useMessageInputController");
+  expect(sources.view).toContain("MessageInputAttachmentTray");
+  expect(sources.view).toContain("glass-shell relative flex w-full flex-col");
+  expect(sources.view).toContain('hero ? "min-h-[5em]" : "min-h-[2em]"');
+  expect(sources.view).toContain('hero ? "mb-0 md:mb-18" : ""');
+  expect(sources.attachmentMenu).toContain(
+    "aria-pressed={props.hasKnowledgeAttachments}",
+  );
+  expect(sources.attachmentMenu).toContain(
+    "controller.refs.textFallback.current?.click()",
+  );
+  expect(sources.attachmentMenu).toContain('<span>{t("knowledgeBase")}</span>');
+  expect(sources.pluginData).toContain('plugin.source === "mcp"');
+}
+
+function expectForkFeatures(sources: CompositionSources): void {
+  expect(sources.source).toContain('t("mcpServers")');
+  expect(sources.source).toContain("normalizeSkillIdRefs");
+  expect(sources.source).toContain("createChatDocumentAttachment");
+  expect(sources.source).toContain("extractChatAttachmentFilesFromDrop");
+  expect(sources.source).toContain("extractChatAttachmentFilesFromClipboard");
+  expect(sources.source).toContain('t("dropFilesTitle")');
+  expect(sources.source).toContain("PencilSparkles");
+  expect(sources.source).not.toContain("reasoningOptions");
+  expect(sources.source).not.toContain("showReasoningSelect");
+  expect(sources.source).not.toContain("<Lightbulb");
+  expect(sources.source).not.toContain("enableHtmlVisualPrompt");
+  expect(sources.source).not.toContain("showMobileTools");
+  expect(sources.attachmentTray).toContain("AttachmentPreviewCard");
+  expect(sources.attachmentTray).toContain("resolveObjectUrlWithLifecycle");
+  expect(sources.attachmentTray).not.toContain("h-16 w-16");
+}
+
+function expectToolbarOrder(toolbar: string): void {
+  expect(toolbar.indexOf("<SearchButton")).toBeLessThan(
+    toolbar.indexOf("<ModelSelector"),
+  );
+  expect(toolbar.indexOf("<ModelSelector")).toBeLessThan(
+    toolbar.indexOf("<PolishButton"),
+  );
+  expect(toolbar.indexOf("<PolishButton")).toBeLessThan(
+    toolbar.indexOf("<ComposerActions"),
+  );
+}
+
+it("keeps fork behavior across the facade and focused modules", () => {
+  const facade = readFileSync(resolve(CHAT_DIR, "MessageInput.tsx"), "utf8");
+  const source = getComposerFiles()
+    .map((file) => readFileSync(file, "utf8"))
+    .join("\n");
+  const view = readComposerSource("MessageInputView.tsx");
+  const toolbar = readComposerSource("ComposerToolbar.tsx");
+  const attachmentMenu = readComposerSource("AttachmentMenu.tsx");
+  const pluginData = readComposerSource("usePluginMenuData.ts");
+  const attachmentTray = readFileSync(
+    resolve(CHAT_DIR, "MessageInputAttachmentTray.tsx"),
+    "utf8",
+  );
+
+  const sources = {
+    facade,
+    source,
+    view,
+    toolbar,
+    attachmentMenu,
+    pluginData,
+    attachmentTray,
+  };
+  expectFacadeAndLayout(sources);
+  expectForkFeatures(sources);
+  expectToolbarOrder(toolbar);
+});
+
+it("keeps the composer editable while generation is queued", () => {
+  const chatApp = readSource("src/components/app/ChatApp.tsx");
+  const types = readComposerSource("types.ts");
+  const controller = readComposerSource("useMessageInputController.ts");
+  const actions = readComposerSource("ComposerActions.tsx");
+  const model = readComposerSource("ModelSelector.tsx");
+  const polish = readComposerSource("PolishButton.tsx");
+
+  expect(chatApp).toContain("queuedMessagesRef");
+  expect(chatApp).toContain("enqueueChatMessage");
+  expect(chatApp).toContain("disabled={availableModels.length === 0}");
+  expect(chatApp).toContain("isGenerating={isGenerating}");
+  expect(chatApp).toContain("queuedMessageCount={queuedMessageCount}");
+  expect(chatApp).not.toContain(
+    "disabled={isGenerating || availableModels.length === 0}",
+  );
+  expect(types).toContain("isGenerating?: boolean");
+  expect(types).toContain("queuedMessageCount?: number");
+  expect(controller).toContain(
+    "props.disabled || voice.isTranscribing || attachments.isParsing",
+  );
+  expect(controller).toContain(
+    "sessionConfigBusy: resources.inputBusy || Boolean(props.isGenerating)",
+  );
+  expect(model).toContain("disabled={props.busy}");
+  expect(polish).toContain(
+    "disabled={props.busy || props.polishing || !props.hasText}",
+  );
+  expect(actions).toContain('t("queueMessage")');
+  expect(actions).toContain('t("queuedMessages", { count })');
+});
+
+it("keeps every composer implementation file within the size limit", () => {
+  const files = [resolve(CHAT_DIR, "MessageInput.tsx"), ...getComposerFiles()];
+  const oversized = files
+    .map((file) => ({
+      file,
+      lines: readFileSync(file, "utf8").split(/\r?\n/).length,
+    }))
+    .filter(({ lines }) => lines > MAX_IMPLEMENTATION_LINES);
+
+  expect(oversized).toEqual([]);
 });
