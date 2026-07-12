@@ -6,9 +6,10 @@ import { useMessageInputController } from "./message-input/useMessageInputContro
 import type { MessageInputProps, MessageInputRef } from "./message-input/types";
 
 const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
-  (props, ref) => (
-    <MessageInputView controller={useMessageInputController(props, ref)} />
-  ),
+  (props, ref) => {
+    const controller = useMessageInputController(props, ref);
+    return <MessageInputView controller={controller} />;
+  },
 );
 
 MessageInput.displayName = "MessageInput";

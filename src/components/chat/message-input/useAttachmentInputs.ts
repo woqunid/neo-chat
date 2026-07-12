@@ -10,15 +10,21 @@ interface AttachmentInputOptions {
 }
 
 export function useAttachmentInputs(options: AttachmentInputOptions) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLInputElement>(null);
+  const textFallbackRef = useRef<HTMLInputElement>(null);
+  const fileId = useId();
+  const imageId = useId();
+  const textFallbackId = useId();
   const refs: AttachmentInputRefs = {
-    file: useRef<HTMLInputElement>(null),
-    image: useRef<HTMLInputElement>(null),
-    textFallback: useRef<HTMLInputElement>(null),
+    file: fileRef,
+    image: imageRef,
+    textFallback: textFallbackRef,
   };
   const ids: AttachmentInputIds = {
-    file: useId(),
-    image: useId(),
-    textFallback: useId(),
+    file: fileId,
+    image: imageId,
+    textFallback: textFallbackId,
   };
   const handleSelection = useCallback(
     async (
