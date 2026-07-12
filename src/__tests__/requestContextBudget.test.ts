@@ -167,11 +167,11 @@ describe("complete request context budget", () => {
 
   it("applies the budget before every chat request round", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "src/services/api/chatService.ts"),
+      resolve(process.cwd(), "src/services/api/chat/streamRound.ts"),
       "utf8",
     );
 
-    expect(source).toContain("boundHistoryForRequest(requestHistory");
+    expect(source).toContain("boundHistoryForRequest(runtime.requestHistory");
     expect(source).toContain("history: boundedRequestHistory");
     expect(source).toContain("selectedModelMetadata?.limit?.context");
   });

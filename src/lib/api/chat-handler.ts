@@ -3,37 +3,17 @@
  */
 
 import type { Message } from "@/types";
-import { ProviderFactory, ProviderConfig } from "../providers/base";
-import { streamGeminiResponse } from "../streaming/gemini";
-import { streamAnthropicMessages } from "../streaming/anthropic";
-import {
-  streamOpenAIChatCompletions,
-  streamOpenAIResponses,
-} from "../streaming/openai";
+import type { ProviderConfig } from "../providers/base";
 import {
   createStreamHandler,
   createStreamResponse,
   createSSESender,
 } from "../streaming/sse";
 import {
-  prepareAnthropicMessages,
-  prepareGeminiHistory,
-  prepareOpenAIHistory,
-  prepareOpenAIResponsesInput,
-} from "../utils/history";
-import {
-  createTranscriptChatMessages,
-  requiresTranscriptHistory,
-} from "./openaiCompatibleHistory";
-import { convertAttachmentsToOpenAIResponses } from "../utils/attachments";
-import { convertAttachmentsToAnthropic } from "../utils/attachments";
-import { convertSchemaToGemini } from "../utils/schema";
-import { logDevWarn } from "../utils/devLogger";
+  getProviderBaseUrlHost,
+  streamProviderResponse,
+} from "./chat-provider-streams";
 import { ApiError, ProviderError } from "../errors";
-import {
-  ANTHROPIC_PROVIDER_TYPE,
-  OPENAI_COMPATIBLE_PROVIDER_TYPE,
-} from "../providers/providerTypes";
 import { safeServerLogError } from "../utils/safeServerLog";
 
 export interface ChatHandlerOptions {
@@ -50,21 +30,6 @@ export interface ChatHandlerOptions {
   tools?: any[];
   enableImageGeneration?: boolean;
   signal?: AbortSignal;
-}
-
-function getProviderBaseUrlHost(provider: ProviderConfig): string | undefined {
-  const baseUrl = getProviderBaseUrl(provider);
-  if (!baseUrl) return undefined;
-
-  try {
-    return new URL(baseUrl).hostname;
-  } catch {
-    return undefined;
-  }
-}
-
-function getProviderBaseUrl(provider: ProviderConfig): string | undefined {
-  return ProviderFactory.getEffectiveBaseUrl(provider.baseUrl, provider.type);
 }
 
 function getErrorStringField(
@@ -139,228 +104,16 @@ function toChatStreamPublicError(
   );
 }
 
-function convertToolsToOpenAIResponses(tools?: any[]) {
-  return tools
-    ?.map((tool) => {
-      const fn = tool?.function;
-      if (tool?.type !== "function" || !fn?.name) return null;
-      return {
-        type: "function",
-        name: fn.name,
-        description: fn.description,
-        parameters: fn.parameters || { type: "object", properties: {} },
-        strict: false,
-      };
-    })
-    .filter(Boolean);
-}
-
-function prepareOpenAICompatibleMessages({
-  history,
-  newMessage,
-  attachments,
-  systemInstruction,
-}: {
-  history: Message[];
-  newMessage: string;
-  attachments?: any[];
-  systemInstruction?: string;
-}) {
-  const messages = prepareOpenAIHistory(history);
-  const content: any[] = [{ type: "text", text: newMessage }];
-  if (attachments?.length) {
-    content.push(...attachments);
-  }
-  messages.push({ role: "user", content });
-
-  if (systemInstruction) {
-    messages.unshift({ role: "system", content: systemInstruction });
-  }
-
-  return messages;
-}
-
-function appendImageCountInstruction(
-  instruction: string | undefined,
-  imageCount: number | undefined,
-): string | undefined {
-  if (!imageCount) return instruction;
-
-  const imageInstruction = `When generating images for this request, create ${imageCount} separate image output${imageCount === 1 ? "" : "s"}.`;
-  return instruction
-    ? `${instruction}\n\n${imageInstruction}`
-    : imageInstruction;
-}
-
 /**
  * 处理聊天请求（流式）
  */
 export async function handleChatStream(options: ChatHandlerOptions) {
-  const {
-    provider,
-    modelName,
-    history,
-    newMessage,
-    attachments,
-    config,
-    systemInstruction,
-    tools,
-    enableImageGeneration,
-    signal,
-  } = options;
-
   const stream = createStreamHandler(async (controller) => {
     try {
-      signal?.throwIfAborted();
+      options.signal?.throwIfAborted();
       const send = createSSESender(controller);
-
-      if (provider.type === ANTHROPIC_PROVIDER_TYPE) {
-        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
-        const messages = prepareAnthropicMessages(history);
-        const content: any[] = [{ type: "text", text: newMessage }];
-        if (attachments?.length) {
-          content.push(...convertAttachmentsToAnthropic(attachments));
-        }
-        messages.push({ role: "user", content });
-
-        await streamAnthropicMessages({
-          provider,
-          model: modelName,
-          messages,
-          systemInstruction,
-          temperature: config?.temperature,
-          tools,
-          signal,
-          onChunk: send,
-        });
-      } else if (provider.type === "OpenAI") {
-        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
-        const client = ProviderFactory.createOpenAIClient(provider);
-        const input = prepareOpenAIResponsesInput(history);
-
-        const content: any[] = [{ type: "input_text", text: newMessage }];
-        if (attachments?.length) {
-          content.push(...convertAttachmentsToOpenAIResponses(attachments));
-        }
-        input.push({ role: "user", content });
-
-        await streamOpenAIResponses({
-          client,
-          model: modelName,
-          input,
-          instructions: appendImageCountInstruction(
-            systemInstruction,
-            enableImageGeneration ? config?.imageCount : undefined,
-          ),
-          temperature: config?.temperature,
-          tools: convertToolsToOpenAIResponses(tools),
-          enableImageGeneration,
-          signal,
-          onChunk: send,
-        });
-      } else if (provider.type === OPENAI_COMPATIBLE_PROVIDER_TYPE) {
-        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
-        const providerBaseUrlHost = getProviderBaseUrlHost(provider);
-        const messages = requiresTranscriptHistory(providerBaseUrlHost)
-          ? createTranscriptChatMessages({
-              history,
-              newMessage,
-              attachments,
-              systemInstruction,
-            })
-          : prepareOpenAICompatibleMessages({
-              history,
-              newMessage,
-              attachments,
-              systemInstruction,
-            });
-
-        const client = ProviderFactory.createOpenAIClient(provider);
-        await streamOpenAIChatCompletions({
-          client,
-          model: modelName,
-          messages,
-          temperature: config?.temperature,
-          tools,
-          signal,
-          onChunk: send,
-        });
-      } else {
-        // Gemini
-        await ProviderFactory.assertProviderOutboundAllowed(provider, signal);
-        const client = ProviderFactory.createGeminiClient(provider);
-        const contents = prepareGeminiHistory(history);
-
-        // 添加新消息
-        const parts: any[] = [{ text: newMessage }];
-        if (attachments?.length) {
-          // 转换附件为 Gemini 格式
-          const geminiAttachments = attachments
-            .map((att: any) => {
-              // 如果已经是正确的 Gemini 格式
-              if (att.fileData) {
-                return att;
-              }
-              if (att.inlineData) {
-                return att;
-              }
-
-              // 转换原始附件对象
-              if (att.url && !att.data) {
-                // 远程文件
-                return {
-                  fileData: {
-                    mimeType: att.mimeType,
-                    fileUri: att.url,
-                  },
-                };
-              }
-
-              if (att.data) {
-                // Base64 数据
-                return {
-                  inlineData: {
-                    mimeType: att.mimeType,
-                    data: att.data,
-                  },
-                };
-              }
-
-              // 如果既没有 url 也没有 data，跳过这个附件
-              logDevWarn("Skipping invalid attachment:", {
-                fileName: att.fileName,
-                mimeType: att.mimeType,
-              });
-              return null;
-            })
-            .filter(Boolean); // 过滤掉 null 值
-
-          parts.push(...geminiAttachments);
-        }
-        contents.push({ role: "user", parts });
-
-        // 转换工具格式
-        const geminiTools = tools?.map((tool: any) => ({
-          name: tool.function.name,
-          description: tool.function.description,
-          parameters: convertSchemaToGemini(tool.function.parameters),
-        }));
-
-        await streamGeminiResponse({
-          client,
-          model: modelName,
-          contents,
-          systemInstruction,
-          temperature: config?.temperature,
-          tools: geminiTools,
-          enableImageGeneration,
-          imageCount: config?.imageCount,
-          signal,
-          onChunk: send,
-        });
-      }
-
-      signal?.throwIfAborted();
+      await streamProviderResponse(options, send);
+      options.signal?.throwIfAborted();
       send({ type: "done" });
     } catch (error) {
       logChatStreamError(error, options);
