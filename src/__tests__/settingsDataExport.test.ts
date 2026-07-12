@@ -11,13 +11,13 @@ describe("settings data export", () => {
       resolve(process.cwd(), "src/components/settings/SystemSettings.tsx"),
       "utf8",
     );
-    const settingsStore = readFileSync(
-      resolve(process.cwd(), "src/store/core/settingsStore.ts"),
+    const dataSlice = readFileSync(
+      resolve(process.cwd(), "src/store/core/settings/agentDataSlice.ts"),
       "utf8",
     );
 
     expect(systemSettings).toContain("handleExportAllData");
-    expect(settingsStore).toContain("createBrowserAppExportPayload");
+    expect(dataSlice).toContain("createBrowserAppExportPayload");
     expect(en.System.exportAllData).toBeTruthy();
     expect(zh.System.exportAllData).toBeTruthy();
     expect(en.System.exportError).toBeTruthy();
