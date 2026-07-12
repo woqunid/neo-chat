@@ -37,7 +37,7 @@ vi.mock("@/lib/security/safeFetch", () => ({
   safeFetchText: safeFetchTextMock,
 }));
 
-vi.mock("@/lib/byok/server", () => ({
+vi.mock("../lib/byok/server", () => ({
   decryptOptionalSecret: decryptOptionalSecretMock,
 }));
 
