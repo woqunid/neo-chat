@@ -133,6 +133,7 @@ describe("streamed tool-call normalization", () => {
         },
         { type: "content_block_stop", index: 1 },
         { type: "message_delta", usage: { output_tokens: 3 } },
+        { type: "message_stop" },
       ]),
     );
 

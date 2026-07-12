@@ -1,15 +1,18 @@
-import { PLUGIN_EXECUTION_LIMITS } from "../../config/limits";
 import type { ProviderConfig } from "../providers/base";
 import {
   getProviderApiKey,
   normalizeProviderBaseUrl,
 } from "../security/urlPolicy";
 import type { SSEMessage } from "./sse";
-import { finalizeStreamedToolCall } from "./toolCalls";
 import {
   createProviderTimeoutSignal,
   getChatProviderTimeoutMs,
 } from "../providers/requestTimeout";
+import {
+  assertAnthropicStreamCompleted,
+  createAnthropicStreamState,
+  handleAnthropicStreamPayload,
+} from "./anthropicStreamEvents";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
@@ -23,12 +26,6 @@ export interface AnthropicStreamOptions {
   tools?: any[];
   onChunk: (message: SSEMessage) => void;
 }
-
-type PendingToolUse = {
-  id: string;
-  name: string;
-  argsText: string;
-};
 
 function getMessagesEndpoint(provider: ProviderConfig): string {
   return `${normalizeProviderBaseUrl(provider.baseUrl, "Anthropic")}/messages`;
@@ -151,92 +148,6 @@ function getEventData(event: string): unknown | null {
   return data ? JSON.parse(data) : null;
 }
 
-function appendToolInput(tool: PendingToolUse, partialJson: unknown): void {
-  if (typeof partialJson !== "string" || !partialJson) return;
-  const nextLength = tool.argsText.length + partialJson.length;
-  if (nextLength > PLUGIN_EXECUTION_LIMITS.maxArgsJsonChars) {
-    throw new Error("Anthropic tool call arguments are too large");
-  }
-  tool.argsText += partialJson;
-}
-
-function emitToolUse(
-  tool: PendingToolUse,
-  position: number,
-  onChunk: (message: SSEMessage) => void,
-): void {
-  const toolCall = finalizeStreamedToolCall(
-    {
-      id: tool.id,
-      name: tool.name,
-      argsText: tool.argsText || "{}",
-    },
-    position,
-  );
-  if (toolCall) onChunk({ type: "tool_call", toolCall });
-}
-
-function emitUsage(usage: any, onChunk: (message: SSEMessage) => void): void {
-  if (!usage) return;
-  const input = usage.input_tokens ?? 0;
-  const output = usage.output_tokens ?? 0;
-  onChunk({
-    type: "usage",
-    usage: {
-      prompt_tokens: input,
-      completion_tokens: output,
-      total_tokens: input + output,
-    },
-  });
-}
-
-function handleStreamPayload(
-  payload: any,
-  state: { tools: Map<number, PendingToolUse>; emittedTools: number },
-  onChunk: (message: SSEMessage) => void,
-): void {
-  if (payload?.type === "error") {
-    throw new Error(payload.error?.message || "Anthropic stream failed");
-  }
-  if (payload?.type === "content_block_start") {
-    const block = payload.content_block;
-    if (block?.type === "tool_use") {
-      state.tools.set(payload.index, {
-        id: block.id,
-        name: block.name,
-        argsText: "",
-      });
-    }
-    return;
-  }
-  if (payload?.type === "content_block_delta") {
-    const delta = payload.delta;
-    if (delta?.type === "text_delta")
-      onChunk({ type: "content", content: delta.text || "" });
-    if (delta?.type === "thinking_delta")
-      onChunk({ type: "reasoning", content: delta.thinking || "" });
-    if (delta?.type === "input_json_delta") {
-      const tool = state.tools.get(payload.index);
-      if (!tool) throw new Error("Anthropic tool input arrived out of order");
-      appendToolInput(tool, delta.partial_json);
-    }
-    return;
-  }
-  if (payload?.type === "content_block_stop") {
-    const tool = state.tools.get(payload.index);
-    if (
-      tool &&
-      state.emittedTools < PLUGIN_EXECUTION_LIMITS.maxStreamedToolCalls
-    ) {
-      emitToolUse(tool, state.emittedTools, onChunk);
-      state.emittedTools += 1;
-    }
-    state.tools.delete(payload.index);
-    return;
-  }
-  if (payload?.type === "message_delta") emitUsage(payload.usage, onChunk);
-}
-
 export async function streamAnthropicMessages(options: AnthropicStreamOptions) {
   const startTime = Date.now();
   const response = await createAnthropicResponse(options);
@@ -244,7 +155,7 @@ export async function streamAnthropicMessages(options: AnthropicStreamOptions) {
   if (!body) throw new Error("Anthropic response body is empty");
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  const state = { tools: new Map<number, PendingToolUse>(), emittedTools: 0 };
+  let state = createAnthropicStreamState();
   let buffer = "";
 
   while (true) {
@@ -256,10 +167,13 @@ export async function streamAnthropicMessages(options: AnthropicStreamOptions) {
     buffer = parsed.rest;
     for (const event of parsed.events) {
       const payload = getEventData(event);
-      if (payload) handleStreamPayload(payload, state, options.onChunk);
+      if (payload) {
+        state = handleAnthropicStreamPayload(payload, state, options.onChunk);
+      }
     }
   }
 
+  assertAnthropicStreamCompleted(state);
   const endTime = Date.now();
   options.onChunk({
     type: "timing",

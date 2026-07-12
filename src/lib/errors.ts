@@ -64,6 +64,13 @@ export class ProviderError extends ApiError {
   }
 }
 
+export class IncompleteProviderStreamError extends ApiError {
+  constructor(message: string) {
+    super(message, 502, "INCOMPLETE_PROVIDER_STREAM");
+    this.name = "IncompleteProviderStreamError";
+  }
+}
+
 export class HostedProxyBlockedError extends ApiError {
   constructor(
     message: string = "Hosted deployments cannot proxy local network URLs",
