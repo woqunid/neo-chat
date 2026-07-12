@@ -1,17 +1,11 @@
-/**
- * Gemini 流式响应处理器
- */
-
+import type { GoogleGenAI } from "@google/genai";
+import { IncompleteProviderStreamError } from "../errors";
 import {
-  GoogleGenAI,
-  Modality,
-  type GenerateContentParameters,
-  type GenerateContentConfig,
-} from "@google/genai";
-import { PLUGIN_EXECUTION_LIMITS } from "../../config/limits";
-import { SSEMessage } from "./sse";
-import { finalizeStreamedToolCall } from "./toolCalls";
-import { normalizeGeneratedImageAttachment } from "../utils/generatedImages";
+  createGeminiRequestParams,
+  createGeminiStreamState,
+  processGeminiChunk,
+} from "./geminiStream";
+import type { SSEMessage } from "./sse";
 
 export interface GeminiStreamOptions {
   client: GoogleGenAI;
@@ -22,158 +16,29 @@ export interface GeminiStreamOptions {
   tools?: any[];
   enableImageGeneration?: boolean;
   imageCount?: number;
+  signal?: AbortSignal;
   onChunk: (message: SSEMessage) => void;
 }
 
-function appendImageCountInstruction(
-  instruction: string | undefined,
-  imageCount: number | undefined,
-): string | undefined {
-  if (!imageCount) return instruction;
-
-  const imageInstruction = `When generating images for this request, create ${imageCount} separate image output${imageCount === 1 ? "" : "s"}.`;
-  return instruction
-    ? `${instruction}\n\n${imageInstruction}`
-    : imageInstruction;
-}
-
-/**
- * 处理 Gemini 流式响应
- * 注意：由于 Gemini SDK 的限制，这里使用简化的实现
- * 完整的流式处理逻辑保留在原始的 API 路由中
- */
-export async function streamGeminiResponse(options: GeminiStreamOptions) {
-  const {
-    client,
-    model: modelName,
-    contents,
-    systemInstruction,
-    temperature = 1,
-    tools,
-    enableImageGeneration,
-    imageCount,
-    onChunk,
-  } = options;
-
+export async function streamGeminiResponse(
+  options: GeminiStreamOptions,
+): Promise<void> {
   const startTime = Date.now();
-
-  // 构建请求参数
-  const requestParams: GenerateContentParameters = {
-    model: modelName,
-    contents,
-  };
-  const config: GenerateContentConfig = {};
-
-  const effectiveSystemInstruction = appendImageCountInstruction(
-    systemInstruction,
-    enableImageGeneration ? imageCount : undefined,
+  const stream = await options.client.models.generateContentStream(
+    createGeminiRequestParams(options),
   );
-  if (effectiveSystemInstruction) {
-    config.systemInstruction = effectiveSystemInstruction;
-  }
-
-  if (temperature !== undefined) {
-    config.temperature = temperature;
-  }
-
-  const geminiTools: NonNullable<GenerateContentConfig["tools"]> = [];
-  if (tools && tools.length > 0) {
-    geminiTools.push({ functionDeclarations: tools });
-  }
-  if (geminiTools.length > 0) {
-    config.tools = geminiTools;
-  }
-  if (enableImageGeneration) {
-    config.responseModalities = [Modality.TEXT, Modality.IMAGE];
-  }
-
-  requestParams.config = config;
-
-  // 调用流式 API
-  const stream = await client.models.generateContentStream(requestParams);
-
-  // let fullText = "";
-  // let fullReasoning = "";
-  let emittedToolCalls = 0;
-
+  const state = createGeminiStreamState();
   for await (const chunk of stream) {
-    const candidates = (chunk as any).candidates;
-
-    if (candidates && candidates[0] && candidates[0].content) {
-      const candidate = candidates[0];
-      const parts = candidate.content.parts;
-
-      for (const part of parts) {
-        // 处理思考过程
-        if (part.thought && part.text) {
-          onChunk({ type: "reasoning", content: part.text });
-        }
-        // 处理工具调用
-        else if (part.functionCall) {
-          if (
-            emittedToolCalls >= PLUGIN_EXECUTION_LIMITS.maxStreamedToolCalls
-          ) {
-            continue;
-          }
-
-          const fc = part.functionCall;
-          const toolCall = finalizeStreamedToolCall(
-            {
-              id: `call_${Date.now()}_${emittedToolCalls}`,
-              name: fc.name,
-              args: fc.args,
-            },
-            emittedToolCalls,
-          );
-          emittedToolCalls += 1;
-
-          if (toolCall) {
-            onChunk({
-              type: "tool_call",
-              toolCall,
-            });
-          }
-        }
-        // 处理文本内容
-        else if (part.text) {
-          // fullText += part.text;
-          onChunk({ type: "content", content: part.text });
-        }
-        // 处理图片
-        else if (part.inlineData) {
-          const image = normalizeGeneratedImageAttachment({
-            id: `img_${Date.now()}`,
-            mimeType: part.inlineData.mimeType,
-            data: part.inlineData.data,
-            fileName: `generated-${Date.now()}.png`,
-          });
-          if (image) {
-            onChunk({
-              type: "image",
-              image,
-            });
-          }
-        }
-      }
-    }
-
-    // 处理使用统计
-    if ((chunk as any).usageMetadata) {
-      onChunk({
-        type: "usage",
-        usageMetadata: (chunk as any).usageMetadata,
-      });
-    }
+    processGeminiChunk(chunk, state, options.onChunk);
   }
-
-  // 发送时间统计
+  if (!state.receivedFinishReason) {
+    throw new IncompleteProviderStreamError(
+      "Gemini stream ended before a valid candidate finishReason.",
+    );
+  }
   const endTime = Date.now();
-  onChunk({
+  options.onChunk({
     type: "timing",
-    timing: {
-      startTime,
-      endTime,
-      duration: endTime - startTime,
-    },
+    timing: { startTime, endTime, duration: endTime - startTime },
   });
 }

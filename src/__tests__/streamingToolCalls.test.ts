@@ -13,7 +13,39 @@ import {
 import type { SSEMessage } from "../lib/streaming/sse";
 
 async function* asyncChunks(chunks: unknown[]) {
-  for (const chunk of chunks) {
+  const records = chunks as Array<Record<string, any>>;
+  const completed = [...records];
+  if (
+    records.some((chunk) => Array.isArray(chunk.choices)) &&
+    !records.some((chunk) =>
+      chunk.choices?.some((choice: any) => choice?.finish_reason),
+    )
+  ) {
+    completed.push({ choices: [{ delta: {}, finish_reason: "stop" }] });
+  }
+  if (
+    records.some((chunk) => typeof chunk.type === "string") &&
+    !records.some((chunk) =>
+      [
+        "response.completed",
+        "response.failed",
+        "response.error",
+        "response.incomplete",
+        "error",
+      ].includes(chunk.type),
+    )
+  ) {
+    completed.push({ type: "response.completed", response: {} });
+  }
+  if (
+    records.some((chunk) => Array.isArray(chunk.candidates)) &&
+    !records.some((chunk) =>
+      chunk.candidates?.some((candidate: any) => candidate?.finishReason),
+    )
+  ) {
+    completed.push({ candidates: [{ finishReason: "STOP" }] });
+  }
+  for (const chunk of completed) {
     yield chunk;
   }
 }
@@ -629,7 +661,9 @@ describe("streamed tool-call normalization", () => {
     const makeClient = () => ({
       chat: {
         completions: {
-          create: vi.fn(async () => asyncChunks([])),
+          create: vi.fn(async () =>
+            asyncChunks([{ choices: [{ delta: {}, finish_reason: "stop" }] }]),
+          ),
         },
       },
     });
@@ -985,7 +1019,9 @@ describe("streamed tool-call normalization", () => {
   it("does not map Gemini 2.5 reasoning modes to thinking budgets", async () => {
     const client = {
       models: {
-        generateContentStream: vi.fn(async () => asyncChunks([])),
+        generateContentStream: vi.fn(async () =>
+          asyncChunks([{ candidates: [{ finishReason: "STOP" }] }]),
+        ),
       },
     };
 
@@ -1004,7 +1040,9 @@ describe("streamed tool-call normalization", () => {
   it("does not map Gemini 3 reasoning modes to thinking levels", async () => {
     const client = {
       models: {
-        generateContentStream: vi.fn(async () => asyncChunks([])),
+        generateContentStream: vi.fn(async () =>
+          asyncChunks([{ candidates: [{ finishReason: "STOP" }] }]),
+        ),
       },
     };
 
