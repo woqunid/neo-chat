@@ -7,6 +7,32 @@ group changes under a level-2 heading that matches the release tag, such as
 `## v2.0.0`; the release workflow uses that section as the GitHub release notes
 when the matching tag is pushed.
 
+## v2.2.0
+
+- Added remote `streamable-http` MCP servers to the existing plugin system,
+  including official Registry discovery, authenticated tool listing and
+  execution, deterministic tool names, and server-side registry metadata
+  re-fetching before installation.
+- Kept the fork's administrator-managed Grok web search while integrating MCP;
+  the removed upstream search-provider route and settings were not restored.
+- Centralized API request-proof and rate-limit policy by route and method,
+  including stable route families, signed proof-session identities, Grok and
+  superadmin rules, and MCP discovery protection without a shared unknown-IP
+  bucket.
+- Added bounded provider transports for OpenAI, OpenAI-compatible, Google, and
+  the existing hand-written Anthropic adapter. Provider streams now validate
+  terminal events, propagate cancellation, and surface structured timeout,
+  incomplete-stream, and response-size errors.
+- Added request-time context budgeting for history, attachments, memory, and
+  tool results so oversized current input fails explicitly while older context
+  is bounded by model metadata.
+- Fixed Docker Compose HTTP access by removing CSP's automatic insecure-request
+  upgrade. Hosted CSP and outbound URL policies remain stricter than local
+  self-hosted mode.
+- Standardized development and CI on Node.js 22, added public-artifact hygiene
+  checks, built the Cloudflare Worker in CI, and enforced a configurable
+  Wrangler gzip-size budget from dry-run output.
+
 ## v2.1.0
 
 - Rebuilt System Settings with clearer grouped controls, deployment health

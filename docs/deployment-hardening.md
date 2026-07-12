@@ -206,5 +206,28 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm audit --audit-level low
+pnpm build:worker
+pnpm worker:size
+pnpm hygiene:artifacts
+pnpm audit --prod --audit-level moderate
 ```
+
+## v2.2 Transport And Build Gates
+
+The CSP does not use `upgrade-insecure-requests`, so Docker Compose remains
+reachable at `http://localhost:3000`. Hosted mode still applies stricter source
+and outbound URL policies; terminate TLS at the public reverse proxy.
+
+API proof and limits are selected by route and method. Dynamic paths share
+stable route-family quotas, while signed proof sessions provide identities when
+trusted proxy IP headers are unavailable. Fork-specific Grok and superadmin
+policies remain active, and MCP discovery is protected in hosted mode.
+
+Official MCP Registry entries are re-fetched from the allowlisted Registry host
+during installation and rejected if normalized identity differs. Provider
+transports bound response bodies, validate stream termination, and propagate
+cancellation. `CHAT_PROVIDER_TIMEOUT_MS=0` still disables provider deadlines.
+
+CI uses Node.js 22, checks public artifact hygiene, builds the Worker, and parses
+Wrangler dry-run output. `WORKER_GZIP_BUDGET_BYTES` overrides the default 3 MiB
+gzip budget with an explicit positive integer.

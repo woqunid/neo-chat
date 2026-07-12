@@ -212,3 +212,19 @@ they remain available as documented defaults without exposing a shared provider.
 `DEFAULT_ENABLE_HTML_VISUAL_PROMPT` changes model instructions only. Message
 rendering still sanitizes inline HTML and blocks scripts, event handlers,
 iframes, unsafe URLs, and full HTML documents.
+
+## Provider Limits And Build Variables
+
+Provider text/JSON responses are limited to 2 MiB, streams to 8 MiB, and image
+responses to 36 MiB. Exceeding a limit returns `RESPONSE_SIZE_LIMIT`.
+`CHAT_PROVIDER_TIMEOUT_MS=0` disables only the provider deadline; caller
+cancellation still propagates. Anthropic remains the fork's hand-written
+Messages API transport, not the official Anthropic SDK.
+
+| Variable                   | Purpose                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `WORKER_GZIP_BUDGET_BYTES` | Build/CI-only positive integer for `pnpm worker:size`; defaults to 3 MiB when unset. |
+
+Wrangler execution failures, unparseable dry-run output, and budget overruns
+all fail explicitly. The project and CI use Node.js 22. Grok search remains the
+fork's administrator-managed flow; no upstream `/api/search` fallback exists.

@@ -160,3 +160,16 @@ Shared primitives provide consistent focus and announcement behavior:
 
 New menus, dialogs, form fields, and image displays should prefer these
 primitives before adding local one-off behavior.
+
+## v2.2 Request Reliability
+
+OpenAI, OpenAI-compatible, Google, and the hand-written Anthropic adapter require
+protocol-specific terminal events and reject streams that end early. Provider
+response limits remain active while bodies are consumed, and cancellation
+propagates through providers, Grok, plugins, RAG, and remote MCP execution.
+
+Request shaping uses `src/lib/chat/requestContextBudget.ts` in addition to the
+central allocator. Older turns, historical attachments, memory prompt context,
+and tool results are bounded without mutating stored messages. If current input
+alone exceeds the model budget, generation fails with
+`CONTEXT_BUDGET_EXCEEDED` instead of silently dropping current content.

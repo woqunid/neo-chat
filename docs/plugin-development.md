@@ -191,3 +191,9 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Official Registry entries use a server-side trust refresh during installation.
+The install route re-fetches the versioned manifest from the allowlisted MCP
+Registry host, normalizes endpoint and header metadata again, and requires the
+resulting plugin ID to match the requested ID before listing tools. The browser
+marketplace object is discovery input, not installation authority.

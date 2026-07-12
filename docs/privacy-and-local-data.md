@@ -124,3 +124,14 @@ Before offering Neo Chat as a public multi-user service, add:
 - Keep tests deterministic and use synthetic fixtures.
 - Update this document when storage, proxy, BYOK, or third-party data flow
   behavior changes.
+
+## Remote MCP Data
+
+Enabled remote `streamable-http` MCP servers receive tool arguments,
+authentication headers, and the data needed to execute selected tools. Tool
+results return through the same server-side plugin route as OpenAPI plugins.
+
+Official Registry metadata is re-fetched by the server during installation, so
+browser-submitted endpoints and static headers are not trusted as Registry
+configuration. This verifies discovery metadata, not the privacy or behavior of
+the remote MCP operator. Neo Chat does not launch local stdio MCP processes.

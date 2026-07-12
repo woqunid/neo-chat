@@ -24,15 +24,14 @@ Neo Chat 是一个可自托管、本地优先的 AI 对话应用，基于 Next.j
 
 它适合想使用现代 AI 工作台、同时保持本地数据所有权的用户。默认情况下，对话历史、工作区元数据、技能、插件配置、记忆和文件都保存在浏览器内；服务端路由作为受控代理，连接模型供应商、搜索、RAG、文档解析、语音、插件执行和部署健康检查。
 
-## v2.1.0 亮点
+## v2.2.0 亮点
 
-- 重构 System Settings，提供更清晰的分组控制、部署健康可见性，以及本地数据导出/重置入口。
-- 新增模型原生图片生成/编辑，支持按顺序渲染图文混合输出块，并使用 OPFS 做图片显示缓存。
-- 扩展内置插件媒体工具：Agnes/Gemini 图片处理、独立的 OpenAI 兼容 Images API 与 OpenAI Responses 图片处理插件、插件级 Base URL/Model ID 配置、受支持接口的图片数量参数、压缩后的图片工具结果，以及 Agnes 图片/视频处理能力升级。
-- 为支持 reasoning 的 Gemini 和 OpenAI-compatible 模型新增 thinking intensity 控制。
-- 新增日文支持，覆盖应用界面、SEO metadata、助理语言路由、语音语言处理和公共 Skills 目录。
-- 加强 hosted 部署安全，加入 API request proof、共享存储检查、服务健康覆盖、更安全的 URL/密钥处理，以及 Cloudflare Worker 命令修复。
-- 新增基于 `CHANGELOG.md` 的 GitHub Release 自动化，以及仅在 fork 仓库运行的 upstream 同步 workflow。
+- 新增远程 `streamable-http` MCP 支持，复用插件市场、启用状态、鉴权和服务端工具执行链路；Registry 项目安装前会由服务端重新获取并校验。
+- 保留本 fork 的 Super Admin Grok 联网搜索，没有恢复上游搜索供应商路由或整体设置界面。
+- 按路由和 HTTP 方法集中管理 API request proof 与限流，动态路由共享稳定配额，未知 IP 不再共用一个全局限流桶。
+- 为 OpenAI、OpenAI Compatible、Google 和现有手写 Anthropic transport 增加响应大小限制、流终止校验和取消传播；`CHAT_PROVIDER_TIMEOUT_MS=0` 仍可禁用超时。
+- 请求发送前按模型上下文元数据约束历史、附件、记忆和工具结果，当前输入本身超限时会明确报错。
+- 修复 Docker Compose 的 HTTP 地址被 CSP 自动升级为 HTTPS；CI 使用 Node.js 22，并增加 Worker 构建、dry-run gzip 体积和 public 产物卫生检查。
 
 ## 功能特性
 
@@ -384,6 +383,8 @@ pnpm start            # 启动生产服务
 pnpm format           # 使用 Prettier 格式化仓库
 pnpm format:check     # 检查仓库格式
 pnpm build:worker     # 构建 Cloudflare Workers
+pnpm worker:size      # 检查 Worker dry-run gzip 体积
+pnpm hygiene:artifacts # 检查 public 生成杂项
 pnpm preview:worker   # 预览 Worker 构建
 pnpm deploy:worker    # 部署 Worker 构建并保留 dashboard 变量
 pnpm byok:generate    # 生成可复制的 BYOK key
