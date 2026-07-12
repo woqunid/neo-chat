@@ -196,55 +196,46 @@ function getModelCapabilities({
   };
 }
 
-export function resolveEffectiveChatContext(
-  options: ResolveEffectiveChatContextOptions,
-): EffectiveChatContext {
-  const {
-    session,
-    workspace,
-    systemPrompt,
-    personality,
-    enableHtmlVisualPrompt,
-    now,
-    selectedModel,
-    modelMetadata,
-    customModelMetadata,
-    chatConfig,
-    searchAvailable,
-    rag,
-    installedPlugins,
-    installedSkills = [],
-    pluginConfigs,
-    activePlugins,
-  } = options;
-
-  const modelCapabilities = getModelCapabilities({
-    selectedModel,
-    modelMetadata,
-    customModelMetadata,
+function getPluginContext(options: ResolveEffectiveChatContextOptions): {
+  requestedPluginIds: string[];
+  activePluginIds: string[];
+} {
+  const requestedPluginIds =
+    options.session?.config?.activePlugins || options.activePlugins;
+  const activePluginIds = normalizeActivePluginIds({
+    pluginIds: requestedPluginIds,
+    installedPlugins: options.installedPlugins,
+    pluginConfigs: options.pluginConfigs,
+    unauthenticatedAllowedPluginIds: ["unsplash"],
   });
-  const requestedPluginIds = session?.config?.activePlugins || activePlugins;
-  const activePluginIds = normalizeActivePluginIds(
-    requestedPluginIds,
-    installedPlugins,
-    pluginConfigs,
-    { unauthenticatedAllowedPluginIds: ["unsplash"] },
-  );
-  const activeSkillIds = normalizeSkillIdRefs(
-    session?.config?.activeSkills || workspace?.activeSkills || [],
-    installedSkills,
-  );
-  const statuses: CapabilityStatus[] = [];
+  return { requestedPluginIds, activePluginIds };
+}
 
-  if (chatConfig.useSearch && !searchAvailable) {
+function getActiveSkillIds(
+  options: ResolveEffectiveChatContextOptions,
+): string[] {
+  const requestedSkillIds =
+    options.session?.config?.activeSkills ||
+    options.workspace?.activeSkills ||
+    [];
+  return normalizeSkillIdRefs(requestedSkillIds, options.installedSkills || []);
+}
+
+function getAvailabilityStatuses(
+  options: ResolveEffectiveChatContextOptions,
+): CapabilityStatus[] {
+  const statuses: CapabilityStatus[] = [];
+  if (options.chatConfig.useSearch && !options.searchAvailable) {
     statuses.push({
       code: "search_unavailable",
       level: "warning",
       message: "Search is enabled but Grok web search is not configured.",
     });
   }
-
-  if (chatConfig.useRAG && (!rag.enabled || !hasRagVectorStore(rag))) {
+  if (
+    options.chatConfig.useRAG &&
+    (!options.rag.enabled || !hasRagVectorStore(options.rag))
+  ) {
     statuses.push({
       code: "rag_unavailable",
       level: "warning",
@@ -252,38 +243,83 @@ export function resolveEffectiveChatContext(
         "RAG is enabled but the vector endpoint or token is not configured.",
     });
   }
+  return statuses;
+}
 
-  for (const pluginId of requestedPluginIds) {
-    const plugin = installedPlugins.find((item) => item.id === pluginId);
+function getPluginAuthStatuses(options: {
+  requestedPluginIds: string[];
+  installedPlugins: Plugin[];
+  pluginConfigs: Record<string, PluginConfig>;
+}): CapabilityStatus[] {
+  const statuses: CapabilityStatus[] = [];
+  for (const pluginId of options.requestedPluginIds) {
+    const plugin = options.installedPlugins.find(
+      (item) => item.id === pluginId,
+    );
     if (!plugin || !isPluginAuthRequired(plugin) || pluginId === "unsplash") {
       continue;
     }
-    if (!hasPluginAuthValue(pluginConfigs[pluginId]?.auth)) {
-      statuses.push({
-        code: "plugin_auth_missing",
-        level: "warning",
-        message: `Plugin "${plugin.title || plugin.id}" is active but missing authentication.`,
-      });
-    }
+    if (hasPluginAuthValue(options.pluginConfigs[pluginId]?.auth)) continue;
+    statuses.push({
+      code: "plugin_auth_missing",
+      level: "warning",
+      message: `Plugin "${plugin.title || plugin.id}" is active but missing authentication.`,
+    });
   }
+  return statuses;
+}
 
-  return {
-    sessionId: session?.id || null,
-    systemInstruction: buildSystemInstruction({
-      systemPrompt,
-      personality,
-      workspacePrompt: workspace?.systemPrompt,
-      sessionInstruction: session?.systemInstruction,
-      enableHtmlVisualPrompt,
-      now,
+function getCapabilityStatuses(
+  options: ResolveEffectiveChatContextOptions,
+  requestedPluginIds: string[],
+): CapabilityStatus[] {
+  const statuses = [
+    ...getAvailabilityStatuses(options),
+    ...getPluginAuthStatuses({
+      requestedPluginIds,
+      installedPlugins: options.installedPlugins,
+      pluginConfigs: options.pluginConfigs,
     }),
-    workspaceFiles: workspace?.files || [],
-    workspaceKnowledgeCollectionIds: workspace?.knowledgeCollectionIds || [],
-    activePluginIds,
-    activeSkillIds,
+  ];
+  return statuses.length
+    ? statuses
+    : [{ code: "ok", level: "info", message: "Ready" }];
+}
+
+function getContextMetadata(options: ResolveEffectiveChatContextOptions) {
+  return {
+    sessionId: options.session?.id || null,
+    workspaceFiles: options.workspace?.files || [],
+    workspaceKnowledgeCollectionIds:
+      options.workspace?.knowledgeCollectionIds || [],
+  };
+}
+
+export function resolveEffectiveChatContext(
+  options: ResolveEffectiveChatContextOptions,
+): EffectiveChatContext {
+  const pluginContext = getPluginContext(options);
+  const modelCapabilities = getModelCapabilities({
+    selectedModel: options.selectedModel,
+    modelMetadata: options.modelMetadata,
+    customModelMetadata: options.customModelMetadata,
+  });
+  return {
+    ...getContextMetadata(options),
+    systemInstruction: buildSystemInstruction({
+      systemPrompt: options.systemPrompt,
+      personality: options.personality,
+      workspacePrompt: options.workspace?.systemPrompt,
+      sessionInstruction: options.session?.systemInstruction,
+      enableHtmlVisualPrompt: options.enableHtmlVisualPrompt,
+      now: options.now,
+    }),
+    activePluginIds: pluginContext.activePluginIds,
+    activeSkillIds: getActiveSkillIds(options),
     modelCapabilities,
-    capabilityStatuses: statuses.length
-      ? statuses
-      : [{ code: "ok", level: "info", message: "Ready" }],
+    capabilityStatuses: getCapabilityStatuses(
+      options,
+      pluginContext.requestedPluginIds,
+    ),
   };
 }

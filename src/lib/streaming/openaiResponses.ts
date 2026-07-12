@@ -166,41 +166,42 @@ function throwResponsesTerminalError(event: any): never {
   throw new Error(`OpenAI Responses stream failed: ${message}`);
 }
 
+type ResponseEventHandler = (
+  event: any,
+  state: ResponsesState,
+  onChunk: (message: SSEMessage) => void,
+) => void;
+
+const handleImageEvent: ResponseEventHandler = (event, state, onChunk) => {
+  state.hasImage = emitOpenAIImage(event, onChunk) || state.hasImage;
+};
+
+const RESPONSE_EVENT_HANDLERS: Record<string, ResponseEventHandler> = {
+  "response.output_text.delta": handleTextDelta,
+  "response.reasoning_summary_text.delta": handleTextDelta,
+  "response.reasoning_text.delta": handleTextDelta,
+  "response.refusal.delta": handleTextDelta,
+  "response.output_item.done": (event, state, onChunk) =>
+    handleOutputItem(event.item, state, onChunk),
+  "response.image_generation_call.completed": handleImageEvent,
+  "response.completed": handleCompleted,
+  "response.failed": throwResponsesTerminalError,
+  "response.error": throwResponsesTerminalError,
+  "response.incomplete": throwResponsesTerminalError,
+  error: throwResponsesTerminalError,
+};
+
 function handleEvent(
   event: any,
   state: ResponsesState,
   onChunk: (message: SSEMessage) => void,
 ): void {
-  if (Array.isArray(event?.choices)) throw new Error(MODE_MISMATCH_ERROR);
-  if (
-    [
-      "response.output_text.delta",
-      "response.reasoning_summary_text.delta",
-      "response.reasoning_text.delta",
-      "response.refusal.delta",
-    ].includes(event?.type)
-  ) {
-    return handleTextDelta(event, state, onChunk);
+  if (Array.isArray(event?.choices)) {
+    throw new Error(MODE_MISMATCH_ERROR);
   }
-  if (event?.type === "response.output_item.done") {
-    return handleOutputItem(event.item, state, onChunk);
-  }
-  if (event?.type === "response.image_generation_call.completed") {
-    state.hasImage = emitOpenAIImage(event, onChunk) || state.hasImage;
-    return;
-  }
-  if (event?.type === "response.completed") {
-    return handleCompleted(event, state, onChunk);
-  }
-  if (
-    [
-      "response.failed",
-      "response.error",
-      "response.incomplete",
-      "error",
-    ].includes(event?.type)
-  ) {
-    throwResponsesTerminalError(event);
+  const handler = RESPONSE_EVENT_HANDLERS[event?.type];
+  if (handler) {
+    handler(event, state, onChunk);
   }
 }
 

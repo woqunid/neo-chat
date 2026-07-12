@@ -32,7 +32,9 @@ const generateSummary = async (text: string): Promise<string> => {
   try {
     const summaryModel = getTaskModel("contextCompression");
     const prompt = createContextCompressionSummaryPrompt(text);
-    return await streamGenerateContent(summaryModel, prompt, () => {});
+    return await streamGenerateContent(summaryModel, prompt, {
+      onChunk: () => {},
+    });
   } catch (e) {
     logDevWarn("Summary generation failed, returning raw truncation", e);
     return normalizeCompressedContent(
@@ -41,17 +43,21 @@ const generateSummary = async (text: string): Promise<string> => {
   }
 };
 
+function hasItems(value: readonly unknown[] | undefined): boolean {
+  return Boolean(value?.length);
+}
+
 function isValidHistoryMessage(message: Message): boolean {
   if (message.role === "user") return true;
   if (message.role !== "model") return false;
-  return Boolean(
-    message.content.trim() ||
-    message.attachments?.length ||
-    message.reasoning ||
-    message.searchSources?.length ||
-    message.toolCalls?.length ||
-    message.outputBlocks?.length,
-  );
+  return [
+    message.content.trim(),
+    message.reasoning,
+    hasItems(message.attachments),
+    hasItems(message.searchSources),
+    hasItems(message.toolCalls),
+    hasItems(message.outputBlocks),
+  ].some(Boolean);
 }
 
 function modelSupportsAttachments(model: string): boolean {

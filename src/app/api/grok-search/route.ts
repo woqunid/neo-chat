@@ -26,11 +26,10 @@ export async function POST(request: NextRequest) {
     );
     const config = await getServerGrokSearchConfig();
     if (!isGrokSearchReady(config)) {
-      throw new ApiError(
-        "Grok web search is not configured or enabled",
-        503,
-        "GROK_SEARCH_UNAVAILABLE",
-      );
+      throw new ApiError("Grok web search is not configured or enabled", {
+        statusCode: 503,
+        code: "GROK_SEARCH_UNAVAILABLE",
+      });
     }
     return NextResponse.json(
       await runGrokSearchWithConfig(body.query, config, request.signal),

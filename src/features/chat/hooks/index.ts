@@ -1,6 +1,12 @@
 export { useChatGenerationController } from "./useChatGenerationController";
+export { useChatActionError } from "./useChatActionError";
+export { useChatModelBootstrap } from "./useChatModelBootstrap";
+export { useChatPanelNavigation } from "./useChatPanelNavigation";
 export { useChatShellState } from "./useChatShellState";
+export { useChatStartupEffects } from "./useChatStartupEffects";
 export { useChatThemeEffects } from "./useChatThemeEffects";
 export { useMessageComposer } from "./useMessageComposer";
 export { useMessageAutoScroll } from "./useMessageAutoScroll";
 export { useSidebarSessions } from "./useSidebarSessions";
+export { useWelcomeChatState } from "./useWelcomeChatState";
+export { useWorkspaceAttachmentHydration } from "./useWorkspaceAttachmentHydration";

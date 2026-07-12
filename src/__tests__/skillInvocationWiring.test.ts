@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readChatAppSources } from "./helpers/chatAppSources";
 
 function countOccurrences(source: string, needle: string) {
   return source.split(needle).length - 1;
@@ -8,10 +7,7 @@ function countOccurrences(source: string, needle: string) {
 
 describe("skill invocation wiring", () => {
   it("passes skills context through every ChatApp response generation path", () => {
-    const chatApp = readFileSync(
-      resolve(process.cwd(), "src/components/app/ChatApp.tsx"),
-      "utf8",
-    );
+    const chatApp = readChatAppSources();
 
     const streamCallCount = countOccurrences(chatApp, "streamChatResponse(");
 
@@ -19,7 +15,7 @@ describe("skill invocation wiring", () => {
     expect(countOccurrences(chatApp, "resolveSkillsForMessage({")).toBe(
       streamCallCount,
     );
-    expect(countOccurrences(chatApp, "skillResolution.context")).toBe(
+    expect(countOccurrences(chatApp, "request.skills.context")).toBe(
       streamCallCount,
     );
   });

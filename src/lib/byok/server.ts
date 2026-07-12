@@ -33,11 +33,10 @@ function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function getCrypto(): Crypto {
   if (!globalThis.crypto?.subtle) {
-    throw new ApiError(
-      "Web Crypto is not available in this runtime",
-      500,
-      "WEB_CRYPTO_UNAVAILABLE",
-    );
+    throw new ApiError("Web Crypto is not available in this runtime", {
+      statusCode: 500,
+      code: "WEB_CRYPTO_UNAVAILABLE",
+    });
   }
   return globalThis.crypto;
 }
@@ -105,11 +104,10 @@ async function loadKeyMaterial(): Promise<ByokKeyMaterial> {
   }
 
   if (!shouldAllowEphemeralKey()) {
-    throw new ApiError(
-      "BYOK_PRIVATE_KEY_PEM is required in production",
-      500,
-      "BYOK_KEY_NOT_CONFIGURED",
-    );
+    throw new ApiError("BYOK_PRIVATE_KEY_PEM is required in production", {
+      statusCode: 500,
+      code: "BYOK_KEY_NOT_CONFIGURED",
+    });
   }
 
   return generateEphemeralKeyMaterial();

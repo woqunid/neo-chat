@@ -20,12 +20,12 @@ import { config as proxyConfig, middleware as proxy } from "../middleware";
 const ACCESS_VERIFY_RATE_LIMIT = 300;
 const PLUGIN_LIST_RATE_LIMIT = 15;
 
-describe("access proxy", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    clearRequestRateLimitBuckets();
-  });
+afterEach(() => {
+  vi.unstubAllEnvs();
+  clearRequestRateLimitBuckets();
+});
 
+describe("access proxy", () => {
   it("matches API routes and allows public bootstrap routes", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "");
     expect(proxyConfig.matcher).toBe("/api/:path*");
@@ -60,7 +60,9 @@ describe("access proxy", () => {
     );
     expect(sameSite.status).toBe(403);
   });
+});
 
+describe("access proxy", () => {
   it("allows controlled server-side mutations without browser metadata", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "");
     const response = await proxy(
@@ -103,7 +105,9 @@ describe("access proxy", () => {
     vi.stubEnv("TRUST_PROXY_HEADERS", "true");
     expect(getRateLimitClientIp(request)).toBe("203.0.113.88");
   });
+});
 
+describe("access proxy", () => {
   it("rate limits high-cost GET routes for trusted clients", async () => {
     vi.stubEnv("TRUST_PROXY_HEADERS", "true");
     const request = () =>

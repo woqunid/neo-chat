@@ -36,13 +36,18 @@ function normalizeRedirectMethod(
   return { ...init, method: "GET", body: undefined, headers };
 }
 
+interface FollowRedirectOptions {
+  response: Response;
+  currentUrl: URL;
+  init: RequestInit;
+  options: SafeFetchOptions;
+  signal: AbortSignal;
+}
+
 async function followRedirect(
-  response: Response,
-  currentUrl: URL,
-  init: RequestInit,
-  options: SafeFetchOptions,
-  signal: AbortSignal,
+  redirectOptions: FollowRedirectOptions,
 ): Promise<{ url: URL; init: RequestInit } | null> {
+  const { response, currentUrl, init, options, signal } = redirectOptions;
   if (!REDIRECT_STATUSES.has(response.status)) return null;
   const location = response.headers.get("location");
   if (!location) return null;
@@ -59,12 +64,17 @@ async function followRedirect(
   };
 }
 
+export interface SafeFetchResponseOptions {
+  input: string | URL;
+  init: RequestInit;
+  options: SafeFetchOptions;
+  signal: AbortSignal;
+}
+
 export async function safeFetchResponse(
-  input: string | URL,
-  init: RequestInit,
-  options: SafeFetchOptions,
-  signal: AbortSignal,
+  requestOptions: SafeFetchResponseOptions,
 ): Promise<Response> {
+  const { input, init, options, signal } = requestOptions;
   const policy = options.policy || getSafeUrlPolicy("plugin");
   const validated = validateOutboundUrl(input, policy);
   const maxRedirects = policy.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
@@ -78,13 +88,13 @@ export async function safeFetchResponse(
       redirect: "manual",
       signal,
     });
-    const redirect = await followRedirect(
+    const redirect = await followRedirect({
       response,
-      url,
-      requestInit,
+      currentUrl: url,
+      init: requestInit,
       options,
       signal,
-    );
+    });
     if (!redirect) return response;
     if (count === maxRedirects) {
       throw new Error(`Too many redirects after ${maxRedirects} hops`);

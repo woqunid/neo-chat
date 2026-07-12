@@ -44,7 +44,9 @@ describe("plugin execute route: authentication", () => {
       expect.objectContaining({ maxResponseBytes: 2 * 1024 * 1024 }),
     );
   });
+});
 
+describe("plugin execute route: authentication", () => {
   it("injects optional Jina reader bearer auth and normalizes markdown content", async () => {
     decryptOptionalSecretMock.mockResolvedValue("jina-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -84,7 +86,9 @@ describe("plugin execute route: authentication", () => {
       result: "# Example\n\nReadable markdown.",
     });
   });
+});
 
+describe("plugin execute route: authentication", () => {
   it("rejects Jina reader requests for blocked nested target URLs", async () => {
     const { POST } = await import("../app/api/plugins/execute/route");
     const response = await POST(

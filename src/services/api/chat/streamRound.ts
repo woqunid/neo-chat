@@ -120,6 +120,16 @@ async function processSseEvent(
   }
 }
 
+async function processSseEvents(
+  events: string[],
+  handler: RoundEventHandler,
+): Promise<boolean> {
+  for (const event of events) {
+    if (await processSseEvent(event, handler)) return true;
+  }
+  return false;
+}
+
 async function readRoundResponse(
   response: Response,
   runtime: ChatStreamRuntime,
@@ -135,13 +145,9 @@ async function readRoundResponse(
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
     buffer = events.pop() || "";
-    for (const event of events) {
-      if (await processSseEvent(event, handler)) return handler.result();
-    }
+    if (await processSseEvents(events, handler)) return handler.result();
   }
-  if (buffer.trim() && (await processSseEvent(buffer, handler))) {
-    return handler.result();
-  }
+  if (buffer.trim()) await processSseEvent(buffer, handler);
   if (runtime.output.finalizeActiveReasoning()) runtime.emitBlocks();
   return handler.result();
 }

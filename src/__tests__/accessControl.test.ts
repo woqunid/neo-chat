@@ -40,12 +40,12 @@ function makeVerifyRequest(
   });
 }
 
-describe("access control helpers", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    clearRequestRateLimitBuckets();
-  });
+afterEach(() => {
+  vi.unstubAllEnvs();
+  clearRequestRateLimitBuckets();
+});
 
+describe("access control helpers", () => {
   it("is disabled when ACCESS_PASSWORD is empty", () => {
     vi.stubEnv("ACCESS_PASSWORD", "");
     expect(isAccessPasswordEnabled()).toBe(false);
@@ -61,7 +61,9 @@ describe("access control helpers", () => {
     vi.stubEnv("ACCESS_PASSWORD", "changed");
     expect(await isValidAccessSessionCookie(cookieValue)).toBe(false);
   });
+});
 
+describe("access control helpers", () => {
   it("tracks failures and locks after the configured attempt limit", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     const now = 1_700_000_000_000;
@@ -107,11 +109,6 @@ describe("access control helpers", () => {
 });
 
 describe("access password verification route", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    clearRequestRateLimitBuckets();
-  });
-
   it("sets a valid session cookie for the correct password", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     const { POST } = await import("../app/api/access/verify/route");
@@ -141,7 +138,9 @@ describe("access password verification route", () => {
       remainingAttempts: ACCESS_MAX_ATTEMPTS - 1,
     });
   });
+});
 
+describe("access password verification route", () => {
   it("rejects oversized verification bodies before parsing unauthenticated JSON", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     const { POST } = await import("../app/api/access/verify/route");
@@ -162,7 +161,9 @@ describe("access password verification route", () => {
       code: "PAYLOAD_TOO_LARGE",
     });
   });
+});
 
+describe("access password verification route", () => {
   it("locks on the third invalid password and keeps rejecting while locked", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     const { POST } = await import("../app/api/access/verify/route");
@@ -200,7 +201,9 @@ describe("access password verification route", () => {
     expect(locked.status).toBe(423);
     expect(lockedData.code).toBe(ACCESS_ERROR_CODES.locked);
   });
+});
 
+describe("access password verification route", () => {
   it("keeps access failures server-side when the attempt cookie is cleared", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     const { POST } = await import("../app/api/access/verify/route");
@@ -241,7 +244,9 @@ describe("access password verification route", () => {
     expect(locked.status).toBe(423);
     expect(data.code).toBe(ACCESS_ERROR_CODES.locked);
   });
+});
 
+describe("access password verification route", () => {
   it("does not let spoofed forwarded IP headers bypass server-side access lockout", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     vi.stubEnv("TRUST_PROXY_HEADERS", "");

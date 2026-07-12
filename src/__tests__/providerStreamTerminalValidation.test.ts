@@ -64,7 +64,9 @@ describe("provider stream terminal validation", () => {
     });
     expect(content(messages)).toBe("hello");
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("rejects premature OpenAI Chat EOF after preserving content", async () => {
     const client = createChatClient([
       { choices: [{ delta: { content: "partial" } }] },
@@ -81,7 +83,9 @@ describe("provider stream terminal validation", () => {
     ).rejects.toMatchObject(incompleteProviderStream);
     expect(content(messages)).toBe("partial");
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("passes caller cancellation to OpenAI SDK request options", async () => {
     const client = createChatClient([
       { choices: [{ delta: {}, finish_reason: "stop" }] },
@@ -101,7 +105,9 @@ describe("provider stream terminal validation", () => {
     expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
     expect(requestOptions.signal.aborted).toBe(true);
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("requires response.completed for OpenAI Responses", async () => {
     const messages: SSEMessage[] = [];
     const client = createResponsesClient([
@@ -117,7 +123,9 @@ describe("provider stream terminal validation", () => {
     });
     expect(content(messages)).toBe("hello");
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("rejects premature OpenAI Responses EOF after preserving content", async () => {
     const messages: SSEMessage[] = [];
     const client = createResponsesClient([
@@ -134,7 +142,9 @@ describe("provider stream terminal validation", () => {
     ).rejects.toMatchObject(incompleteProviderStream);
     expect(content(messages)).toBe("partial");
   });
+});
 
+describe("provider stream terminal validation", () => {
   it.each([
     ["response.failed", { error: { message: "failed upstream" } }],
     ["response.error", { error: { message: "errored upstream" } }],
@@ -154,7 +164,9 @@ describe("provider stream terminal validation", () => {
       }),
     ).rejects.toThrow(/OpenAI Responses/i);
   });
+});
 
+describe("provider stream terminal validation", () => {
   it.each(["STOP", "SAFETY"])(
     "accepts Gemini %s as a valid finishReason",
     async (finishReason) => {
@@ -169,7 +181,9 @@ describe("provider stream terminal validation", () => {
       ).resolves.toBeUndefined();
     },
   );
+});
 
+describe("provider stream terminal validation", () => {
   it("rejects premature Gemini EOF after preserving content", async () => {
     const client = createGeminiClient([
       { candidates: [{ content: { parts: [{ text: "partial" }] } }] },
@@ -186,7 +200,9 @@ describe("provider stream terminal validation", () => {
     ).rejects.toMatchObject(incompleteProviderStream);
     expect(content(messages)).toBe("partial");
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("rejects an unspecified Gemini finishReason", async () => {
     const client = createGeminiClient([
       { candidates: [{ finishReason: "FINISH_REASON_UNSPECIFIED" }] },
@@ -200,7 +216,9 @@ describe("provider stream terminal validation", () => {
       }),
     ).rejects.toMatchObject(incompleteProviderStream);
   });
+});
 
+describe("provider stream terminal validation", () => {
   it("passes caller cancellation to Gemini request config", async () => {
     const client = createGeminiClient([
       { candidates: [{ finishReason: "STOP" }] },

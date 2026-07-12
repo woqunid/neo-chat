@@ -19,14 +19,30 @@ export async function readJsonResponseOrThrow<T = unknown>(
   return data;
 }
 
+function asResponseRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorMessageCandidates(value: unknown): unknown[] {
+  const data = asResponseRecord(value);
+  if (!data) return [];
+  const error = asResponseRecord(data.error);
+  return [error?.message, data.error, data.message, data.details];
+}
+
+function findNonEmptyString(values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
 export async function getResponseErrorMessage(
   response: Response,
   fallbackMessage: string,
 ): Promise<string> {
-  const data = await readJsonResponse<any>(response);
-  const message =
-    data?.error?.message || data?.error || data?.message || data?.details;
-  return typeof message === "string" && message.trim()
-    ? message
-    : fallbackMessage;
+  const data = await readJsonResponse(response);
+  return findNonEmptyString(getErrorMessageCandidates(data)) || fallbackMessage;
 }

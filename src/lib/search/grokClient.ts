@@ -11,8 +11,7 @@ function assertConnectionConfig(config: ServerGrokSearchConfig): void {
   if (!config.baseUrl || !config.apiKey || !config.model) {
     throw new ApiError(
       "Grok web search requires a Base URL, API key, and model",
-      400,
-      "GROK_SEARCH_CONFIG_INCOMPLETE",
+      { statusCode: 400, code: "GROK_SEARCH_CONFIG_INCOMPLETE" },
     );
   }
 }

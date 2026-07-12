@@ -10,37 +10,37 @@ import {
   toolCallMessages,
 } from "./streamingToolCalls.helpers";
 
-describe("OpenAI Responses streaming", () => {
-  afterEach(restoreStreamingMocks);
+const responseEvents = [
+  { type: "response.output_text.delta", delta: "Hello" },
+  {
+    type: "response.output_item.done",
+    item: {
+      type: "function_call",
+      call_id: "call_lookup",
+      name: "lookup",
+      arguments: '{"q":"neo"}',
+    },
+  },
+  {
+    type: "response.completed",
+    response: {
+      usage: {
+        input_tokens: 3,
+        output_tokens: 5,
+        total_tokens: 8,
+      },
+    },
+  },
+];
 
+afterEach(restoreStreamingMocks);
+
+describe("OpenAI Responses streaming", () => {
   it("streams text, usage, and function calls", async () => {
     const messages: SSEMessage[] = [];
     const client = {
       responses: {
-        create: vi.fn(async () =>
-          asyncChunks([
-            { type: "response.output_text.delta", delta: "Hello" },
-            {
-              type: "response.output_item.done",
-              item: {
-                type: "function_call",
-                call_id: "call_lookup",
-                name: "lookup",
-                arguments: '{"q":"neo"}',
-              },
-            },
-            {
-              type: "response.completed",
-              response: {
-                usage: {
-                  input_tokens: 3,
-                  output_tokens: 5,
-                  total_tokens: 8,
-                },
-              },
-            },
-          ]),
-        ),
+        create: vi.fn(async () => asyncChunks(responseEvents)),
       },
     };
 
@@ -77,7 +77,9 @@ describe("OpenAI Responses streaming", () => {
     const requestOptions = (client.responses.create as any).mock.calls[0][1];
     expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
   });
+});
 
+describe("OpenAI Responses streaming", () => {
   it("emits final text when no text delta was streamed", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -109,7 +111,9 @@ describe("OpenAI Responses streaming", () => {
 
     expect(messages).toContainEqual({ type: "content", content: "Final text" });
   });
+});
 
+describe("OpenAI Responses streaming", () => {
   it("rejects Chat Completions data from a Responses endpoint", async () => {
     const client = {
       responses: {
@@ -128,7 +132,9 @@ describe("OpenAI Responses streaming", () => {
       }),
     ).rejects.toThrow(/OpenAI Compatible/);
   });
+});
 
+describe("OpenAI Responses streaming", () => {
   it("rejects a stream that completes without output", async () => {
     const client = {
       responses: {
@@ -147,7 +153,9 @@ describe("OpenAI Responses streaming", () => {
       }),
     ).rejects.toThrow(/completed without output/);
   });
+});
 
+describe("OpenAI Responses streaming", () => {
   it("allows disabling the request timeout", async () => {
     vi.stubEnv("CHAT_PROVIDER_TIMEOUT_MS", "0");
     const client = {

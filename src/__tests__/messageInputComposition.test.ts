@@ -1,14 +1,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
+import { readChatAppSources } from "./helpers/chatAppSources";
 
 const CHAT_DIR = resolve(process.cwd(), "src/components/chat");
 const COMPOSER_DIR = resolve(CHAT_DIR, "message-input");
 const MAX_IMPLEMENTATION_LINES = 300;
-
-function readSource(path: string): string {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
-}
 
 function readComposerSource(name: string): string {
   return readFileSync(resolve(COMPOSER_DIR, name), "utf8");
@@ -106,7 +103,7 @@ it("keeps fork behavior across the facade and focused modules", () => {
 });
 
 it("keeps the composer editable while generation is queued", () => {
-  const chatApp = readSource("src/components/app/ChatApp.tsx");
+  const chatApp = readChatAppSources();
   const types = readComposerSource("types.ts");
   const controller = readComposerSource("useMessageInputController.ts");
   const actions = readComposerSource("ComposerActions.tsx");
@@ -115,9 +112,9 @@ it("keeps the composer editable while generation is queued", () => {
 
   expect(chatApp).toContain("queuedMessagesRef");
   expect(chatApp).toContain("enqueueChatMessage");
-  expect(chatApp).toContain("disabled={availableModels.length === 0}");
-  expect(chatApp).toContain("isGenerating={isGenerating}");
-  expect(chatApp).toContain("queuedMessageCount={queuedMessageCount}");
+  expect(chatApp).toContain("disabled={composer.availableModels.length === 0}");
+  expect(chatApp).toContain("isGenerating={composer.isGenerating}");
+  expect(chatApp).toContain("queuedMessageCount={composer.queuedMessageCount}");
   expect(chatApp).not.toContain(
     "disabled={isGenerating || availableModels.length === 0}",
   );

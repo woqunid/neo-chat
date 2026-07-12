@@ -107,7 +107,10 @@ async function resolveRequestConfig(
     defaultPromptOptimizationModel: getTaskModel("promptOptimization"),
     availableModels,
     generate: (model, prompt) =>
-      streamGenerateContent(model, prompt, () => {}, options.signal),
+      streamGenerateContent(model, prompt, {
+        onChunk: () => {},
+        signal: options.signal,
+      }),
   });
   return { ...config, ...imageOptions };
 }

@@ -53,12 +53,15 @@ export function buildMcpToolFunctionName(
     .replace(/_+$/g, "")}${suffix}`;
 }
 
-function buildUniqueFunctionName(
-  serverName: string,
-  toolName: string,
-  index: number,
-  seen: Set<string>,
-): string {
+interface UniqueFunctionNameOptions {
+  serverName: string;
+  toolName: string;
+  index: number;
+  seen: Set<string>;
+}
+
+function buildUniqueFunctionName(options: UniqueFunctionNameOptions): string {
+  const { serverName, toolName, index, seen } = options;
   const baseName = buildMcpToolFunctionName(serverName, toolName);
   if (!seen.has(baseName)) {
     seen.add(baseName);
@@ -73,17 +76,25 @@ function buildUniqueFunctionName(
   return uniqueName;
 }
 
-function normalizeTool(
-  serverName: string,
-  tool: unknown,
-  index: number,
-  seen: Set<string>,
-): PluginFunction | null {
+interface NormalizeToolOptions {
+  serverName: string;
+  tool: unknown;
+  index: number;
+  seen: Set<string>;
+}
+
+function normalizeTool(options: NormalizeToolOptions): PluginFunction | null {
+  const { serverName, tool, index, seen } = options;
   if (!isRegistryRecord(tool)) return null;
   const mcpToolName = trimRegistryString(tool.name, 256);
   if (!mcpToolName) return null;
   return {
-    name: buildUniqueFunctionName(serverName, mcpToolName, index, seen),
+    name: buildUniqueFunctionName({
+      serverName,
+      toolName: mcpToolName,
+      index,
+      seen,
+    }),
     mcpToolName,
     description:
       trimRegistryString(tool.description, 2_048) ||
@@ -103,7 +114,7 @@ export function normalizeMcpToolFunctions(
   const seen = new Set<string>();
   const functions: PluginFunction[] = [];
   for (const [index, tool] of tools.entries()) {
-    const normalized = normalizeTool(serverName, tool, index, seen);
+    const normalized = normalizeTool({ serverName, tool, index, seen });
     if (normalized) functions.push(normalized);
     if (functions.length >= MAX_MCP_TOOL_FUNCTIONS) break;
   }

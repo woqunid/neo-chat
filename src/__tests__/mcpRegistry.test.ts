@@ -5,35 +5,34 @@ import {
   normalizeMcpToolFunctions,
 } from "../lib/mcp/registry";
 
+const mixedRegistryServers = {
+  servers: [
+    {
+      server: {
+        name: "io.github/context7",
+        version: "1.2.3",
+        description: "Context-aware docs lookup.",
+        remotes: [
+          { type: "sse", url: "https://mcp.example.com/sse" },
+          { type: "streamable-http", url: "https://mcp.example.com/mcp" },
+        ],
+        repository: { url: "https://github.com/example/context7" },
+      },
+    },
+    {
+      server: {
+        name: "local-only",
+        version: "1.0.0",
+        description: "No remote transport.",
+        packages: [{ registryType: "npm", identifier: "local-only" }],
+      },
+    },
+  ],
+};
+
 describe("MCP registry normalization", () => {
   it("keeps only streamable HTTP remote servers and maps them to plugin cards", () => {
-    const plugins = normalizeMcpRegistryServers({
-      servers: [
-        {
-          server: {
-            name: "io.github/context7",
-            version: "1.2.3",
-            description: "Context-aware docs lookup.",
-            remotes: [
-              { type: "sse", url: "https://mcp.example.com/sse" },
-              {
-                type: "streamable-http",
-                url: "https://mcp.example.com/mcp",
-              },
-            ],
-            repository: { url: "https://github.com/example/context7" },
-          },
-        },
-        {
-          server: {
-            name: "local-only",
-            version: "1.0.0",
-            description: "No remote transport.",
-            packages: [{ registryType: "npm", identifier: "local-only" }],
-          },
-        },
-      ],
-    });
+    const plugins = normalizeMcpRegistryServers(mixedRegistryServers);
 
     expect(plugins).toHaveLength(1);
     expect(plugins[0]).toMatchObject({
@@ -57,7 +56,9 @@ describe("MCP registry normalization", () => {
       },
     });
   });
+});
 
+describe("MCP registry normalization", () => {
   it("preserves registry-provided MCP logos over the default", () => {
     const plugins = normalizeMcpRegistryServers({
       servers: [
@@ -79,7 +80,9 @@ describe("MCP registry normalization", () => {
 
     expect(plugins[0]?.logoUrl).toBe("https://example.com/mcp.svg");
   });
+});
 
+describe("MCP registry normalization", () => {
   it("builds stable MCP tool names within the chat tool schema limit", () => {
     const shortName = buildMcpToolFunctionName(
       "io.github/context7",
@@ -95,7 +98,9 @@ describe("MCP registry normalization", () => {
     expect(longName.length).toBeLessThanOrEqual(128);
     expect(longName).toMatch(/^[A-Za-z0-9_-]+$/);
   });
+});
 
+describe("MCP registry normalization", () => {
   it("maps MCP tools to plugin functions and preserves original tool names", () => {
     const functions = normalizeMcpToolFunctions("io.github/context7", [
       {
@@ -137,7 +142,9 @@ describe("MCP registry normalization", () => {
       },
     ]);
   });
+});
 
+describe("MCP registry normalization", () => {
   it("caps MCP tools to the plugin function limit", () => {
     const functions = normalizeMcpToolFunctions(
       "io.github/large",
@@ -150,7 +157,9 @@ describe("MCP registry normalization", () => {
 
     expect(functions).toHaveLength(20);
   });
+});
 
+describe("MCP registry normalization", () => {
   it("maps remote header auth and static headers from registry metadata", () => {
     const plugins = normalizeMcpRegistryServers({
       servers: [
@@ -195,7 +204,9 @@ describe("MCP registry normalization", () => {
       },
     });
   });
+});
 
+describe("MCP registry normalization", () => {
   it("skips remote MCP endpoints with unresolved URL variables", () => {
     const plugins = normalizeMcpRegistryServers({
       servers: [

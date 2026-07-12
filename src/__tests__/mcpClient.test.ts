@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-describe("MCP client transport safety", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
+describe("MCP client transport safety", () => {
   it("allows HTTPS MCP servers on private network addresses", async () => {
     const fetchMock = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", fetchMock);
@@ -35,7 +35,9 @@ describe("MCP client transport safety", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
 
+describe("MCP client transport safety", () => {
   it("follows validated MCP redirects manually", async () => {
     const fetchMock = vi
       .fn()
@@ -84,7 +86,9 @@ describe("MCP client transport safety", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+});
 
+describe("MCP client transport safety", () => {
   it("limits MCP response bodies before the SDK parses them", async () => {
     const encoder = new TextEncoder();
     const fetchMock = vi.fn(

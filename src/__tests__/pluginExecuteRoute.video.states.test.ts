@@ -49,7 +49,9 @@ describe("plugin execute route: Agnes video states", () => {
       },
     });
   });
+});
 
+describe("plugin execute route: Agnes video states", () => {
   it("normalizes failed Agnes video tasks without turning them into transport errors", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -87,7 +89,9 @@ describe("plugin execute route: Agnes video states", () => {
       },
     });
   });
+});
 
+describe("plugin execute route: Agnes video states", () => {
   it("retrieves legacy Agnes video results by task id", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -128,7 +132,9 @@ describe("plugin execute route: Agnes video states", () => {
       },
     });
   });
+});
 
+describe("plugin execute route: Agnes video states", () => {
   it("rejects Agnes video result lookups without a video id or task id", async () => {
     const { POST } = await import("../app/api/plugins/execute/route");
     const response = await POST(

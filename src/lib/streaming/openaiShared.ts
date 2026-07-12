@@ -64,17 +64,38 @@ function extractImageData(value: unknown): string {
   ]);
 }
 
+function firstTruthy(values: any[]): any {
+  return values.find(Boolean);
+}
+
+function toRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object"
+    ? (value as Record<string, any>)
+    : {};
+}
+
 export function emitOpenAIImage(
   event: any,
   onChunk: (message: SSEMessage) => void,
 ): boolean {
-  const item = event?.item || event?.output || event;
-  const data = extractImageData([item, event]);
+  const eventRecord = toRecord(event);
+  const item = toRecord(
+    firstTruthy([eventRecord.item, eventRecord.output, eventRecord]),
+  );
+  const data = extractImageData([item, eventRecord]);
   const image = normalizeGeneratedImageAttachment({
-    id: item?.id || event?.item_id || event?.id,
-    mimeType: item?.mime_type || item?.mimeType || event?.mime_type,
+    id: firstTruthy([item.id, eventRecord.item_id, eventRecord.id]),
+    mimeType: firstTruthy([
+      item.mime_type,
+      item.mimeType,
+      eventRecord.mime_type,
+    ]),
     data,
-    fileName: item?.file_name || item?.fileName || "generated-image.png",
+    fileName: firstTruthy([
+      item.file_name,
+      item.fileName,
+      "generated-image.png",
+    ]),
   });
   if (!image) return false;
   onChunk({ type: "image", image });

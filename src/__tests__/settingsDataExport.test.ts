@@ -40,7 +40,9 @@ describe("settings data export", () => {
     expect(zh.System.personalityProfessional).toBe("专业可靠");
     expect(ja.System.personalityProfessional).toBeTruthy();
   });
+});
 
+describe("settings data export", () => {
   it("keeps data cleanup hidden behind a disclosure by default", () => {
     const systemSettings = readFileSync(
       resolve(process.cwd(), "src/components/settings/SystemSettings.tsx"),

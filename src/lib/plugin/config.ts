@@ -48,6 +48,50 @@ function normalizeFunctionRefs(
   return refs;
 }
 
+function asPluginConfig(value: unknown): Partial<PluginConfig> {
+  return value && typeof value === "object"
+    ? (value as Partial<PluginConfig>)
+    : {};
+}
+
+function normalizePluginAuth(value: unknown): PluginConfig["auth"] {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as NonNullable<PluginConfig["auth"]>;
+  const type = AUTH_TYPES.has(raw.type) ? raw.type : "bearer";
+  const authValue = trimString(
+    raw.value,
+    PLUGIN_CONFIG_LIMITS.maxAuthValueChars,
+  );
+  const key = trimString(raw.key, PLUGIN_CONFIG_LIMITS.maxAuthKeyChars);
+  const addTo = AUTH_LOCATIONS.has(raw.addTo || "") ? raw.addTo : "header";
+  const localValueSecret = isLocalEncryptedSecretEnvelope(raw.localValueSecret)
+    ? raw.localValueSecret
+    : undefined;
+  return {
+    type,
+    ...(authValue ? { value: authValue } : {}),
+    ...(localValueSecret ? { localValueSecret } : {}),
+    ...(key ? { key } : {}),
+    addTo,
+  };
+}
+
+function getOptionalPluginConfig(
+  raw: Partial<PluginConfig>,
+  allowed?: Set<string>,
+): Partial<PluginConfig> {
+  const baseUrl = normalizePluginBaseUrl(raw.baseUrl);
+  const model = trimString(raw.model, PLUGIN_CONFIG_LIMITS.maxModelNameChars);
+  const enabledFunctions = normalizeFunctionRefs(raw.enabledFunctions, allowed);
+  const auth = normalizePluginAuth(raw.auth);
+  return {
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(model ? { model } : {}),
+    ...(enabledFunctions.length ? { enabledFunctions } : {}),
+    ...(auth ? { auth } : {}),
+  };
+}
+
 export function normalizePluginIdRefs(
   value: unknown,
   allowedPluginIds?: Iterable<string>,
@@ -77,59 +121,14 @@ export function normalizePluginConfig(
   config: unknown,
   allowedFunctionNames?: Iterable<string>,
 ): PluginConfig {
-  const raw =
-    config && typeof config === "object"
-      ? (config as Partial<PluginConfig>)
-      : {};
+  const raw = asPluginConfig(config);
   const allowed = allowedFunctionNames
     ? new Set(Array.from(allowedFunctionNames))
     : undefined;
-
-  const normalized: PluginConfig = {
+  return {
     disabledFunctions: normalizeFunctionRefs(raw.disabledFunctions, allowed),
+    ...getOptionalPluginConfig(raw, allowed),
   };
-
-  const baseUrl = normalizePluginBaseUrl(raw.baseUrl);
-  if (baseUrl) {
-    normalized.baseUrl = baseUrl;
-  }
-
-  const model = trimString(raw.model, PLUGIN_CONFIG_LIMITS.maxModelNameChars);
-  if (model) {
-    normalized.model = model;
-  }
-
-  const enabledFunctions = normalizeFunctionRefs(raw.enabledFunctions, allowed);
-  if (enabledFunctions.length > 0) {
-    normalized.enabledFunctions = enabledFunctions;
-  }
-
-  if (raw.auth && typeof raw.auth === "object") {
-    const authType = AUTH_TYPES.has(raw.auth.type) ? raw.auth.type : "bearer";
-    const authValue = trimString(
-      raw.auth.value,
-      PLUGIN_CONFIG_LIMITS.maxAuthValueChars,
-    );
-    const authKey = trimString(
-      raw.auth.key,
-      PLUGIN_CONFIG_LIMITS.maxAuthKeyChars,
-    );
-    const addTo = AUTH_LOCATIONS.has(raw.auth.addTo || "")
-      ? raw.auth.addTo
-      : "header";
-
-    normalized.auth = {
-      type: authType,
-      ...(authValue ? { value: authValue } : {}),
-      ...(isLocalEncryptedSecretEnvelope(raw.auth.localValueSecret)
-        ? { localValueSecret: raw.auth.localValueSecret }
-        : {}),
-      ...(authKey ? { key: authKey } : {}),
-      addTo,
-    };
-  }
-
-  return normalized;
 }
 
 export function normalizePluginConfigs(
@@ -168,12 +167,17 @@ export function isPluginAuthRequired(
   );
 }
 
+export interface NormalizeActivePluginIdsOptions {
+  pluginIds: unknown;
+  installedPlugins: Plugin[];
+  pluginConfigs: Record<string, PluginConfig>;
+  unauthenticatedAllowedPluginIds?: string[];
+}
+
 export function normalizeActivePluginIds(
-  pluginIds: unknown,
-  installedPlugins: Plugin[],
-  pluginConfigs: Record<string, PluginConfig>,
-  options: { unauthenticatedAllowedPluginIds?: string[] } = {},
+  options: NormalizeActivePluginIdsOptions,
 ): string[] {
+  const { pluginIds, installedPlugins, pluginConfigs } = options;
   const pluginsById = new Map(
     installedPlugins.map((plugin) => [plugin.id, plugin]),
   );

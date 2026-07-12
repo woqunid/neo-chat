@@ -99,12 +99,12 @@ export async function migrateSettingsState(
     customModelMetadata: normalizeModelMetadataMap(state.customModelMetadata),
     rag,
     voice,
-    activePlugins: normalizeActivePluginIds(
-      state.activePlugins,
+    activePlugins: normalizeActivePluginIds({
+      pluginIds: state.activePlugins,
       installedPlugins,
       pluginConfigs,
-      { unauthenticatedAllowedPluginIds: [UNSPLASH_PLUGIN.id] },
-    ),
+      unauthenticatedAllowedPluginIds: [UNSPLASH_PLUGIN.id],
+    }),
     installedPlugins,
     pluginConfigs,
     ...migrateSkillsAndAgents(state),

@@ -11,9 +11,9 @@ import {
   restoreStreamingMocks,
 } from "./streamingToolCalls.helpers";
 
-describe("OpenAI Compatible thinking normalization", () => {
-  afterEach(restoreStreamingMocks);
+afterEach(restoreStreamingMocks);
 
+describe("OpenAI Compatible thinking normalization", () => {
   it("ignores reasoning modes when building requests", async () => {
     const makeClient = () => ({
       chat: {
@@ -58,7 +58,9 @@ describe("OpenAI Compatible thinking normalization", () => {
       (offClient.chat.completions.create as any).mock.calls[0][0],
     ).not.toHaveProperty("reasoning_effort");
   });
+});
 
+describe("OpenAI Compatible thinking normalization", () => {
   it("separates DeepSeek think tags from visible content", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -98,7 +100,9 @@ describe("OpenAI Compatible thinking normalization", () => {
         .join(""),
     ).toBe("Intro  Final answer.");
   });
+});
 
+describe("OpenAI Compatible thinking normalization", () => {
   it("handles think tags split across chunks", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -134,7 +138,9 @@ describe("OpenAI Compatible thinking normalization", () => {
         .join(""),
     ).toBe("Start  Done.");
   });
+});
 
+describe("OpenAI Compatible thinking normalization", () => {
   it("separates think tags when legacy reasoning is disabled", async () => {
     const messages: SSEMessage[] = [];
     const client = {

@@ -83,35 +83,35 @@ function completedResponse(): Response {
   );
 }
 
-describe("chat service request context budget", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    mocks.settingsState = {
-      installedPlugins: [],
-      pluginConfigs: {},
-      modelMetadata: {
-        "gpt-4": { limit: { context: 1_200, output: 200 } },
+beforeEach(() => {
+  vi.restoreAllMocks();
+  mocks.settingsState = {
+    installedPlugins: [],
+    pluginConfigs: {},
+    modelMetadata: {
+      "gpt-4": { limit: { context: 1_200, output: 200 } },
+    },
+    customModelMetadata: {},
+  };
+  mocks.memoryState = {
+    _hasHydrated: true,
+    settings: { enabled: false, searchEnabled: false },
+  };
+  mocks.coreState = {
+    providers: [
+      {
+        id: "openai",
+        enabled: true,
+        type: "OpenAI",
+        name: "OpenAI",
+        apiKey: "test-key",
+        models: ["gpt-4"],
       },
-      customModelMetadata: {},
-    };
-    mocks.memoryState = {
-      _hasHydrated: true,
-      settings: { enabled: false, searchEnabled: false },
-    };
-    mocks.coreState = {
-      providers: [
-        {
-          id: "openai",
-          enabled: true,
-          type: "OpenAI",
-          name: "OpenAI",
-          apiKey: "test-key",
-          models: ["gpt-4"],
-        },
-      ],
-    };
-  });
+    ],
+  };
+});
 
+describe("chat service request context budget", () => {
   it("sends only the latest complete history turn", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

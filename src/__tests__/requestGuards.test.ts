@@ -16,14 +16,14 @@ import {
 
 const AGENT_RATE_LIMIT = 30;
 
-describe("request guard rate limiting", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    clearRequestRateLimitBuckets();
-    clearRequestProofSigningKeyForTesting();
-    setRateLimitStoreForTesting(null);
-  });
+afterEach(() => {
+  vi.unstubAllEnvs();
+  clearRequestRateLimitBuckets();
+  clearRequestProofSigningKeyForTesting();
+  setRateLimitStoreForTesting(null);
+});
 
+describe("request guard rate limiting", () => {
   it("shares quotas across dynamic paths in one route family", async () => {
     vi.stubEnv("TRUST_PROXY_HEADERS", "true");
     for (let index = 0; index < AGENT_RATE_LIMIT; index += 1) {

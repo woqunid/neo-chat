@@ -12,9 +12,42 @@ import {
   toolCallMessages,
 } from "./streamingToolCalls.helpers";
 
-describe("provider reasoning streams", () => {
-  afterEach(restoreStreamingMocks);
+function createGeminiToolCallClient() {
+  return {
+    models: {
+      generateContentStream: vi.fn(async () =>
+        asyncChunks([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      functionCall: {
+                        name: "lookup",
+                        args: { q: "neo" },
+                      },
+                    },
+                    {
+                      functionCall: {
+                        name: "lookup",
+                        args: "not-an-object",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ]),
+      ),
+    },
+  };
+}
 
+afterEach(restoreStreamingMocks);
+
+describe("provider reasoning streams", () => {
   it("streams OpenAI Responses reasoning without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -56,7 +89,9 @@ describe("provider reasoning streams", () => {
       content: "Visible answer",
     });
   });
+});
 
+describe("provider reasoning streams", () => {
   it("does not request OpenAI Responses reasoning summaries", async () => {
     const client = {
       responses: {
@@ -78,40 +113,13 @@ describe("provider reasoning streams", () => {
     const request = (client.responses.create as any).mock.calls[0][0];
     expect(request).not.toHaveProperty("reasoning");
   });
+});
 
+describe("provider reasoning streams", () => {
   it("normalizes Gemini tool calls and argument errors", async () => {
     const messages: SSEMessage[] = [];
     vi.spyOn(Date, "now").mockReturnValue(123);
-    const client = {
-      models: {
-        generateContentStream: vi.fn(async () =>
-          asyncChunks([
-            {
-              candidates: [
-                {
-                  content: {
-                    parts: [
-                      {
-                        functionCall: {
-                          name: "lookup",
-                          args: { q: "neo" },
-                        },
-                      },
-                      {
-                        functionCall: {
-                          name: "lookup",
-                          args: "not-an-object",
-                        },
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
-          ]),
-        ),
-      },
-    };
+    const client = createGeminiToolCallClient();
 
     await streamGeminiResponse({
       client: client as any,
@@ -138,7 +146,9 @@ describe("provider reasoning streams", () => {
     });
     expect(String(calls[1].toolCall.result)).toMatch(/JSON object/i);
   });
+});
 
+describe("provider reasoning streams", () => {
   it("streams Gemini thought parts without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -174,7 +184,9 @@ describe("provider reasoning streams", () => {
     ).toEqual(["Hidden thought. "]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
+});
 
+describe("provider reasoning streams", () => {
   it("streams Gemini thought parts as reasoning", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -213,7 +225,9 @@ describe("provider reasoning streams", () => {
     ).toEqual(["I should search. "]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
+});
 
+describe("provider reasoning streams", () => {
   it("does not map Gemini 2.5 reasoning modes to thinking budgets", async () => {
     const client = {
       models: {
@@ -234,7 +248,9 @@ describe("provider reasoning streams", () => {
       .calls[0][0];
     expect(request.config).not.toHaveProperty("thinkingConfig");
   });
+});
 
+describe("provider reasoning streams", () => {
   it("does not map Gemini 3 reasoning modes to thinking levels", async () => {
     const client = {
       models: {

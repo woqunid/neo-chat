@@ -51,7 +51,9 @@ describe("plugin execute route: common requests", () => {
     });
     expect(safeFetchTextMock).not.toHaveBeenCalled();
   });
+});
 
+describe("plugin execute route: common requests", () => {
   it("executes registered plugin functions with the new id/name payload", async () => {
     safeFetchTextMock.mockResolvedValue({
       response: new Response(null, { status: 200 }),

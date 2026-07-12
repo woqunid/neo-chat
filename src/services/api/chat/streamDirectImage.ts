@@ -25,8 +25,8 @@ export async function runDirectImageRequest(
       {
         imageCount: runtime.requestConfig.imageCount,
         attachments: runtime.requestAttachments,
+        signal: prepared.options.signal,
       },
-      prepared.options.signal,
     );
   } catch (error) {
     if (runtime.output.clearImageGenerationStatus(loadingId)) {

@@ -18,11 +18,11 @@ import {
 
 const provider = { type: "Gemini", apiKey: "test" } as const;
 
-describe("auxiliary generation handlers", () => {
-  beforeEach(() => {
-    mocks.handleSimpleGeneration.mockReset();
-  });
+beforeEach(() => {
+  mocks.handleSimpleGeneration.mockReset();
+});
 
+describe("auxiliary generation handlers", () => {
   it("clips long conversation content before title generation", async () => {
     mocks.handleSimpleGeneration.mockResolvedValueOnce("A short title");
 
@@ -55,7 +55,9 @@ describe("auxiliary generation handlers", () => {
     expect(prompt).not.toContain("USER_TAIL");
     expect(prompt).not.toContain("MODEL_TAIL");
   });
+});
 
+describe("auxiliary generation handlers", () => {
   it("normalizes generated title output and fallback titles", async () => {
     mocks.handleSimpleGeneration
       .mockResolvedValueOnce('```text\n- "Clean title"\n```')
@@ -80,7 +82,9 @@ describe("auxiliary generation handlers", () => {
 
     errorSpy.mockRestore();
   });
+});
 
+describe("auxiliary generation handlers", () => {
   it("does not replace cancellation with a fallback title", async () => {
     const controller = new AbortController();
     const abortError = new DOMException("Aborted", "AbortError");
@@ -101,7 +105,9 @@ describe("auxiliary generation handlers", () => {
       }),
     ).rejects.toBe(abortError);
   });
+});
 
+describe("auxiliary generation handlers", () => {
   it("clips long related-question and RAG query prompts", async () => {
     mocks.handleSimpleGeneration
       .mockResolvedValueOnce('["Follow up?"]')
@@ -139,7 +145,9 @@ describe("auxiliary generation handlers", () => {
     expect(relatedPrompt).not.toContain("TEXT_TAIL");
     expect(ragPrompt).not.toContain("TEXT_TAIL");
   });
+});
 
+describe("auxiliary generation handlers", () => {
   it("normalizes related-question JSON output consistently", async () => {
     mocks.handleSimpleGeneration.mockResolvedValueOnce(
       JSON.stringify([
@@ -179,7 +187,9 @@ describe("auxiliary generation handlers", () => {
       questions.length,
     );
   });
+});
 
+describe("auxiliary generation handlers", () => {
   it("normalizes line-based RAG query output", async () => {
     mocks.handleSimpleGeneration.mockResolvedValueOnce(
       [

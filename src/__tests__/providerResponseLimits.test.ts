@@ -9,12 +9,12 @@ vi.mock("server-only", () => ({}));
 
 const PUBLIC_TEST_URL = "https://93.184.216.34/v1/chat/completions";
 
-describe("provider transport response limits", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
+describe("provider transport response limits", () => {
   it("classifies text, image, and streaming provider requests", () => {
     expect(getProviderResponseLimit(PUBLIC_TEST_URL).maxResponseBytes).toBe(
       PROVIDER_RESPONSE_LIMITS.textBytes,

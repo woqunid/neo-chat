@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createJsonResponse,
+  createProofSessionResponse,
+  expectSignedAgentRequest,
+  makeAgent,
+  mockProofAwareFetch,
+} from "./helpers/agentService";
 
 const storeState = vi.hoisted(() => ({
   value: {
@@ -15,35 +22,23 @@ vi.mock("@/store/core/settingsStore", () => ({
   },
 }));
 
-describe("agent service", () => {
-  afterEach(() => {
-    storeState.value = {
-      marketAgents: [],
-      marketAgentsTimestamp: 0,
-      marketAgentsLocale: "",
-      setMarketAgents: vi.fn(),
-    };
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-    vi.resetModules();
-  });
+afterEach(() => {
+  storeState.value = {
+    marketAgents: [],
+    marketAgentsTimestamp: 0,
+    marketAgentsLocale: "",
+    setMarketAgents: vi.fn(),
+  };
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.resetModules();
+});
 
+describe("agent service cache", () => {
   it("uses cached agents for 72 hours", async () => {
     const now = Date.UTC(2026, 0, 1);
     vi.spyOn(Date, "now").mockReturnValue(now);
-    const cachedAgent = {
-      identifier: "agent-1",
-      meta: {
-        avatar: "bot",
-        title: "Cached",
-        description: "Cached agent",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
+    const cachedAgent = makeAgent("agent-1", "Cached");
     storeState.value = {
       marketAgents: [cachedAgent],
       marketAgentsTimestamp: now - 72 * 60 * 60 * 1000 + 1,
@@ -64,79 +59,27 @@ describe("agent service", () => {
     vi.spyOn(Date, "now").mockReturnValue(now);
     const setMarketAgents = vi.fn();
     storeState.value = {
-      marketAgents: [
-        {
-          identifier: "stale",
-          meta: {
-            avatar: "bot",
-            title: "Stale",
-            description: "Stale agent",
-            tags: [],
-            category: "General",
-          },
-          createdAt: "",
-          homepage: "",
-          author: "",
-        },
-      ],
+      marketAgents: [makeAgent("stale", "Stale")],
       marketAgentsTimestamp: now - 72 * 60 * 60 * 1000 - 1,
       marketAgentsLocale: "en",
       setMarketAgents,
     };
-    const freshAgent = {
-      identifier: "fresh",
-      meta: {
-        avatar: "bot",
-        title: "Fresh",
-        description: "Fresh agent",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ agents: [freshAgent] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const freshAgent = makeAgent("fresh", "Fresh");
+    const fetchMock = mockProofAwareFetch(() => ({ agents: [freshAgent] }));
     const { getAgents } = await import("../services/api/agentService");
 
     await expect(getAgents()).resolves.toEqual([freshAgent]);
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=en");
     expect(setMarketAgents).toHaveBeenCalledWith([freshAgent], "en");
   });
+});
 
+describe("agent service locale cache", () => {
   it("does not reuse cached agents from a different locale", async () => {
     const now = Date.UTC(2026, 0, 1);
     vi.spyOn(Date, "now").mockReturnValue(now);
-    const cachedAgent = {
-      identifier: "cached-en",
-      meta: {
-        avatar: "bot",
-        title: "Cached English",
-        description: "Cached English agent",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
-    const zhAgent = {
-      identifier: "fresh-zh",
-      meta: {
-        avatar: "bot",
-        title: "中文助理",
-        description: "中文市场助理",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
+    const cachedAgent = makeAgent("cached-en", "Cached English");
+    const zhAgent = makeAgent("fresh-zh", "中文助理");
     const setMarketAgents = vi.fn();
     storeState.value = {
       marketAgents: [cachedAgent],
@@ -144,35 +87,18 @@ describe("agent service", () => {
       marketAgentsLocale: "en",
       setMarketAgents,
     };
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ agents: [zhAgent] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({ agents: [zhAgent] }));
     const { getAgents } = await import("../services/api/agentService");
 
     await expect(getAgents(false, "zh")).resolves.toEqual([zhAgent]);
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents?locale=zh");
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=zh");
     expect(setMarketAgents).toHaveBeenCalledWith([zhAgent], "zh");
   });
 
   it("normalizes Japanese agent requests and cache locale", async () => {
     const now = Date.UTC(2026, 0, 1);
     vi.spyOn(Date, "now").mockReturnValue(now);
-    const jaAgent = {
-      identifier: "fresh-ja",
-      meta: {
-        avatar: "bot",
-        title: "日本語アシスタント",
-        description: "日本語のマーケットアシスタント",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
+    const jaAgent = makeAgent("fresh-ja", "日本語アシスタント");
     const setMarketAgents = vi.fn();
     storeState.value = {
       marketAgents: [],
@@ -180,35 +106,20 @@ describe("agent service", () => {
       marketAgentsLocale: "",
       setMarketAgents,
     };
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ agents: [jaAgent] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({ agents: [jaAgent] }));
     const { getAgents } = await import("../services/api/agentService");
 
     await expect(getAgents(false, "ja-JP")).resolves.toEqual([jaAgent]);
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents?locale=ja");
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=ja");
     expect(setMarketAgents).toHaveBeenCalledWith([jaAgent], "ja");
   });
+});
 
+describe("agent service stale cache", () => {
   it("uses stale cache without overwriting it when the agent registry is unavailable", async () => {
     const now = Date.UTC(2026, 0, 1);
     vi.spyOn(Date, "now").mockReturnValue(now);
-    const staleAgent = {
-      identifier: "stale",
-      meta: {
-        avatar: "bot",
-        title: "Stale",
-        description: "Stale agent",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
+    const staleAgent = makeAgent("stale", "Stale");
     const setMarketAgents = vi.fn();
     storeState.value = {
       marketAgents: [staleAgent],
@@ -216,32 +127,21 @@ describe("agent service", () => {
       marketAgentsLocale: "en",
       setMarketAgents,
     };
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ agents: [], unavailable: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({
+      agents: [],
+      unavailable: true,
+    }));
     const { getAgents } = await import("../services/api/agentService");
 
     await expect(getAgents()).resolves.toEqual([staleAgent]);
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=en");
     expect(setMarketAgents).not.toHaveBeenCalled();
   });
+});
 
+describe("agent service request deduplication", () => {
   it("reuses an in-flight agent list request", async () => {
-    const freshAgent = {
-      identifier: "fresh",
-      meta: {
-        avatar: "bot",
-        title: "Fresh",
-        description: "Fresh agent",
-        tags: [],
-        category: "General",
-      },
-      createdAt: "",
-      homepage: "",
-      author: "",
-    };
+    const freshAgent = makeAgent("fresh", "Fresh");
     const setMarketAgents = vi.fn();
     storeState.value = {
       marketAgents: [],
@@ -255,26 +155,28 @@ describe("agent service", () => {
     });
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockReturnValue(fetchPromise);
+      .mockImplementation((input) =>
+        String(input) === "/api/request-proof/session"
+          ? Promise.resolve(createProofSessionResponse())
+          : fetchPromise,
+      );
     const { getAgents } = await import("../services/api/agentService");
 
     const firstRequest = getAgents();
     const secondRequest = getAgents();
-    resolveFetch(
-      new Response(JSON.stringify({ agents: [freshAgent] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    resolveFetch(createJsonResponse({ agents: [freshAgent] }));
 
     await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([
       [freshAgent],
       [freshAgent],
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=en");
     expect(setMarketAgents).toHaveBeenCalledTimes(1);
   });
+});
 
+describe("agent service locale concurrency", () => {
   it("keeps in-flight agent list requests separated by locale", async () => {
     const setMarketAgents = vi.fn();
     storeState.value = {
@@ -283,28 +185,18 @@ describe("agent service", () => {
       marketAgentsLocale: "",
       setMarketAgents,
     };
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            agents: [
-              {
-                identifier: String(url).includes("locale=zh")
-                  ? "zh"
-                  : String(url).includes("locale=ja")
-                    ? "ja"
-                    : "en",
-                meta: { title: String(url) },
-              },
-            ],
-          }),
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        ),
-      ),
-    );
+    const fetchMock = mockProofAwareFetch((url) => ({
+      agents: [
+        {
+          identifier: String(url).includes("locale=zh")
+            ? "zh"
+            : String(url).includes("locale=ja")
+              ? "ja"
+              : "en",
+          meta: { title: String(url) },
+        },
+      ],
+    }));
     const { getAgents } = await import("../services/api/agentService");
 
     await expect(
@@ -318,58 +210,45 @@ describe("agent service", () => {
       [expect.objectContaining({ identifier: "zh" })],
       [expect.objectContaining({ identifier: "ja" })],
     ]);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents?locale=en");
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents?locale=zh");
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents?locale=ja");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=en");
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=zh");
+    expectSignedAgentRequest(fetchMock, "/api/agents?locale=ja");
   });
+});
 
+describe("agent service details", () => {
   it("encodes agent detail identifiers before building the local API path", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ identifier: "team/agent?x=1" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({
+      identifier: "team/agent?x=1",
+    }));
     const { getAgentDetail } = await import("../services/api/agentService");
 
     await expect(getAgentDetail("team/agent?x=1")).rejects.toThrow(
       "Invalid agent detail response",
     );
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expectSignedAgentRequest(
+      fetchMock,
       "/api/agents/team%2Fagent%3Fx%3D1?locale=en",
     );
   });
 
   it("passes the requested locale when fetching agent details", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ identifier: "agent-1" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({ identifier: "agent-1" }));
     const { getAgentDetail } = await import("../services/api/agentService");
 
     await getAgentDetail("agent-1", "ja-JP");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/agents/agent-1?locale=ja");
+    expectSignedAgentRequest(fetchMock, "/api/agents/agent-1?locale=ja");
   });
 
   it("normalizes agent detail responses at the client boundary", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          identifier: "different",
-          meta: { title: " Detail " },
-          config: { systemRole: "Role" },
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
-    );
+    const fetchMock = mockProofAwareFetch(() => ({
+      identifier: "different",
+      meta: { title: " Detail " },
+      config: { systemRole: "Role" },
+    }));
     const { getAgentDetail } = await import("../services/api/agentService");
 
     await expect(getAgentDetail("agent-1")).resolves.toMatchObject({
@@ -377,5 +256,6 @@ describe("agent service", () => {
       meta: { title: "Detail", systemRole: "Role" },
       config: { systemRole: "Role" },
     });
+    expectSignedAgentRequest(fetchMock, "/api/agents/agent-1?locale=en");
   });
 });

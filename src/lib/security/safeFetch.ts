@@ -44,12 +44,12 @@ export async function safeFetch(
   const lifecycle = createSafeFetchLifecycle(options.timeoutMs, init.signal);
   let responseOwnsLifecycle = false;
   try {
-    const response = await safeFetchResponse(
+    const response = await safeFetchResponse({
       input,
       init,
       options,
-      lifecycle.signal,
-    );
+      signal: lifecycle.signal,
+    });
     if (!options.enforceResponseLimits || !response.body) return response;
     responseOwnsLifecycle = true;
     return wrapLimitedResponse(response, {
@@ -85,7 +85,7 @@ async function fetchResponseBytes(
 ): Promise<{ response: Response; bytes: Uint8Array }> {
   const lifecycle = createSafeFetchLifecycle(options.timeoutMs, init.signal);
   return runWithLifecycle(lifecycle, async (signal) => {
-    const response = await safeFetchResponse(input, init, options, signal);
+    const response = await safeFetchResponse({ input, init, options, signal });
     const bytes = await readResponseWithLimit(
       response,
       options.maxResponseBytes || DEFAULT_MAX_RESPONSE_BYTES,

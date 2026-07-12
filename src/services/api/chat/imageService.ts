@@ -44,8 +44,11 @@ async function requestImageGeneration(options: {
 export const generateImage = async (
   modelString: string,
   prompt: string,
-  options: { imageCount?: number; attachments?: Attachment[] } = {},
-  signal?: AbortSignal,
+  options: {
+    imageCount?: number;
+    attachments?: Attachment[];
+    signal?: AbortSignal;
+  } = {},
 ): Promise<{ images: Attachment[]; message: string }> => {
   const { providerId, modelName } = parseModelString(modelString);
 
@@ -63,7 +66,7 @@ export const generateImage = async (
       prompt,
       imageCount: options.imageCount,
       attachments: options.attachments,
-      signal,
+      signal: options.signal,
     });
     if (!response.ok) {
       throw new Error(

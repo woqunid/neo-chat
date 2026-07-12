@@ -115,20 +115,23 @@ async function resolveTrustedMcpPlugin(plugin: Plugin): Promise<Plugin> {
   return normalized;
 }
 
+function getAuthType(plugin: Plugin, auth: InstallAuth) {
+  if (auth?.type) return auth.type;
+  if (plugin.auth?.type === "apiKey") return "apiKey";
+  if (plugin.auth?.type === "oauth2") return "oauth2";
+  return "bearer";
+}
+
+function getAuthKey(plugin: Plugin, auth: InstallAuth): string {
+  if (auth?.key) return auth.key;
+  if (plugin.auth?.name) return plugin.auth.name;
+  return plugin.auth?.type === "apiKey" ? "X-API-Key" : "Authorization";
+}
+
 function getAuthConfig(plugin: Plugin, auth: InstallAuth, value: string) {
-  const type =
-    auth?.type ||
-    (plugin.auth?.type === "apiKey"
-      ? "apiKey"
-      : plugin.auth?.type === "oauth2"
-        ? "oauth2"
-        : "bearer");
   return {
-    type,
-    key:
-      auth?.key ||
-      plugin.auth?.name ||
-      (plugin.auth?.type === "apiKey" ? "X-API-Key" : "Authorization"),
+    type: getAuthType(plugin, auth),
+    key: getAuthKey(plugin, auth),
     addTo: auth?.addTo || plugin.auth?.in || "header",
     value,
   };

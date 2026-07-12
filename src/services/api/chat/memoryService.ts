@@ -53,8 +53,10 @@ async function requestMemoryExtraction(options: MemoryExtractionOptions) {
       userMessage: options.userMessage.content,
       assistantMessage: options.assistantMessage.content,
     }),
-    [coerceToolDefinition(MEMORY_RECORD_TOOL)],
-    options.signal,
+    {
+      tools: [coerceToolDefinition(MEMORY_RECORD_TOOL)],
+      signal: options.signal,
+    },
   );
 }
 
@@ -110,8 +112,10 @@ async function requestDreamedMemories(
   const toolCall = await streamGenerateToolCall(
     getTaskModel("memory"),
     createMemoryDreamPrompt({ memories: state.memories, targetCount }),
-    [coerceToolDefinition(MEMORY_DREAM_TOOL)],
-    signal,
+    {
+      tools: [coerceToolDefinition(MEMORY_DREAM_TOOL)],
+      signal,
+    },
   );
 
   if (!toolCall || toolCall.name !== MEMORY_DREAM_TOOL_NAME) {

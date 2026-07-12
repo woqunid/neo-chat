@@ -3,12 +3,12 @@ import { getSafeUrlPolicy } from "../lib/security/urlPolicy";
 
 vi.mock("server-only", () => ({}));
 
-describe("safe fetch response lifecycle limits", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
+describe("safe fetch response lifecycle limits", () => {
   it("keeps the timeout active until a limited response body is consumed", async () => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
@@ -55,7 +55,9 @@ describe("safe fetch response lifecycle limits", () => {
       maxBytes: 8,
     });
   });
+});
 
+describe("safe fetch response lifecycle limits", () => {
   it("uses the same structured size error for buffered helpers", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("response exceeds limit"),

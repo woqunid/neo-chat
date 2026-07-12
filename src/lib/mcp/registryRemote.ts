@@ -60,6 +60,20 @@ function buildHeaderAuth(name: string, required: boolean): Plugin["auth"] {
   };
 }
 
+function hasHeaderTemplate(value: string): boolean {
+  return /\{[^}]+\}/.test(value);
+}
+
+function isDynamicHeader(
+  rawHeader: Record<string, unknown>,
+  staticValue: string,
+  hasTemplate: boolean,
+): boolean {
+  if (rawHeader.isSecret === true) return true;
+  if (rawHeader.isRequired === true && !staticValue) return true;
+  return hasTemplate;
+}
+
 function parseRemoteHeader(rawHeader: unknown): {
   name: string;
   staticValue: string;
@@ -69,12 +83,10 @@ function parseRemoteHeader(rawHeader: unknown): {
   const name = trimRegistryString(rawHeader.name, 120);
   if (!name || !HEADER_NAME_RE.test(name)) return null;
   const rawValue = trimRegistryString(rawHeader.value, 4_096);
-  const staticValue = /\{[^}]+\}/.test(rawValue) ? "" : rawValue;
+  const hasTemplate = hasHeaderTemplate(rawValue);
+  const staticValue = hasTemplate ? "" : rawValue;
   if (staticValue && rawHeader.isSecret !== true) return { name, staticValue };
-  const dynamic =
-    rawHeader.isSecret === true ||
-    (rawHeader.isRequired === true && !staticValue) ||
-    /\{[^}]+\}/.test(rawValue);
+  const dynamic = isDynamicHeader(rawHeader, staticValue, hasTemplate);
   return dynamic
     ? {
         name,

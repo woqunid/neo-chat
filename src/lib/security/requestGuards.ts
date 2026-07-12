@@ -7,16 +7,21 @@ import {
 import {
   getApiRateLimitPolicy,
   isMutatingApiRouteMethod,
+  type ApiRateLimitPolicy,
 } from "./apiRoutePolicy";
 import {
   enforceApiRequestProof,
   getRequestProofRateLimitIdentity,
 } from "./requestProof";
+import type { RateLimitResult } from "./rateLimitStore";
 
 export const REQUEST_GUARD_ERROR_CODES = {
   csrf: "CSRF_ORIGIN_BLOCKED",
   rateLimited: "RATE_LIMITED",
 } as const;
+
+const MILLISECONDS_PER_SECOND = 1_000;
+const MINIMUM_RETRY_AFTER_SECONDS = 1;
 
 function jsonError(
   status: number,
@@ -109,35 +114,31 @@ export function validateSameOriginRequest(
   return null;
 }
 
-export async function enforceRateLimit(
-  request: NextRequest,
-  now = Date.now(),
-): Promise<NextResponse | null> {
-  const rule = getApiRateLimitPolicy(request.nextUrl.pathname, request.method);
-  if (!rule) return null;
+interface RateLimitIdentityOptions {
+  request: NextRequest;
+  rule: ApiRateLimitPolicy;
+  now: number;
+}
 
+async function getRateLimitIdentity(
+  options: RateLimitIdentityOptions,
+): Promise<string | null> {
+  const { request, rule, now } = options;
   const clientIp = getRateLimitClientIp(request);
-  const isAccessVerification = rule.routeFamily === "/api/access/verify";
-  const proofIdentity =
-    clientIp === "unknown" && !isAccessVerification
-      ? await getRequestProofRateLimitIdentity(request, now)
-      : null;
-  if (clientIp === "unknown" && !isAccessVerification && !proofIdentity) {
-    return null;
+  if (rule.routeFamily === "/api/access/verify") {
+    return clientIp === "unknown" ? "deployment" : clientIp;
   }
+  if (clientIp !== "unknown") return clientIp;
+  return getRequestProofRateLimitIdentity(request, now);
+}
 
-  const identity = isAccessVerification
-    ? clientIp === "unknown"
-      ? "deployment"
-      : clientIp
-    : proofIdentity || clientIp;
-  const key = `${identity}:${request.method}:${rule.routeFamily}`;
-  const current = await incrementRateLimitBucket(key, rule.windowMs, now);
-  if (current.count <= rule.maxRequests) return null;
-
+function createRateLimitResponse(
+  current: RateLimitResult,
+  now: number,
+): NextResponse {
   const retryAfterSeconds = Math.max(
-    1,
-    Math.ceil((current.resetAt - now) / 1000),
+    MINIMUM_RETRY_AFTER_SECONDS,
+    Math.ceil((current.resetAt - now) / MILLISECONDS_PER_SECOND),
   );
   const response = jsonError(429, {
     error: "Too many requests. Please try again later.",
@@ -146,6 +147,21 @@ export async function enforceRateLimit(
   });
   response.headers.set("Retry-After", String(retryAfterSeconds));
   return response;
+}
+
+export async function enforceRateLimit(
+  request: NextRequest,
+  now = Date.now(),
+): Promise<NextResponse | null> {
+  const rule = getApiRateLimitPolicy(request.nextUrl.pathname, request.method);
+  if (!rule) return null;
+
+  const identity = await getRateLimitIdentity({ request, rule, now });
+  if (!identity) return null;
+  const key = `${identity}:${request.method}:${rule.routeFamily}`;
+  const current = await incrementRateLimitBucket(key, rule.windowMs, now);
+  if (current.count <= rule.maxRequests) return null;
+  return createRateLimitResponse(current, now);
 }
 
 export async function applyRequestGuards(

@@ -14,23 +14,23 @@ vi.mock("../lib/providers/base", () => ({
   },
 }));
 
+beforeEach(() => {
+  vi.stubEnv("GROK_SEARCH_TIMEOUT_MS", "");
+  mocks.assertProviderOutboundAllowed.mockResolvedValue(undefined);
+  mocks.createResponse.mockResolvedValue({
+    output_text: "Current result [1](https://example.com/current).",
+  });
+  mocks.createOpenAIClient.mockReturnValue({
+    responses: { create: mocks.createResponse },
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.clearAllMocks();
+});
+
 describe("Grok search client", () => {
-  beforeEach(() => {
-    vi.stubEnv("GROK_SEARCH_TIMEOUT_MS", "");
-    mocks.assertProviderOutboundAllowed.mockResolvedValue(undefined);
-    mocks.createResponse.mockResolvedValue({
-      output_text: "Current result [1](https://example.com/current).",
-    });
-    mocks.createOpenAIClient.mockReturnValue({
-      responses: { create: mocks.createResponse },
-    });
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.clearAllMocks();
-  });
-
   it("uses the independent Grok search timeout", async () => {
     const { runGrokSearchWithConfig } =
       await import("../lib/search/grokClient");
@@ -74,7 +74,9 @@ describe("Grok search client", () => {
       timeout: 60_000,
     });
   });
+});
 
+describe("Grok search client", () => {
   it("rejects a pre-aborted Grok request before provider work", async () => {
     const controller = new AbortController();
     controller.abort();

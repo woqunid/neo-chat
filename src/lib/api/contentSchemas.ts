@@ -54,7 +54,11 @@ export const RAGQuerySchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    rejectPlainSecretField(request.token, context, ["token"], "RAG token");
+    rejectPlainSecretField(request.token, {
+      context,
+      path: ["token"],
+      label: "RAG token",
+    });
     requireCustomRagCredentials(request, context);
   })
   .transform((request) => omitPlainSecretField(request, "token"));
@@ -78,7 +82,11 @@ export const RAGUpsertSchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    rejectPlainSecretField(request.token, context, ["token"], "RAG token");
+    rejectPlainSecretField(request.token, {
+      context,
+      path: ["token"],
+      label: "RAG token",
+    });
     requireCustomRagCredentials(request, context);
   })
   .transform((request) => omitPlainSecretField(request, "token"));
@@ -94,18 +102,16 @@ export const DocumentParseSchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    rejectPlainSecretField(
-      request.apiKey,
+    rejectPlainSecretField(request.apiKey, {
       context,
-      ["apiKey"],
-      "Document parse API key",
-    );
-    rejectPlainSecretField(
-      request.apiToken,
+      path: ["apiKey"],
+      label: "Document parse API key",
+    });
+    rejectPlainSecretField(request.apiToken, {
       context,
-      ["apiToken"],
-      "Document parse API token",
-    );
+      path: ["apiToken"],
+      label: "Document parse API token",
+    });
     if (
       !request.useDefault &&
       request.provider === "llamaParse" &&
@@ -190,12 +196,11 @@ export const VoiceSynthesizeRequestSchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    rejectPlainSecretField(
-      request.apiKey,
+    rejectPlainSecretField(request.apiKey, {
       context,
-      ["apiKey"],
-      "Voice API key",
-    );
+      path: ["apiKey"],
+      label: "Voice API key",
+    });
     if (request.provider !== "elevenlabs" || request.voiceId?.trim()) return;
     context.addIssue({
       code: "custom",
@@ -216,11 +221,10 @@ export const VoiceTranscribeRequestSchema = z
   })
   .strict()
   .superRefine((request, context) =>
-    rejectPlainSecretField(
-      request.apiKey,
+    rejectPlainSecretField(request.apiKey, {
       context,
-      ["apiKey"],
-      "Voice API key",
-    ),
+      path: ["apiKey"],
+      label: "Voice API key",
+    }),
   )
   .transform((request) => omitPlainSecretField(request, "apiKey"));

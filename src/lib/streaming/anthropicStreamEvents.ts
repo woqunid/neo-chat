@@ -138,37 +138,45 @@ function handleBlockStop(
   return { ...state, tools, emittedTools: state.emittedTools + 1 };
 }
 
+type PayloadHandler = (
+  payload: any,
+  state: AnthropicStreamState,
+  onChunk: (message: SSEMessage) => void,
+) => AnthropicStreamState;
+
+const PAYLOAD_HANDLERS: Record<string, PayloadHandler> = {
+  error: (payload) => {
+    throw new Error(
+      `Anthropic stream failed: ${payload.error?.message || "upstream terminal error"}`,
+    );
+  },
+  message_start: (payload, state) => ({
+    ...state,
+    inputTokens: getInputTokens(payload.message?.usage),
+  }),
+  content_block_start: (payload, state) => handleToolStart(payload, state),
+  content_block_delta: (payload, state, onChunk) =>
+    handleBlockDelta(payload, state, onChunk),
+  content_block_stop: (payload, state, onChunk) =>
+    handleBlockStop(payload, state, onChunk),
+  message_delta: (payload, state, onChunk) => {
+    emitUsage(state.inputTokens, payload.usage, onChunk);
+    return state;
+  },
+  ping: (_payload, state) => state,
+  message_stop: (_payload, state) => ({
+    ...state,
+    receivedMessageStop: true,
+  }),
+};
+
 export function handleAnthropicStreamPayload(
   payload: any,
   state: AnthropicStreamState,
   onChunk: (message: SSEMessage) => void,
 ): AnthropicStreamState {
-  if (payload?.type === "error") {
-    throw new Error(
-      `Anthropic stream failed: ${payload.error?.message || "upstream terminal error"}`,
-    );
-  }
-  if (payload?.type === "message_start") {
-    return { ...state, inputTokens: getInputTokens(payload.message?.usage) };
-  }
-  if (payload?.type === "content_block_start") {
-    return handleToolStart(payload, state);
-  }
-  if (payload?.type === "content_block_delta") {
-    return handleBlockDelta(payload, state, onChunk);
-  }
-  if (payload?.type === "content_block_stop") {
-    return handleBlockStop(payload, state, onChunk);
-  }
-  if (payload?.type === "message_delta") {
-    emitUsage(state.inputTokens, payload.usage, onChunk);
-    return state;
-  }
-  if (payload?.type === "ping") return state;
-  if (payload?.type === "message_stop") {
-    return { ...state, receivedMessageStop: true };
-  }
-  return state;
+  const handler = PAYLOAD_HANDLERS[payload?.type];
+  return handler ? handler(payload, state, onChunk) : state;
 }
 
 export function assertAnthropicStreamCompleted(

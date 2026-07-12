@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  readMessageInputComposition,
   readPluginMarketComposition,
   readProjectSource,
 } from "./helpers/pluginMarketComposition";
@@ -9,8 +10,13 @@ import {
 const read = readProjectSource;
 
 const readActionSource = (path: string) => {
-  if (path !== "src/components/plugin/PluginMarket.tsx") return read(path);
-  return readPluginMarketComposition();
+  if (path === "src/components/chat/MessageInput.tsx") {
+    return readMessageInputComposition();
+  }
+  if (path === "src/components/plugin/PluginMarket.tsx") {
+    return readPluginMarketComposition();
+  }
+  return read(path);
 };
 
 describe("dropdown menu composition", () => {
@@ -58,7 +64,9 @@ describe("dropdown menu composition", () => {
       expect(source, file).not.toContain('role="menuitemradio"');
     }
   });
+});
 
+describe("dropdown menu composition", () => {
   it("keeps the about settings tab removed", () => {
     const panelState = read("src/lib/chat/panelUrlState.ts");
     const settingsPage = read("src/components/settings/SettingsPage.tsx");

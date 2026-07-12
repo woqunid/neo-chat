@@ -18,12 +18,12 @@ vi.mock("../lib/utils/safeServerLog", () => ({
   safeServerLogError: vi.fn(),
 }));
 
-describe("MCP servers route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    safeFetchJsonMock.mockReset();
-  });
+beforeEach(() => {
+  vi.resetModules();
+  safeFetchJsonMock.mockReset();
+});
 
+describe("MCP servers route", () => {
   it("passes cursor, search, and latest-version filtering to the MCP registry", async () => {
     safeFetchJsonMock.mockResolvedValue({
       response: { ok: true },
@@ -68,7 +68,9 @@ describe("MCP servers route", () => {
       ],
     });
   });
+});
 
+describe("MCP servers route", () => {
   it("continues through sparse registry pages until it fills the requested plugin page", async () => {
     safeFetchJsonMock
       .mockResolvedValueOnce({

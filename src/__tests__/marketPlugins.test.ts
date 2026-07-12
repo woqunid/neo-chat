@@ -51,7 +51,9 @@ describe("market plugin normalization", () => {
       }),
     ).toBeNull();
   });
+});
 
+describe("market plugin normalization", () => {
   it("keeps MCP metadata HTTPS-only while allowing LAN endpoints", () => {
     expect(
       normalizeMarketPlugin({
@@ -91,7 +93,9 @@ describe("market plugin normalization", () => {
       }),
     ).toBeNull();
   });
+});
 
+describe("market plugin normalization", () => {
   it("deduplicates and caps plugin lists", () => {
     const plugins = Array.from(
       { length: MARKET_LIMITS.maxPlugins + 10 },
@@ -110,7 +114,9 @@ describe("market plugin normalization", () => {
     expect(normalized).toHaveLength(MARKET_LIMITS.maxPlugins);
     expect(normalized[1]?.title).toBe("Plugin 1");
   });
+});
 
+describe("market plugin normalization", () => {
   it("converts malformed APIs.guru data without failing the whole list", () => {
     const plugins = normalizeApiGuruPlugins({
       "bad.example.com": { preferred: "v1", versions: {} },

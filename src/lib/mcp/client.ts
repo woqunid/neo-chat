@@ -33,23 +33,39 @@ function resolveMcpServerUrl(
   return url;
 }
 
-function buildRequestInit(
-  authConfig?: McpAuthConfig,
+function normalizeStaticHeaders(
   staticHeaders?: Record<string, string>,
-): RequestInit {
-  const headers = Object.fromEntries(
+): Record<string, string> {
+  return Object.fromEntries(
     Object.entries(staticHeaders || {})
       .map(([name, value]) => [name.trim(), value.trim()])
       .filter(([name, value]) => Boolean(name && value)),
   );
-  const authValue = authConfig?.value?.trim();
-  if (!authValue || authConfig?.addTo === "query") return { headers };
+}
 
-  if (authConfig?.type === "bearer" || authConfig?.type === "oauth2") {
-    headers.Authorization = `Bearer ${authValue}`;
-  } else if (authConfig?.type === "apiKey") {
-    headers[authConfig.key || "X-API-Key"] = authValue;
+function getAuthHeader(
+  authConfig?: McpAuthConfig,
+): readonly [string, string] | null {
+  if (!authConfig) return null;
+  const authValue = authConfig.value?.trim();
+  if (!authValue || authConfig.addTo === "query") return null;
+
+  if (authConfig.type === "bearer" || authConfig.type === "oauth2") {
+    return ["Authorization", `Bearer ${authValue}`];
   }
+  if (authConfig.type === "apiKey") {
+    return [authConfig.key || "X-API-Key", authValue];
+  }
+  return null;
+}
+
+function buildRequestInit(
+  authConfig?: McpAuthConfig,
+  staticHeaders?: Record<string, string>,
+): RequestInit {
+  const headers = normalizeStaticHeaders(staticHeaders);
+  const authHeader = getAuthHeader(authConfig);
+  if (authHeader) headers[authHeader[0]] = authHeader[1];
   return { headers };
 }
 

@@ -169,6 +169,7 @@ describe("generated image attachment normalization", () => {
             {
               candidates: [
                 {
+                  finishReason: "STOP",
                   content: {
                     parts: [
                       {

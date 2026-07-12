@@ -58,19 +58,20 @@ function emitParsedText(
   if (reasoning) onChunk({ type: "reasoning", content: reasoning });
 }
 
-function emitChatChunk(
-  chunk: any,
-  toolCalls: ReturnType<typeof createOpenAIToolCallAccumulator>,
-  parser: ReturnType<typeof createThinkTagStreamParser>,
-  onChunk: (message: SSEMessage) => void,
-): void {
+interface ChatChunkContext {
+  toolCalls: ReturnType<typeof createOpenAIToolCallAccumulator>;
+  parser: ReturnType<typeof createThinkTagStreamParser>;
+  onChunk: (message: SSEMessage) => void;
+}
+
+function emitChatChunk(chunk: any, context: ChatChunkContext): void {
   const delta = chunk.choices?.[0]?.delta;
-  emitParsedText(delta, parser, onChunk);
+  emitParsedText(delta, context.parser, context.onChunk);
   for (const toolCall of delta?.tool_calls || []) {
-    appendOpenAIToolCallDelta(toolCalls, toolCall);
+    appendOpenAIToolCallDelta(context.toolCalls, toolCall);
   }
   if (chunk.usage) {
-    onChunk({
+    context.onChunk({
       type: "usage",
       usage: {
         prompt_tokens: chunk.usage.prompt_tokens,
@@ -87,6 +88,7 @@ async function consumeChatStream(
 ): Promise<void> {
   const toolCalls = createOpenAIToolCallAccumulator();
   const parser = createThinkTagStreamParser();
+  const context = { toolCalls, parser, onChunk };
   let receivedFinishReason = false;
   for await (const chunk of chunks) {
     if (
@@ -98,7 +100,7 @@ async function consumeChatStream(
     ) {
       receivedFinishReason = true;
     }
-    emitChatChunk(chunk, toolCalls, parser, onChunk);
+    emitChatChunk(chunk, context);
   }
   for (const event of parser.flush()) {
     onChunk({ type: event.type, content: event.content });

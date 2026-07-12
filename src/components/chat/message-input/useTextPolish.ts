@@ -32,10 +32,12 @@ async function runTextPolish(options: PolishRunOptions): Promise<void> {
     await streamGenerateContent(
       getTaskModel("promptOptimization"),
       polishTextContent(options.input),
-      (text) => {
-        if (!isCurrent(options)) return;
-        replacement = text;
-        options.setInput(text);
+      {
+        onChunk: (text) => {
+          if (!isCurrent(options)) return;
+          replacement = text;
+          options.setInput(text);
+        },
       },
     );
     if (!isCurrent(options) || replacement.trim()) return;

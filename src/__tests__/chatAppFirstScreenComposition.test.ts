@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readChatAppSources } from "./helpers/chatAppSources";
 
 describe("ChatApp first screen composition", () => {
   it("does not load random assistant recommendations for the empty chat screen", () => {
-    const chatApp = readFileSync(
-      resolve(process.cwd(), "src/components/app/ChatApp.tsx"),
-      "utf8",
-    );
+    const chatApp = readChatAppSources();
 
     expect(chatApp).not.toContain("AssistantList");
     expect(chatApp).not.toContain("getRandomAgents");
@@ -25,13 +21,11 @@ describe("ChatApp first screen composition", () => {
     expect(chatApp).not.toContain("emptyChatSurface flex-1 flex flex-col");
     expect(chatApp).toContain("bottom-[40vh]");
     expect(chatApp).toContain("messageInputVariant");
-    expect(chatApp).toContain("variant={messageInputVariant}");
-    expect(chatApp).toContain(
-      'welcomeState === "visible" ? "max-w-2xl" : "max-w-3xl"',
-    );
+    expect(chatApp).toContain("variant={composer.variant}");
+    expect(chatApp).toContain('isWelcome ? "max-w-2xl" : "max-w-3xl"');
     expect(chatApp).not.toContain("max-w-xl");
     expect(chatApp).toContain("shouldShowChatTitleBar");
-    expect(chatApp).toContain("shouldShowChatTitleBar &&");
+    expect(chatApp).toContain("model.conversation.shouldShowTitle &&");
     expect(chatApp).toContain("text-[1.75rem]");
     expect(chatApp).toContain("font-bold");
     expect(chatApp).not.toContain("text-[2rem] font-black");

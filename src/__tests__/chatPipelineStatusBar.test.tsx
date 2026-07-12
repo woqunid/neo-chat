@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readChatAppSources } from "./helpers/chatAppSources";
 
 describe("ChatPipelineStatusBar", () => {
   it("is not rendered above the message input", () => {
-    const chatApp = readFileSync(
-      resolve(process.cwd(), "src/components/app/ChatApp.tsx"),
-      "utf8",
-    );
+    const chatApp = readChatAppSources();
 
     expect(chatApp).not.toContain("ChatPipelineStatusBar");
     expect(chatApp).not.toContain("shouldShowPipelineStatus");

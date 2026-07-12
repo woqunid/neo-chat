@@ -1,5 +1,11 @@
 import type { Plugin } from "../../types";
 import { MARKET_LIMITS } from "../../config/limits";
+import { getApiGuruPluginCandidates } from "./apiGuru";
+import {
+  asRecord,
+  normalizePluginCategories,
+  trimString,
+} from "./pluginPrimitives";
 
 const PLUGIN_ID_RE = /^[A-Za-z0-9._:-]+$/;
 const MCP_PLUGIN_ID_RE = /^[A-Za-z0-9._:/-]+$/;
@@ -12,10 +18,6 @@ const PLUGIN_AUTH_TYPES = new Set([
   "none",
 ]);
 const PLUGIN_AUTH_LOCATIONS = new Set(["header", "query"]);
-
-function trimString(value: unknown, maxChars: number): string {
-  return typeof value === "string" ? value.trim().slice(0, maxChars) : "";
-}
 
 function trimWebUrl(value: unknown, maxChars: number): string {
   const candidate = trimString(value, maxChars);
@@ -74,25 +76,6 @@ function normalizeHeaderMap(
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-function normalizePluginCategories(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  const categories: string[] = [];
-  const seen = new Set<string>();
-
-  for (const item of value) {
-    const category = trimString(item, MARKET_LIMITS.maxPluginCategoryChars);
-    const key = category.toLowerCase();
-    if (!category || seen.has(key)) continue;
-
-    categories.push(category);
-    seen.add(key);
-    if (categories.length >= MARKET_LIMITS.maxPluginCategories) break;
-  }
-
-  return categories;
-}
-
 function normalizePluginAuth(value: unknown): Plugin["auth"] | undefined {
   if (!value || typeof value !== "object") return undefined;
 
@@ -145,10 +128,14 @@ function normalizeMcpMetadata(value: unknown): Plugin["mcp"] | undefined {
   };
 }
 
-export function normalizeMarketPlugin(value: unknown): Plugin | null {
-  if (!value || typeof value !== "object") return null;
+interface PluginIdentity {
+  id: string;
+  source?: NonNullable<Plugin["source"]>;
+}
 
-  const raw = value as Record<string, unknown>;
+function normalizePluginIdentity(
+  raw: Record<string, unknown>,
+): PluginIdentity | null {
   const id = trimString(raw.id, MARKET_LIMITS.maxPluginIdChars);
   const source = trimString(raw.source, 40);
   const pluginSource = PLUGIN_SOURCES.has(source)
@@ -156,9 +143,41 @@ export function normalizeMarketPlugin(value: unknown): Plugin | null {
     : undefined;
   const idPattern = pluginSource === "mcp" ? MCP_PLUGIN_ID_RE : PLUGIN_ID_RE;
   if (!id || !idPattern.test(id)) return null;
+  return { id, source: pluginSource };
+}
+
+function getPluginCategory(
+  raw: Record<string, unknown>,
+  categories: string[],
+  id: string,
+): string {
+  const category = trimString(
+    raw.category,
+    MARKET_LIMITS.maxPluginCategoryChars,
+  );
+  if (category) return category;
+  if (categories[0]) return categories[0];
+  return id.split(":")[0] || "General";
+}
+
+function getOptionalPluginFields(
+  source: Plugin["source"] | undefined,
+  mcp: Plugin["mcp"] | undefined,
+): Partial<Pick<Plugin, "source" | "mcp">> {
+  return {
+    ...(source ? { source } : {}),
+    ...(mcp ? { mcp } : {}),
+  };
+}
+
+export function normalizeMarketPlugin(value: unknown): Plugin | null {
+  const raw = asRecord(value);
+  if (!raw) return null;
+  const identity = normalizePluginIdentity(raw);
+  if (!identity) return null;
 
   const mcp =
-    pluginSource === "mcp" ? normalizeMcpMetadata(raw.mcp) : undefined;
+    identity.source === "mcp" ? normalizeMcpMetadata(raw.mcp) : undefined;
 
   const manifestUrl = trimWebUrl(
     raw.manifestUrl,
@@ -167,15 +186,11 @@ export function normalizeMarketPlugin(value: unknown): Plugin | null {
   if (!manifestUrl && !mcp) return null;
 
   const categories = normalizePluginCategories(raw.categories);
-  const category =
-    trimString(raw.category, MARKET_LIMITS.maxPluginCategoryChars) ||
-    categories[0] ||
-    id.split(":")[0] ||
-    "General";
 
   return {
-    id,
-    title: trimString(raw.title, MARKET_LIMITS.maxPluginTitleChars) || id,
+    id: identity.id,
+    title:
+      trimString(raw.title, MARKET_LIMITS.maxPluginTitleChars) || identity.id,
     description:
       trimString(raw.description, MARKET_LIMITS.maxPluginDescriptionChars) ||
       "No description provided",
@@ -188,9 +203,8 @@ export function normalizeMarketPlugin(value: unknown): Plugin | null {
       trimWebUrl(raw.externalDocsUrl, MARKET_LIMITS.maxPluginDocsUrlChars) ||
       undefined,
     functions: [],
-    ...(pluginSource ? { source: pluginSource } : {}),
-    ...(mcp ? { mcp } : {}),
-    category,
+    ...getOptionalPluginFields(identity.source, mcp),
+    category: getPluginCategory(raw, categories, identity.id),
     categories,
     added: trimString(raw.added, MARKET_LIMITS.maxAgentCreatedAtChars),
     auth: normalizePluginAuth(raw.auth),
@@ -216,58 +230,5 @@ export function normalizeMarketPlugins(value: unknown): Plugin[] {
 }
 
 export function normalizeApiGuruPlugins(value: unknown): Plugin[] {
-  if (!value || typeof value !== "object") return [];
-
-  const rawPlugins: unknown[] = [];
-
-  for (const [key, entryValue] of Object.entries(value)) {
-    if (
-      key.includes("amazonaws") ||
-      key.includes("azure") ||
-      key.includes("google")
-    ) {
-      continue;
-    }
-
-    if (!entryValue || typeof entryValue !== "object") continue;
-    const entry = entryValue as Record<string, unknown>;
-    const versions =
-      entry.versions && typeof entry.versions === "object"
-        ? (entry.versions as Record<string, unknown>)
-        : {};
-    const preferred = trimString(entry.preferred, 200);
-    const versionValue = versions[preferred];
-    if (!versionValue || typeof versionValue !== "object") continue;
-
-    const version = versionValue as Record<string, unknown>;
-    const info =
-      version.info && typeof version.info === "object"
-        ? (version.info as Record<string, unknown>)
-        : {};
-    const logo =
-      info["x-logo"] && typeof info["x-logo"] === "object"
-        ? (info["x-logo"] as Record<string, unknown>)
-        : {};
-    const externalDocs =
-      version.externalDocs && typeof version.externalDocs === "object"
-        ? (version.externalDocs as Record<string, unknown>)
-        : {};
-    const categories = normalizePluginCategories(info["x-apisguru-categories"]);
-
-    rawPlugins.push({
-      id: key,
-      title: info.title,
-      description: info.description,
-      logoUrl: logo.url,
-      manifestUrl: version.swaggerUrl,
-      externalDocsUrl: externalDocs.url,
-      category: categories[0],
-      categories,
-      added: entry.added,
-    });
-
-    if (rawPlugins.length >= MARKET_LIMITS.maxPlugins * 2) break;
-  }
-
-  return normalizeMarketPlugins(rawPlugins);
+  return normalizeMarketPlugins(getApiGuruPluginCandidates(value));
 }

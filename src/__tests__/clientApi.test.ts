@@ -7,12 +7,12 @@ import {
   signedApiFetch,
 } from "../lib/api/client";
 
-describe("client API response helpers", () => {
-  afterEach(() => {
-    clearApiProofSessionCache();
-    vi.restoreAllMocks();
-  });
+afterEach(() => {
+  clearApiProofSessionCache();
+  vi.restoreAllMocks();
+});
 
+describe("client API response helpers", () => {
   it("parses JSON responses and returns null for empty or malformed bodies", async () => {
     await expect(
       readJsonResponse<{ ok: boolean }>(Response.json({ ok: true })),
@@ -43,7 +43,9 @@ describe("client API response helpers", () => {
       getResponseErrorMessage(new Response("<html></html>"), "Fallback"),
     ).resolves.toBe("Fallback");
   });
+});
 
+describe("client API response helpers", () => {
   it("signs protected API requests with a cached request proof session", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
@@ -88,7 +90,9 @@ describe("client API response helpers", () => {
     await signedApiFetch("/api/grok-search", { method: "POST" });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+});
 
+describe("client API response helpers", () => {
   it("does not add proof headers when the server reports proof disabled", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -66,7 +66,9 @@ describe("plugin config normalization", () => {
       }).baseUrl,
     ).toBeUndefined();
   });
+});
 
+describe("plugin config normalization", () => {
   it("normalizes plugin model defaults", () => {
     const model = ` gpt-image-${"x".repeat(
       PLUGIN_CONFIG_LIMITS.maxModelNameChars + 10,
@@ -90,7 +92,9 @@ describe("plugin config normalization", () => {
     expect(config.enabledFunctions).toEqual(["search"]);
     expect(config.disabledFunctions).toEqual(["delete"]);
   });
+});
 
+describe("plugin config normalization", () => {
   it("normalizes plugin config maps and active plugin ids", () => {
     const publicPlugin = makePlugin("public", ["search"]);
     const authPlugin = makePlugin("auth", ["lookup"], { type: "bearer" });
@@ -114,11 +118,11 @@ describe("plugin config normalization", () => {
     });
 
     expect(
-      normalizeActivePluginIds(
-        ["public", "public", "auth", "missing"],
-        plugins,
-        configs,
-      ),
+      normalizeActivePluginIds({
+        pluginIds: ["public", "public", "auth", "missing"],
+        installedPlugins: plugins,
+        pluginConfigs: configs,
+      }),
     ).toEqual(["public"]);
 
     const configsWithAuth = normalizePluginConfigs(
@@ -126,10 +130,16 @@ describe("plugin config normalization", () => {
       plugins,
     );
     expect(
-      normalizeActivePluginIds(["auth"], plugins, configsWithAuth),
+      normalizeActivePluginIds({
+        pluginIds: ["auth"],
+        installedPlugins: plugins,
+        pluginConfigs: configsWithAuth,
+      }),
     ).toEqual(["auth"]);
   });
+});
 
+describe("plugin config normalization", () => {
   it("allows optional-auth plugins to remain active without a saved secret", () => {
     const optionalPlugin = makePlugin("optional", ["read"], {
       type: "bearer",
@@ -143,7 +153,11 @@ describe("plugin config normalization", () => {
     const configs = normalizePluginConfigs({}, plugins);
 
     expect(
-      normalizeActivePluginIds(["optional", "required"], plugins, configs),
+      normalizeActivePluginIds({
+        pluginIds: ["optional", "required"],
+        installedPlugins: plugins,
+        pluginConfigs: configs,
+      }),
     ).toEqual(["optional"]);
   });
 });

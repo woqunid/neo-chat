@@ -14,9 +14,48 @@ import {
   toolCallMessages,
 } from "./streamingToolCalls.helpers";
 
-describe("streamed tool-call normalization", () => {
-  afterEach(restoreStreamingMocks);
+function createInvalidArgumentClient(oversizedArgs: string) {
+  return {
+    chat: {
+      completions: {
+        create: vi.fn(async () =>
+          asyncChunks([
+            {
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "call_big",
+                        function: {
+                          name: "lookup",
+                          arguments: oversizedArgs,
+                        },
+                      },
+                      {
+                        index: 1,
+                        id: "call_bad_json",
+                        function: {
+                          name: "lookup",
+                          arguments: '{"q":',
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ]),
+        ),
+      },
+    },
+  };
+}
 
+afterEach(restoreStreamingMocks);
+
+describe("streamed tool-call normalization", () => {
   it("maps OpenAI provider indexes to a dense bounded tool-call list", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -65,7 +104,9 @@ describe("streamed tool-call normalization", () => {
       status: "pending",
     });
   });
+});
 
+describe("streamed tool-call normalization", () => {
   it("streams Anthropic text and tool calls", async () => {
     const messages: SSEMessage[] = [];
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
@@ -110,7 +151,9 @@ describe("streamed tool-call normalization", () => {
     });
     expect(messages.some((message) => message.type === "usage")).toBe(true);
   });
+});
 
+describe("streamed tool-call normalization", () => {
   it("keeps the streamed tool-call ceiling high but bounded", async () => {
     expect(PLUGIN_EXECUTION_LIMITS.maxStreamedToolCalls).toBe(100);
     const messages: SSEMessage[] = [];
@@ -158,48 +201,15 @@ describe("streamed tool-call normalization", () => {
       PLUGIN_EXECUTION_LIMITS.maxStreamedToolCalls,
     );
   });
+});
 
+describe("streamed tool-call normalization", () => {
   it("emits oversized or invalid OpenAI tool arguments as completed errors", async () => {
     const messages: SSEMessage[] = [];
     const oversizedArgs = `{"q":"${"x".repeat(
       PLUGIN_EXECUTION_LIMITS.maxArgsJsonChars,
     )}"}`;
-    const client = {
-      chat: {
-        completions: {
-          create: vi.fn(async () =>
-            asyncChunks([
-              {
-                choices: [
-                  {
-                    delta: {
-                      tool_calls: [
-                        {
-                          index: 0,
-                          id: "call_big",
-                          function: {
-                            name: "lookup",
-                            arguments: oversizedArgs,
-                          },
-                        },
-                        {
-                          index: 1,
-                          id: "call_bad_json",
-                          function: {
-                            name: "lookup",
-                            arguments: '{"q":',
-                          },
-                        },
-                      ],
-                    },
-                  },
-                ],
-              },
-            ]),
-          ),
-        },
-      },
-    };
+    const client = createInvalidArgumentClient(oversizedArgs);
 
     await streamOpenAIResponse({
       client: client as any,

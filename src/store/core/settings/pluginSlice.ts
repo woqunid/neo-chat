@@ -33,14 +33,14 @@ function addPlugin(state: SettingsState, plugin: Plugin) {
   );
   return {
     installedPlugins,
-    activePlugins: normalizeActivePluginIds(
-      canAutoActivatePlugin(plugin, config)
+    activePlugins: normalizeActivePluginIds({
+      pluginIds: canAutoActivatePlugin(plugin, config)
         ? [...state.activePlugins, plugin.id]
         : state.activePlugins,
       installedPlugins,
       pluginConfigs,
-      ACTIVE_OPTIONS,
-    ),
+      ...ACTIVE_OPTIONS,
+    }),
     pluginConfigs,
   };
 }
@@ -70,14 +70,14 @@ function togglePlugin(state: SettingsState, pluginId: string) {
     pluginId !== UNSPLASH_PLUGIN.id;
   if (missingAuth) return state;
   return {
-    activePlugins: normalizeActivePluginIds(
-      active
+    activePlugins: normalizeActivePluginIds({
+      pluginIds: active
         ? state.activePlugins.filter((id) => id !== pluginId)
         : [...state.activePlugins, pluginId],
-      state.installedPlugins,
-      state.pluginConfigs,
-      ACTIVE_OPTIONS,
-    ),
+      installedPlugins: state.installedPlugins,
+      pluginConfigs: state.pluginConfigs,
+      ...ACTIVE_OPTIONS,
+    }),
   };
 }
 
@@ -100,12 +100,12 @@ function updateConfig(
   );
   return {
     pluginConfigs,
-    activePlugins: normalizeActivePluginIds(
-      state.activePlugins,
-      state.installedPlugins,
+    activePlugins: normalizeActivePluginIds({
+      pluginIds: state.activePlugins,
+      installedPlugins: state.installedPlugins,
       pluginConfigs,
-      ACTIVE_OPTIONS,
-    ),
+      ...ACTIVE_OPTIONS,
+    }),
   };
 }
 
@@ -153,12 +153,12 @@ function ensureBuiltIns(state: SettingsState) {
   return {
     installedPlugins,
     pluginConfigs,
-    activePlugins: normalizeActivePluginIds(
-      state.activePlugins,
+    activePlugins: normalizeActivePluginIds({
+      pluginIds: state.activePlugins,
       installedPlugins,
       pluginConfigs,
-      ACTIVE_OPTIONS,
-    ),
+      ...ACTIVE_OPTIONS,
+    }),
   };
 }
 
@@ -170,12 +170,12 @@ export const createPluginSlice: SettingsSlice = (set) => ({
   removeInstalledPlugin: (id) => set((state) => removePlugin(state, id)),
   setActivePlugins: (ids) =>
     set((state) => ({
-      activePlugins: normalizeActivePluginIds(
-        ids,
-        state.installedPlugins,
-        state.pluginConfigs,
-        ACTIVE_OPTIONS,
-      ),
+      activePlugins: normalizeActivePluginIds({
+        pluginIds: ids,
+        installedPlugins: state.installedPlugins,
+        pluginConfigs: state.pluginConfigs,
+        ...ACTIVE_OPTIONS,
+      }),
     })),
   togglePluginActive: (id) => set((state) => togglePlugin(state, id)),
   updatePluginConfig: (id, config) =>

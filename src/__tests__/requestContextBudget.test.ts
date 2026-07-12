@@ -29,7 +29,9 @@ describe("complete request context budget", () => {
 
     expect(bounded.map((item) => item.id)).toEqual(["new-user", "new-model"]);
   });
+});
 
+describe("complete request context budget", () => {
   it("budgets historical attachments with an explicit omission marker", () => {
     const bounded = boundHistoryForRequest(
       [
@@ -57,7 +59,9 @@ describe("complete request context budget", () => {
     expect(bounded[0].attachments).toBeUndefined();
     expect(bounded[0].content).toContain("Historical attachment omitted");
   });
+});
 
+describe("complete request context budget", () => {
   it("retains recent attachment references within their budget", () => {
     const reference = {
       id: "reference",
@@ -80,7 +84,9 @@ describe("complete request context budget", () => {
 
     expect(bounded[0].attachments).toEqual([reference]);
   });
+});
 
+describe("complete request context budget", () => {
   it("truncates tool results while retaining name and arguments", () => {
     const bounded = boundHistoryForRequest(
       [
@@ -112,7 +118,9 @@ describe("complete request context budget", () => {
     expect(result).toContain("important");
     expect(result.length).toBeLessThan(5_000);
   });
+});
 
+describe("complete request context budget", () => {
   it("rejects fixed request inputs beyond the model context", () => {
     expect(() =>
       boundHistoryForRequest([], {
@@ -125,7 +133,9 @@ describe("complete request context budget", () => {
       }),
     ).toThrow(ContextBudgetExceededError);
   });
+});
 
+describe("complete request context budget", () => {
   it("omits older tool calls beyond a zero remaining tool budget", () => {
     const bounded = boundHistoryForRequest(
       [
@@ -152,7 +162,9 @@ describe("complete request context budget", () => {
     expect(JSON.stringify(bounded).length).toBeLessThan(4_000);
     expect(bounded.at(-1)?.content).toContain("tool calls omitted");
   });
+});
 
+describe("complete request context budget", () => {
   it("surfaces unserializable tool definitions", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
@@ -164,7 +176,9 @@ describe("complete request context budget", () => {
       }),
     ).toThrow(/circular/i);
   });
+});
 
+describe("complete request context budget", () => {
   it("applies the budget before every chat request round", () => {
     const source = readFileSync(
       resolve(process.cwd(), "src/services/api/chat/streamRound.ts"),

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   createPluginExecuteRequest as createRequest,
   decryptOptionalSecretMock,
+  executePluginRequest,
+  mockPluginJsonResponse,
   pluginAuthSecret as secret,
+  readLastPluginRequestBody,
   safeFetchTextMock,
   setupPluginExecuteRouteTests,
 } from "./helpers/pluginExecuteRoute";
@@ -12,31 +15,25 @@ setupPluginExecuteRouteTests();
 describe("plugin execute route: OpenAI-compatible images", () => {
   it("executes OpenAI-compatible image generations with configured endpoint", async () => {
     decryptOptionalSecretMock.mockResolvedValue("compat-secret");
-    safeFetchTextMock.mockResolvedValue({
-      response: new Response(null, { status: 200 }),
-      text: JSON.stringify({
-        data: [{ url: "https://cdn.example.com/generated.png" }],
-      }),
+    mockPluginJsonResponse({
+      data: [{ url: "https://cdn.example.com/generated.png" }],
     });
 
-    const { POST } = await import("../app/api/plugins/execute/route");
-    const response = await POST(
-      createRequest({
-        pluginId: "openai-image-generation",
-        functionName: "generate_image_with_images_api",
-        args: {
-          prompt: "A compact glass cube",
-          model: "gpt-image-2",
-          size: "1024x1024",
-          n: 2,
-        },
-        authConfig: {
-          type: "bearer",
-          valueSecret: secret,
-          baseUrl: "https://api.krill-ai.com/v1",
-        },
-      }) as any,
-    );
+    const response = await executePluginRequest({
+      pluginId: "openai-image-generation",
+      functionName: "generate_image_with_images_api",
+      args: {
+        prompt: "A compact glass cube",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        n: 2,
+      },
+      authConfig: {
+        type: "bearer",
+        valueSecret: secret,
+        baseUrl: "https://api.krill-ai.com/v1",
+      },
+    });
 
     expect(response.status).toBe(200);
     expect(safeFetchTextMock).toHaveBeenCalledWith(
@@ -49,9 +46,7 @@ describe("plugin execute route: OpenAI-compatible images", () => {
       }),
       expect.any(Object),
     );
-    expect(
-      JSON.parse(safeFetchTextMock.mock.calls.at(-1)?.[1]?.body as string),
-    ).toEqual({
+    expect(readLastPluginRequestBody()).toEqual({
       model: "gpt-image-2",
       prompt: "A compact glass cube",
       size: "1024x1024",
@@ -64,7 +59,9 @@ describe("plugin execute route: OpenAI-compatible images", () => {
       },
     });
   });
+});
 
+describe("plugin execute route: OpenAI-compatible images", () => {
   it("uses configured OpenAI-compatible image model defaults", async () => {
     decryptOptionalSecretMock.mockResolvedValue("compat-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -100,7 +97,9 @@ describe("plugin execute route: OpenAI-compatible images", () => {
       size: "1024x1024",
     });
   });
+});
 
+describe("plugin execute route: OpenAI-compatible images", () => {
   it("executes OpenAI-compatible image edits as multipart requests", async () => {
     decryptOptionalSecretMock.mockResolvedValue("compat-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -150,7 +149,9 @@ describe("plugin execute route: OpenAI-compatible images", () => {
       },
     });
   });
+});
 
+describe("plugin execute route: OpenAI-compatible images", () => {
   it("rejects unsafe OpenAI-compatible endpoint overrides", async () => {
     decryptOptionalSecretMock.mockResolvedValue("compat-secret");
 

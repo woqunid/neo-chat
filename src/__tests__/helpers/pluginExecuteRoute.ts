@@ -63,6 +63,24 @@ export function createPluginExecuteRequest(body: unknown): Request {
   });
 }
 
+export function mockPluginJsonResponse(data: unknown): void {
+  safeFetchTextMock.mockResolvedValue({
+    response: new Response(null, { status: 200 }),
+    text: JSON.stringify(data),
+  });
+}
+
+export async function executePluginRequest(body: unknown): Promise<Response> {
+  const { POST } = await import("../../app/api/plugins/execute/route");
+  return POST(createPluginExecuteRequest(body) as any);
+}
+
+export function readLastPluginRequestBody<T>(): T {
+  return JSON.parse(
+    safeFetchTextMock.mock.calls.at(-1)?.[1]?.body as string,
+  ) as T;
+}
+
 export function setupPluginExecuteRouteTests(): void {
   beforeEach(() => {
     safeFetchTextMock.mockReset();

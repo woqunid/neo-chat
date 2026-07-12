@@ -33,14 +33,14 @@ function protectedRequest(
   });
 }
 
-describe("API request proof middleware", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-    setRateLimitStoreForTesting(null);
-    clearRequestProofSigningKeyForTesting();
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  setRateLimitStoreForTesting(null);
+  clearRequestProofSigningKeyForTesting();
+});
 
+describe("API request proof middleware", () => {
   it("rejects hosted protected API requests without request proof", async () => {
     hostedEnv();
 
@@ -68,7 +68,9 @@ describe("API request proof middleware", () => {
       statusCode: 503,
     });
   });
+});
 
+describe("API request proof middleware", () => {
   it("allows hosted protected API requests with valid request proof", async () => {
     hostedEnv();
     const now = 1_700_000_000_000;
@@ -91,7 +93,9 @@ describe("API request proof middleware", () => {
 
     expect(response.status).toBe(200);
   });
+});
 
+describe("API request proof middleware", () => {
   it("rejects replayed request proof nonces within the proof window", async () => {
     hostedEnv();
     const now = 1_700_000_000_000;
@@ -126,7 +130,9 @@ describe("API request proof middleware", () => {
       statusCode: 401,
     });
   });
+});
 
+describe("API request proof middleware", () => {
   it("rejects hosted protected API requests with expired request proof", async () => {
     hostedEnv();
     const now = 1_700_000_000_000;
@@ -154,7 +160,9 @@ describe("API request proof middleware", () => {
       statusCode: 401,
     });
   });
+});
 
+describe("API request proof middleware", () => {
   it("does not require request proof for local mode or public bootstrap APIs", async () => {
     vi.stubEnv("DEPLOYMENT_MODE", "local");
     vi.stubEnv("ACCESS_PASSWORD", "");
@@ -171,7 +179,9 @@ describe("API request proof middleware", () => {
       proxy(new NextRequest("https://neo.test/api/request-proof/session")),
     ).resolves.toMatchObject({ status: 200 });
   });
+});
 
+describe("API request proof middleware", () => {
   it("uses request methods for fork-specific protected routes", async () => {
     hostedEnv();
 

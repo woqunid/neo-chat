@@ -67,6 +67,25 @@ function consumeContentEvent(
   return { text, done: false };
 }
 
+function processContentEvents(
+  events: string[],
+  current: string,
+  onChunk: (text: string) => void,
+): { text: string; done: boolean } {
+  let text = current;
+  for (const event of events) {
+    try {
+      const result = consumeContentEvent(eventData(event), text, onChunk);
+      text = result.text;
+      if (result.done) return result;
+    } catch (error) {
+      if (event.includes('"type":"error"')) throw error;
+      logDevError("Failed to parse SSE data:", error);
+    }
+  }
+  return { text, done: false };
+}
+
 async function readContentStream(
   response: Response,
   onChunk: (text: string) => void,
@@ -82,26 +101,33 @@ async function readContentStream(
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
     buffer = events.pop() || "";
-    for (const event of events) {
-      try {
-        const result = consumeContentEvent(eventData(event), text, onChunk);
-        text = result.text;
-        if (result.done) return text;
-      } catch (error) {
-        if (event.includes('"type":"error"')) throw error;
-        logDevError("Failed to parse SSE data:", error);
-      }
-    }
+    const result = processContentEvents(events, text, onChunk);
+    text = result.text;
+    if (result.done) return text;
   }
   return text;
+}
+
+interface StreamGenerationOptions {
+  onChunk: (text: string) => void;
+  signal?: AbortSignal;
+}
+
+type StreamGenerationInput =
+  StreamGenerationOptions | StreamGenerationOptions["onChunk"];
+
+function resolveStreamGenerationOptions(
+  input: StreamGenerationInput,
+): StreamGenerationOptions {
+  return typeof input === "function" ? { onChunk: input } : input;
 }
 
 export async function streamGenerateContent(
   model: string,
   prompt: string,
-  onChunk: (text: string) => void,
-  signal?: AbortSignal,
+  input: StreamGenerationInput,
 ): Promise<string> {
+  const options = resolveStreamGenerationOptions(input);
   const { provider, modelName } = resolveProvider(model);
   if (!provider) throw new Error("No provider found");
   try {
@@ -109,14 +135,14 @@ export async function streamGenerateContent(
       provider,
       modelName,
       prompt,
-      signal,
+      signal: options.signal,
     });
     if (!response.ok) {
       throw new Error(
         await getResponseErrorMessage(response, "Generate request failed"),
       );
     }
-    return await readContentStream(response, onChunk);
+    return await readContentStream(response, options.onChunk);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
@@ -181,13 +207,17 @@ async function readToolStream(response: Response): Promise<ToolCall | null> {
   return buffer.trim() ? (parseToolEvent(buffer) ?? null) : null;
 }
 
+interface ToolGenerationOptions {
+  tools: ChatToolDefinition[];
+  signal?: AbortSignal;
+}
+
 export async function streamGenerateToolCall(
   model: string,
   prompt: string,
-  tools: ChatToolDefinition[],
-  signal?: AbortSignal,
+  options: ToolGenerationOptions,
 ): Promise<ToolCall | null> {
-  if (tools.length === 0) return null;
+  if (options.tools.length === 0) return null;
   const { provider, modelName } = resolveProvider(model);
   if (!provider) {
     logDevWarn("Skill tool selection skipped: no provider found.");
@@ -198,8 +228,8 @@ export async function streamGenerateToolCall(
       provider,
       modelName,
       prompt,
-      tools,
-      signal,
+      tools: options.tools,
+      signal: options.signal,
     });
     if (!response.ok) {
       throw new Error(

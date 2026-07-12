@@ -30,12 +30,12 @@ async function streamEvents(
   });
 }
 
-describe("Anthropic streaming protocol", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
+describe("Anthropic streaming protocol", () => {
   it("requires message_stop before accepting stream completion", async () => {
     const messages: SSEMessage[] = [];
     await expect(
@@ -56,7 +56,9 @@ describe("Anthropic streaming protocol", () => {
     expect(messages).toContainEqual({ type: "content", content: "partial" });
     expect(messages.some((message) => message.type === "timing")).toBe(false);
   });
+});
 
+describe("Anthropic streaming protocol", () => {
   it("counts cached input tokens and ignores ping events", async () => {
     const messages: SSEMessage[] = [];
     await streamEvents(
@@ -86,13 +88,17 @@ describe("Anthropic streaming protocol", () => {
       },
     });
   });
+});
 
+describe("Anthropic streaming protocol", () => {
   it("surfaces Anthropic error events", async () => {
     await expect(
       streamEvents([{ type: "error", error: { message: "overloaded" } }]),
     ).rejects.toThrow("Anthropic stream failed: overloaded");
   });
+});
 
+describe("Anthropic streaming protocol", () => {
   it("preserves initial tool input when no JSON delta follows", async () => {
     const messages: SSEMessage[] = [];
     await streamEvents(
@@ -122,7 +128,9 @@ describe("Anthropic streaming protocol", () => {
       }),
     });
   });
+});
 
+describe("Anthropic streaming protocol", () => {
   it("fails explicitly when streamed tool input exceeds the limit", async () => {
     const oversized = "x".repeat(PLUGIN_EXECUTION_LIMITS.maxArgsJsonChars + 1);
     await expect(
@@ -145,7 +153,9 @@ describe("Anthropic streaming protocol", () => {
       ]),
     ).rejects.toThrow("Anthropic tool call arguments are too large");
   });
+});
 
+describe("Anthropic streaming protocol", () => {
   it("uses caller cancellation when the provider timeout is disabled", async () => {
     vi.stubEnv("CHAT_PROVIDER_TIMEOUT_MS", "0");
     const caller = new AbortController();

@@ -5,13 +5,13 @@ import {
   normalizeProviderBaseUrl,
 } from "../lib/security/providerUrl";
 
+const originalEnv = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...originalEnv };
+});
+
 describe("provider runtime URL helpers", () => {
-  const originalEnv = { ...process.env };
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
-
   it("normalizes OpenAI-compatible base URLs without duplicating /v1", () => {
     expect(normalizeProviderBaseUrl("https://api.example.com", "OpenAI")).toBe(
       "https://api.example.com/v1",

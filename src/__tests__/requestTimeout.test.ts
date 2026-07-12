@@ -6,12 +6,12 @@ import {
   getGrokSearchTimeoutMs,
 } from "../lib/providers/requestTimeout";
 
-describe("provider request timeouts", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllEnvs();
-  });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
+describe("provider request timeouts", () => {
   it("uses independent defaults for chat generation and Grok search", () => {
     vi.stubEnv("CHAT_PROVIDER_TIMEOUT_MS", "");
     vi.stubEnv("GROK_SEARCH_TIMEOUT_MS", "");

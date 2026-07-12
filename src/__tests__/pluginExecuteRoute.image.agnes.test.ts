@@ -1,47 +1,45 @@
 import { describe, expect, it } from "vitest";
 import {
-  createPluginExecuteRequest as createRequest,
   decryptOptionalSecretMock,
+  executePluginRequest,
+  mockPluginJsonResponse,
   pluginAuthSecret as secret,
+  readLastPluginRequestBody,
   safeFetchTextMock,
   setupPluginExecuteRouteTests,
 } from "./helpers/pluginExecuteRoute";
 
 setupPluginExecuteRouteTests();
 
+const generationResult = {
+  created: 1780000000,
+  data: [
+    {
+      url: "https://storage.example/image.png",
+      b64_json: null,
+      revised_prompt: null,
+    },
+  ],
+};
+
 describe("plugin execute route: Agnes images", () => {
   it("normalizes Agnes image generation results", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
-    safeFetchTextMock.mockResolvedValue({
-      response: new Response(null, { status: 200 }),
-      text: JSON.stringify({
-        created: 1780000000,
-        data: [
-          {
-            url: "https://storage.example/image.png",
-            b64_json: null,
-            revised_prompt: null,
-          },
-        ],
-      }),
-    });
+    mockPluginJsonResponse(generationResult);
 
-    const { POST } = await import("../app/api/plugins/execute/route");
-    const response = await POST(
-      createRequest({
-        pluginId: "agnes-image-generation",
-        functionName: "generate_image",
-        args: {
-          prompt: "A compact glass cube",
-          size: "1024x768",
-        },
-        authConfig: {
-          type: "bearer",
-          valueSecret: secret,
-          model: "agnes-custom-image-model",
-        },
-      }) as any,
-    );
+    const response = await executePluginRequest({
+      pluginId: "agnes-image-generation",
+      functionName: "generate_image",
+      args: {
+        prompt: "A compact glass cube",
+        size: "1024x768",
+      },
+      authConfig: {
+        type: "bearer",
+        valueSecret: secret,
+        model: "agnes-custom-image-model",
+      },
+    });
 
     expect(response.status).toBe(200);
     expect(safeFetchTextMock).toHaveBeenCalledWith(
@@ -54,9 +52,7 @@ describe("plugin execute route: Agnes images", () => {
       }),
       expect.objectContaining({ timeoutMs: 120_000 }),
     );
-    expect(
-      JSON.parse(safeFetchTextMock.mock.calls.at(-1)?.[1]?.body as string),
-    ).toEqual({
+    expect(readLastPluginRequestBody()).toEqual({
       model: "agnes-custom-image-model",
       prompt: "A compact glass cube",
       size: "1024x768",
@@ -66,58 +62,43 @@ describe("plugin execute route: Agnes images", () => {
         imageUrl: "https://storage.example/image.png",
         imageBase64: null,
         revisedPrompt: null,
-        raw: {
-          created: 1780000000,
-          data: [
-            {
-              url: "https://storage.example/image.png",
-              b64_json: null,
-              revised_prompt: null,
-            },
-          ],
-        },
+        raw: generationResult,
       },
     });
   });
+});
 
+describe("plugin execute route: Agnes images", () => {
   it("executes Agnes image editing with extra_body image inputs", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
-    safeFetchTextMock.mockResolvedValue({
-      response: new Response(null, { status: 200 }),
-      text: JSON.stringify({
-        created: 1780000000,
-        data: [
-          {
-            url: null,
-            b64_json: "edited-image",
-            revised_prompt: null,
-          },
-        ],
-      }),
+    mockPluginJsonResponse({
+      created: 1780000000,
+      data: [
+        {
+          url: null,
+          b64_json: "edited-image",
+          revised_prompt: null,
+        },
+      ],
     });
 
-    const { POST } = await import("../app/api/plugins/execute/route");
-    const response = await POST(
-      createRequest({
-        pluginId: "agnes-image-generation",
-        functionName: "generate_image",
-        args: {
-          prompt: "Make the object orange",
-          size: "1024x768",
-          image: ["https://example.com/input.png"],
-          response_format: "b64_json",
-        },
-        authConfig: {
-          type: "bearer",
-          valueSecret: secret,
-        },
-      }) as any,
-    );
+    const response = await executePluginRequest({
+      pluginId: "agnes-image-generation",
+      functionName: "generate_image",
+      args: {
+        prompt: "Make the object orange",
+        size: "1024x768",
+        image: ["https://example.com/input.png"],
+        response_format: "b64_json",
+      },
+      authConfig: {
+        type: "bearer",
+        valueSecret: secret,
+      },
+    });
 
     expect(response.status).toBe(200);
-    expect(
-      JSON.parse(safeFetchTextMock.mock.calls.at(-1)?.[1]?.body as string),
-    ).toEqual({
+    expect(readLastPluginRequestBody()).toEqual({
       model: "agnes-image-2.1-flash",
       prompt: "Make the object orange",
       size: "1024x768",

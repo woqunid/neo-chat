@@ -86,6 +86,14 @@ async function fetchListing(options: ListingOptions, forceRefresh: boolean) {
   };
 }
 
+function isCurrentRequest(tracker: RequestTracker, requestId: number): boolean {
+  return tracker.mounted.current && tracker.request.current === requestId;
+}
+
+function getLoadError(options: ListingOptions, forceRefresh: boolean): string {
+  return forceRefresh ? options.refreshFailed : options.loadFailed;
+}
+
 function useListingLoad(options: Options, tracker: RequestTracker) {
   const stableOptions = useStableListingOptions(options);
   const [available, setAvailable] = useState<Plugin[]>([]);
@@ -100,23 +108,16 @@ function useListingLoad(options: Options, tracker: RequestTracker) {
       setError(null);
       try {
         const result = await fetchListing(stableOptions, forceRefresh);
-        if (tracker.mounted.current && tracker.request.current === requestId) {
-          setAvailable(result.plugins);
-          stableOptions.onMcpNextCursor(result.nextCursor || "");
-        }
+        if (!isCurrentRequest(tracker, requestId)) return;
+        setAvailable(result.plugins);
+        stableOptions.onMcpNextCursor(result.nextCursor || "");
       } catch {
-        if (tracker.mounted.current && tracker.request.current === requestId) {
-          setError(
-            forceRefresh
-              ? stableOptions.refreshFailed
-              : stableOptions.loadFailed,
-          );
-        }
+        if (!isCurrentRequest(tracker, requestId)) return;
+        setError(getLoadError(stableOptions, forceRefresh));
       } finally {
-        if (tracker.mounted.current && tracker.request.current === requestId) {
-          setLoading(false);
-          setRefreshing(false);
-        }
+        if (!isCurrentRequest(tracker, requestId)) return;
+        setLoading(false);
+        setRefreshing(false);
       }
     },
     [stableOptions, tracker],

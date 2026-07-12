@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createPluginExecuteRequest as createRequest,
   decryptOptionalSecretMock,
+  executePluginRequest,
   pluginAuthSecret as secret,
   safeFetchTextMock,
   setupPluginExecuteRouteTests,
@@ -23,23 +24,20 @@ describe("plugin execute route: Agnes video creation", () => {
       }),
     });
 
-    const { POST } = await import("../app/api/plugins/execute/route");
-    const response = await POST(
-      createRequest({
-        pluginId: "agnes-video-generation",
-        functionName: "create_video",
-        args: {
-          prompt: "A quiet cinematic beach shot",
-          num_frames: 121,
-          frame_rate: 24,
-        },
-        authConfig: {
-          type: "bearer",
-          valueSecret: secret,
-          model: "agnes-video-custom",
-        },
-      }) as any,
-    );
+    const response = await executePluginRequest({
+      pluginId: "agnes-video-generation",
+      functionName: "create_video",
+      args: {
+        prompt: "A quiet cinematic beach shot",
+        num_frames: 121,
+        frame_rate: 24,
+      },
+      authConfig: {
+        type: "bearer",
+        valueSecret: secret,
+        model: "agnes-video-custom",
+      },
+    });
 
     expect(response.status).toBe(200);
     expect(safeFetchTextMock).toHaveBeenCalledWith(
@@ -61,7 +59,9 @@ describe("plugin execute route: Agnes video creation", () => {
       model: "agnes-video-custom",
     });
   });
+});
 
+describe("plugin execute route: Agnes video creation", () => {
   it("creates Agnes image-to-video tasks with explicit model priority", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
     safeFetchTextMock.mockResolvedValue({
@@ -101,7 +101,9 @@ describe("plugin execute route: Agnes video creation", () => {
       model: "agnes-video-explicit",
     });
   });
+});
 
+describe("plugin execute route: Agnes video creation", () => {
   it("rejects non-HTTPS Agnes image-to-video inputs", async () => {
     decryptOptionalSecretMock.mockResolvedValue("agnes-secret");
 

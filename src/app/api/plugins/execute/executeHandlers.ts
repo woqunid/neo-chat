@@ -18,6 +18,9 @@ import { safeFetchText } from "@/lib/security/safeFetch";
 import type { Plugin, PluginFunction } from "@/types";
 
 type ExecutionBody = z.infer<typeof PluginExecutionRequestSchema>;
+type McpMetadata = NonNullable<Plugin["mcp"]>;
+
+const BAD_REQUEST_STATUS = 400;
 
 function errorResponse(
   error: string,
@@ -41,50 +44,72 @@ function getMcpAuthType(
     : undefined;
 }
 
-async function executeMcpPlugin(
-  plugin: Plugin,
+function getMcpMetadata(plugin: Plugin): McpMetadata | null {
+  if (!plugin.mcp?.serverUrl) return null;
+  return plugin.mcp;
+}
+
+function getMcpToolName(
+  metadata: McpMetadata,
   functionDef: PluginFunction,
   body: ExecutionBody,
-  signal: AbortSignal,
-): Promise<Response> {
-  if (!plugin.mcp?.serverUrl) {
+): string | undefined {
+  return metadata.toolNameMap?.[body.functionName] || functionDef.mcpToolName;
+}
+
+function getMcpAuthConfig(plugin: Plugin, body: ExecutionBody) {
+  return {
+    type: getMcpAuthType(plugin, body.authConfig),
+    key: body.authConfig?.key || plugin.auth?.name,
+    addTo: body.authConfig?.addTo || plugin.auth?.in,
+  };
+}
+
+function getEncryptedAuthValue(body: ExecutionBody) {
+  return body.authConfig?.valueSecret;
+}
+
+async function executeMcpPlugin(options: {
+  plugin: Plugin;
+  functionDef: PluginFunction;
+  body: ExecutionBody;
+  signal: AbortSignal;
+}): Promise<Response> {
+  const { plugin, functionDef, body, signal } = options;
+  const metadata = getMcpMetadata(plugin);
+  if (!metadata) {
     return errorResponse(
       "MCP server metadata is missing",
       "MCP_SERVER_METADATA_MISSING",
-      400,
+      BAD_REQUEST_STATUS,
     );
   }
-  const toolName =
-    plugin.mcp.toolNameMap?.[body.functionName] || functionDef.mcpToolName;
+  const toolName = getMcpToolName(metadata, functionDef, body);
   if (!toolName) {
     return errorResponse(
       "MCP tool mapping is missing",
       "MCP_TOOL_MAPPING_MISSING",
-      400,
+      BAD_REQUEST_STATUS,
     );
   }
   const authValue = await decryptOptionalSecret(
-    body.authConfig?.valueSecret,
+    getEncryptedAuthValue(body),
     BYOK_CONTEXTS.pluginAuth(plugin.id),
   );
   if (isPluginAuthRequired(plugin) && !authValue) {
     return errorResponse(
       "Plugin authentication is required",
       "PLUGIN_AUTH_REQUIRED",
-      400,
+      BAD_REQUEST_STATUS,
     );
   }
   const result = await executeMcpToolRequest({
-    serverUrl: plugin.mcp.serverUrl,
+    serverUrl: metadata.serverUrl,
     toolName,
     args: body.args,
-    staticHeaders: plugin.mcp.headers,
+    staticHeaders: metadata.headers,
     authValue,
-    authConfig: {
-      type: getMcpAuthType(plugin, body.authConfig),
-      key: body.authConfig?.key || plugin.auth?.name,
-      addTo: body.authConfig?.addTo || plugin.auth?.in,
-    },
+    authConfig: getMcpAuthConfig(plugin, body),
     signal,
   });
   return NextResponse.json({ result });
@@ -123,7 +148,7 @@ async function executeRegistered(
   }
   const plugin = resolvePluginForExecution(registered, body);
   if (plugin.source === "mcp") {
-    return executeMcpPlugin(plugin, functionDef, body, signal);
+    return executeMcpPlugin({ plugin, functionDef, body, signal });
   }
   return executePluginFunctionRequest({
     plugin,

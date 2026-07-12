@@ -99,45 +99,45 @@ const ragConfig: RAGConfig = {
   llamaParseApiKey: "",
 };
 
-describe("clear app data", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    encryptSecretMock.mockResolvedValue(tokenSecret);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        ),
+beforeEach(() => {
+  vi.clearAllMocks();
+  encryptSecretMock.mockResolvedValue(tokenSecret);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       ),
-    );
-    appDbMock.getItem.mockResolvedValue(
-      JSON.stringify({
-        state: {
-          collections: [
-            {
-              id: "collection-1",
-              files: [
-                {
-                  id: "file-1",
-                  ragId: "file-1",
-                  ragChunkCount: 2,
-                },
-                {
-                  id: "file-2",
-                  ragId: "file-2",
-                },
-              ],
-            },
-          ],
-        },
-      }),
-    );
-  });
+    ),
+  );
+  appDbMock.getItem.mockResolvedValue(
+    JSON.stringify({
+      state: {
+        collections: [
+          {
+            id: "collection-1",
+            files: [
+              {
+                id: "file-1",
+                ragId: "file-1",
+                ragChunkCount: 2,
+              },
+              {
+                id: "file-2",
+                ragId: "file-2",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+});
 
+describe("clear app data", () => {
   it("cleans persisted RAG vectors and OPFS directories before clearing storage", async () => {
     await clearBrowserAppData(ragConfig);
 
@@ -181,7 +181,9 @@ describe("clear app data", () => {
     expect(localforageClearMock).toHaveBeenCalled();
     expect(appDbMock.clear).toHaveBeenCalled();
   });
+});
 
+describe("clear app data", () => {
   it("clears cache metadata without clearing user settings or stores", async () => {
     appDbMock.getItem.mockResolvedValueOnce(
       JSON.stringify({
@@ -230,7 +232,9 @@ describe("clear app data", () => {
       modelMetadataTimestamp: 0,
     });
   });
+});
 
+describe("clear app data", () => {
   it("clears chat metadata and per-session message records when requested", async () => {
     appDbMock.keys.mockResolvedValueOnce([
       "neo-chat-storage",
@@ -263,7 +267,9 @@ describe("clear app data", () => {
     expect(removeItem).toHaveBeenCalledWith("neo-chat-font-size");
     vi.unstubAllGlobals();
   });
+});
 
+describe("clear app data", () => {
   it("clears knowledge metadata, vectors, and OPFS knowledge files when requested", async () => {
     await clearBrowserAppDataSources({
       sources: ["knowledge"],

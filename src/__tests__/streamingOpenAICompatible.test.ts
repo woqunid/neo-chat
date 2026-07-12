@@ -10,9 +10,9 @@ import {
   restoreStreamingMocks,
 } from "./streamingToolCalls.helpers";
 
-describe("OpenAI Compatible streaming", () => {
-  afterEach(restoreStreamingMocks);
+afterEach(restoreStreamingMocks);
 
+describe("OpenAI Compatible streaming", () => {
   it("keeps chat completions available", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -41,7 +41,9 @@ describe("OpenAI Compatible streaming", () => {
     expect(requestOptions).toMatchObject({ maxRetries: 0, timeout: 120_000 });
     expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
   });
+});
 
+describe("OpenAI Compatible streaming", () => {
   it("uses a conservative chat request shape", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -88,7 +90,9 @@ describe("OpenAI Compatible streaming", () => {
       ]),
     );
   });
+});
 
+describe("OpenAI Compatible streaming", () => {
   it("streams reasoning deltas without user control", async () => {
     const messages: SSEMessage[] = [];
     const client = {
@@ -127,7 +131,9 @@ describe("OpenAI Compatible streaming", () => {
     ).toEqual(["Hidden chain. ", "More hidden reasoning."]);
     expect(messages).toContainEqual({ type: "content", content: "Answer" });
   });
+});
 
+describe("OpenAI Compatible streaming", () => {
   it("does not send reasoning effort controls", async () => {
     const messages: SSEMessage[] = [];
     const client = {

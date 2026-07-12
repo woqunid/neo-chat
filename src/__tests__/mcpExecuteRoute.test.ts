@@ -40,51 +40,52 @@ function createRequest(body: unknown, signal?: AbortSignal) {
   });
 }
 
-describe("MCP plugin execute route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    executeMcpToolRequestMock.mockReset();
-    decryptOptionalSecretMock.mockReset();
+async function registerTestMcpPlugin(): Promise<void> {
+  const { registerServerPlugin } = await import("../lib/plugin/serverRegistry");
+  await registerServerPlugin({
+    id: "mcp:io.github/context7:1.2.3",
+    title: "io.github/context7",
+    description: "",
+    logoUrl: "",
+    manifestUrl: "",
+    source: "mcp",
+    functions: [
+      {
+        name: "mcp_io_github_context7__resolve_library_id",
+        mcpToolName: "resolve-library-id",
+        description: "Resolve package docs.",
+        parameters: { type: "object", properties: {} },
+        risk: "external",
+      },
+    ],
+    auth: { type: "none", required: false },
+    mcp: {
+      transport: "streamable-http",
+      serverUrl: "https://mcp.example.com/mcp",
+      serverName: "io.github/context7",
+      serverVersion: "1.2.3",
+      headers: { "X-Client": "neo-chat" },
+      toolNameMap: {
+        mcp_io_github_context7__resolve_library_id: "resolve-library-id",
+      },
+    },
   });
+}
 
+beforeEach(() => {
+  vi.resetModules();
+  executeMcpToolRequestMock.mockReset();
+  decryptOptionalSecretMock.mockReset();
+});
+
+describe("MCP plugin execute route", () => {
   it("dispatches MCP plugin execution through the MCP executor", async () => {
     const controller = new AbortController();
     executeMcpToolRequestMock.mockResolvedValue({
       structuredContent: { answer: "ok" },
     });
 
-    const { registerServerPlugin } =
-      await import("../lib/plugin/serverRegistry");
-    await registerServerPlugin({
-      id: "mcp:io.github/context7:1.2.3",
-      title: "io.github/context7",
-      description: "",
-      logoUrl: "",
-      manifestUrl: "",
-      source: "mcp",
-      functions: [
-        {
-          name: "mcp_io_github_context7__resolve_library_id",
-          mcpToolName: "resolve-library-id",
-          description: "Resolve package docs.",
-          parameters: { type: "object", properties: {} },
-          risk: "external",
-        },
-      ],
-      auth: { type: "none", required: false },
-      mcp: {
-        transport: "streamable-http",
-        serverUrl: "https://mcp.example.com/mcp",
-        serverName: "io.github/context7",
-        serverVersion: "1.2.3",
-        headers: {
-          "X-Client": "neo-chat",
-        },
-        toolNameMap: {
-          mcp_io_github_context7__resolve_library_id: "resolve-library-id",
-        },
-      },
-    });
+    await registerTestMcpPlugin();
 
     const { POST } = await import("../app/api/plugins/execute/route");
     const request = createRequest(

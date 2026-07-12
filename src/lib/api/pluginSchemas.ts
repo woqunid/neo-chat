@@ -93,7 +93,11 @@ const PluginAuthConfigSchema = z
   })
   .strict()
   .superRefine((auth, context) => {
-    rejectPlainSecretField(auth.value, context, ["value"], "Plugin auth value");
+    rejectPlainSecretField(auth.value, {
+      context,
+      path: ["value"],
+      label: "Plugin auth value",
+    });
   })
   .transform((auth) => omitPlainSecretField(auth, "value"))
   .optional();

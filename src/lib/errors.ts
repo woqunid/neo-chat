@@ -4,15 +4,23 @@
 
 import { logDevError } from "./utils/devLogger";
 
+export interface ApiErrorOptions {
+  statusCode?: number;
+  code?: string;
+  details?: unknown;
+}
+
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 500,
-    public code?: string,
-    public details?: any,
-  ) {
+  public readonly statusCode: number;
+  public readonly code?: string;
+  public readonly details?: unknown;
+
+  constructor(message: string, options: ApiErrorOptions = {}) {
     super(message);
     this.name = "ApiError";
+    this.statusCode = options.statusCode ?? 500;
+    this.code = options.code;
+    this.details = options.details;
   }
 
   toJSON() {
@@ -27,28 +35,28 @@ export class ApiError extends Error {
 
 export class ValidationError extends ApiError {
   constructor(message: string, details?: any) {
-    super(message, 400, "VALIDATION_ERROR", details);
+    super(message, { statusCode: 400, code: "VALIDATION_ERROR", details });
     this.name = "ValidationError";
   }
 }
 
 export class PayloadTooLargeError extends ApiError {
   constructor(message: string = "Request body is too large") {
-    super(message, 413, "PAYLOAD_TOO_LARGE");
+    super(message, { statusCode: 413, code: "PAYLOAD_TOO_LARGE" });
     this.name = "PayloadTooLargeError";
   }
 }
 
 export class LengthRequiredError extends ApiError {
   constructor(message: string = "Content-Length header is required") {
-    super(message, 411, "LENGTH_REQUIRED");
+    super(message, { statusCode: 411, code: "LENGTH_REQUIRED" });
     this.name = "LengthRequiredError";
   }
 }
 
 export class AuthenticationError extends ApiError {
   constructor(message: string = "API key not configured") {
-    super(message, 401, "AUTH_ERROR");
+    super(message, { statusCode: 401, code: "AUTH_ERROR" });
     this.name = "AuthenticationError";
   }
 }
@@ -59,14 +67,18 @@ export class ProviderError extends ApiError {
     public provider: string,
     details?: Record<string, unknown>,
   ) {
-    super(message, 502, "PROVIDER_ERROR", { provider, ...details });
+    super(message, {
+      statusCode: 502,
+      code: "PROVIDER_ERROR",
+      details: { provider, ...details },
+    });
     this.name = "ProviderError";
   }
 }
 
 export class IncompleteProviderStreamError extends ApiError {
   constructor(message: string) {
-    super(message, 502, "INCOMPLETE_PROVIDER_STREAM");
+    super(message, { statusCode: 502, code: "INCOMPLETE_PROVIDER_STREAM" });
     this.name = "IncompleteProviderStreamError";
   }
 }
@@ -76,8 +88,10 @@ export class ResponseTimeoutError extends ApiError {
     readonly timeoutMs: number,
     label = "Upstream response",
   ) {
-    super(`${label} timed out after ${timeoutMs}ms`, 504, "RESPONSE_TIMEOUT", {
-      timeoutMs,
+    super(`${label} timed out after ${timeoutMs}ms`, {
+      statusCode: 504,
+      code: "RESPONSE_TIMEOUT",
+      details: { timeoutMs },
     });
     this.name = "ResponseTimeoutError";
   }
@@ -87,7 +101,7 @@ export class HostedProxyBlockedError extends ApiError {
   constructor(
     message: string = "Hosted deployments cannot proxy local network URLs",
   ) {
-    super(message, 403, "HOSTED_PROXY_BLOCKED");
+    super(message, { statusCode: 403, code: "HOSTED_PROXY_BLOCKED" });
     this.name = "HostedProxyBlockedError";
   }
 }

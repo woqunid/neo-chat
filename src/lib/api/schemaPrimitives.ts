@@ -19,17 +19,21 @@ export const EncryptedSecretEnvelopeSchema = z.object({
   context: z.string().min(1).max(200),
 });
 
+export interface RejectPlainSecretFieldOptions {
+  context: z.RefinementCtx;
+  path: string[];
+  label: string;
+}
+
 export function rejectPlainSecretField(
   value: unknown,
-  context: z.RefinementCtx,
-  path: string[],
-  label: string,
+  options: RejectPlainSecretFieldOptions,
 ): void {
   if (typeof value !== "string" || !value.trim()) return;
-  context.addIssue({
+  options.context.addIssue({
     code: "custom",
-    path,
-    message: `${label} must be sent as an encrypted BYOK secret`,
+    path: options.path,
+    message: `${options.label} must be sent as an encrypted BYOK secret`,
   });
 }
 
@@ -54,12 +58,11 @@ export const ProviderRuntimeConfigSchema = z
   })
   .strict()
   .superRefine((provider, context) =>
-    rejectPlainSecretField(
-      provider.apiKey,
+    rejectPlainSecretField(provider.apiKey, {
       context,
-      ["apiKey"],
-      "Provider API key",
-    ),
+      path: ["apiKey"],
+      label: "Provider API key",
+    }),
   )
   .transform((provider) => omitPlainSecretField(provider, "apiKey"));
 
