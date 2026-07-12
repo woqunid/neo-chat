@@ -4,8 +4,10 @@ import { v7 as uuidv7 } from "uuid";
 import { parseModelString } from "@/lib/utils/model";
 import {
   createContextCompressionSummaryPrompt,
-  mergeCompressedContent,
+  buildCompressionSource,
+  mergeCompressedContentWithMemoryIds,
   normalizeCompressedContent,
+  normalizeCompressedContentWithMemoryIds,
   textToBase64,
 } from "@/lib/utils/contextCompression";
 import { logDevWarn } from "../../../lib/utils/devLogger";
@@ -28,14 +30,21 @@ const getCompressionConfig = () => {
 };
 
 // Generate summary using backend API
-const generateSummary = async (text: string): Promise<string> => {
+const generateSummary = async (
+  text: string,
+  signal?: AbortSignal,
+): Promise<string> => {
   try {
     const summaryModel = getTaskModel("contextCompression");
     const prompt = createContextCompressionSummaryPrompt(text);
     return await streamGenerateContent(summaryModel, prompt, {
       onChunk: () => {},
+      signal,
     });
   } catch (e) {
+    if (signal?.aborted || (e instanceof Error && e.name === "AbortError")) {
+      throw e;
+    }
     logDevWarn("Summary generation failed, returning raw truncation", e);
     return normalizeCompressedContent(
       `${text.slice(0, SUMMARY_FALLBACK_LENGTH)}... [Summary Failed]`,
@@ -132,14 +141,22 @@ export const prepareHistoryForLLM = async (
 function getCompressionStart(
   messages: Message[],
   compression: Session["compression"],
-): { startIndex: number; oldContent: string } {
-  if (!compression) return { startIndex: 1, oldContent: "" };
+): { startIndex: number; oldContent: string; oldMemoryIds: string[] } {
+  if (!compression) {
+    return { startIndex: 1, oldContent: "", oldMemoryIds: [] };
+  }
   const index = messages.findIndex(
     (message) => message.id === compression.lastCompressedMessageId,
   );
+  if (index < 0) return { startIndex: 0, oldContent: "", oldMemoryIds: [] };
+  const normalized = normalizeCompressedContentWithMemoryIds({
+    content: compression.compressedContent,
+    memoryIds: compression.includedMemoryIds || [],
+  });
   return {
-    startIndex: index < 0 ? 0 : index + 1,
-    oldContent: index < 0 ? "" : compression.compressedContent,
+    startIndex: index + 1,
+    oldContent: normalized.content,
+    oldMemoryIds: normalized.representedMemoryIds,
   };
 }
 
@@ -155,31 +172,20 @@ function getMessagesToCompress(options: {
   return uncompressed.slice(0, uncompressed.length - options.keepMessages);
 }
 
-function serializeMessages(messages: Message[]): string {
-  return messages
-    .map(({ role, content }) => `[${role.toUpperCase()}]: ${content}`)
-    .join("\n\n");
-}
-
-async function buildCompressedContent(options: {
-  oldContent: string;
-  newContent: string;
+async function buildNextCompressedContent(options: {
+  sourceText: string;
   model: string;
+  signal?: AbortSignal;
 }): Promise<string> {
-  if (modelSupportsAttachments(options.model)) {
-    return mergeCompressedContent(options.oldContent, options.newContent);
-  }
-  const summary = await generateSummary(options.newContent);
-  const segment = options.oldContent
-    ? `[New Summary Segment]:\n${summary}`
-    : summary;
-  return mergeCompressedContent(options.oldContent, segment);
+  if (modelSupportsAttachments(options.model)) return options.sourceText;
+  return generateSummary(options.sourceText, options.signal);
 }
 
 export const performBackgroundCompression = async (
   allMessages: Message[],
   currentCompression: Session["compression"],
   model: string,
+  signal?: AbortSignal,
 ): Promise<Session["compression"] | null> => {
   const { thresholdMessages, keepMessages } = getCompressionConfig();
   const start = getCompressionStart(allMessages, currentCompression);
@@ -189,15 +195,26 @@ export const performBackgroundCompression = async (
     thresholdMessages,
     keepMessages,
   });
-  const lastMessage = messages.at(-1);
-  if (!lastMessage) return null;
-  const compressedContent = await buildCompressedContent({
-    oldContent: start.oldContent,
-    newContent: serializeMessages(messages),
+  const source = buildCompressionSource(messages);
+  if (!source.lastIncludedMessageId) return null;
+  const generatedContent = await buildNextCompressedContent({
+    sourceText: source.text,
     model,
+    signal,
+  });
+  const nextContent =
+    start.oldContent && !modelSupportsAttachments(model)
+      ? `[New Summary Segment]:\n${generatedContent}`
+      : generatedContent;
+  const merged = mergeCompressedContentWithMemoryIds({
+    previousContent: start.oldContent,
+    previousMemoryIds: start.oldMemoryIds,
+    nextContent,
+    nextMemoryIds: source.includedMemoryIds,
   });
   return {
-    compressedContent,
-    lastCompressedMessageId: lastMessage.id,
+    compressedContent: merged.content,
+    lastCompressedMessageId: source.lastIncludedMessageId,
+    includedMemoryIds: merged.representedMemoryIds,
   };
 };

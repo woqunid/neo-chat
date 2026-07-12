@@ -20,6 +20,8 @@ export const useChatSession = () => {
       currentSessionId: state.currentSessionId,
       activeMessages: state.activeMessages,
       isActiveSessionLoading: state.isActiveSessionLoading,
+      pendingSessionId: state.pendingSessionId,
+      activeSessionLoadError: state.activeSessionLoadError,
       getCurrentSession: state.getCurrentSession,
     })),
   );

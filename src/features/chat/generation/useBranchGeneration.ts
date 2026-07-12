@@ -35,6 +35,7 @@ interface BranchGenerationOptions {
     session?: Session | null;
     text: string;
     attachments: import("@/types").Attachment[];
+    signal?: AbortSignal;
   }) => Promise<PreparedChatPrompt>;
   commitMemory: (request: {
     sessionId: string;
@@ -131,11 +132,14 @@ async function streamBranch(
     generation: request.generation,
   });
   if (!skills) return false;
-  if (request.prepared.ragSources.length > 0) {
+  if (request.prepared.ragSources.length > 0 || request.prepared.ragError) {
     options.shell.chat.updateMessage(
       request.context.sessionId,
       request.context.branchMessageId,
-      { ragSources: request.prepared.ragSources },
+      {
+        ragSources: request.prepared.ragSources,
+        ragError: request.prepared.ragError,
+      },
     );
   }
   if (skills.invocations.length > 0) {
@@ -234,6 +238,7 @@ async function runBranchGeneration(
       session: context.session,
       text: context.userMessage.content,
       attachments: context.userMessage.attachments ?? [],
+      signal: generation.controller.signal,
     });
     options.commitMemory({
       sessionId: context.sessionId,

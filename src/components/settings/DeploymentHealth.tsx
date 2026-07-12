@@ -128,6 +128,24 @@ const DeploymentHealth: React.FC = () => {
   const runtimeServices = runtimeHealth?.services;
   const runtimeState = (service: ServiceHealthServiceKey) =>
     runtimeToHealthState(runtimeServices?.[service]?.status);
+  const runtimeCode = (service: ServiceHealthServiceKey) =>
+    runtimeServices?.[service]?.code;
+  const accessPasswordDetail = (() => {
+    switch (runtimeCode("accessPassword")) {
+      case "ACCESS_PASSWORD_CONFIGURED":
+        return t("accessPasswordEnabled");
+      case "ACCESS_PASSWORD_REQUIRED_LOCAL_PRODUCTION":
+        return t("accessPasswordRequiredLocalProduction");
+      case "INSECURE_LOCAL_PRODUCTION_ALLOWED":
+        return t("accessPasswordInsecureOverride");
+      case "ACCESS_PASSWORD_OPTIONAL":
+        return t("accessPasswordOptionalLocal");
+      default:
+        return deployment?.accessPasswordEnabled
+          ? t("accessPasswordEnabled")
+          : t("accessPasswordMissing");
+    }
+  })();
   const runtimeStoreState = runtimeServices
     ? strongestHealthState(
         [
@@ -173,9 +191,7 @@ const DeploymentHealth: React.FC = () => {
       state:
         runtimeState("accessPassword") ||
         (deployment?.accessPasswordEnabled ? "ok" : "warning"),
-      detail: deployment?.accessPasswordEnabled
-        ? t("accessPasswordEnabled")
-        : t("accessPasswordMissing"),
+      detail: accessPasswordDetail,
     },
     {
       key: "byok",
@@ -208,6 +224,17 @@ const DeploymentHealth: React.FC = () => {
         : deployment?.apiProof?.required
           ? t("apiProofMissing")
           : t("apiProofLocal"),
+    },
+    {
+      key: "proxyHeaders",
+      label: t("proxyHeaders"),
+      state: runtimeState("proxyHeaders") || "warning",
+      detail:
+        runtimeCode("proxyHeaders") === "PROXY_HEADERS_TRUSTED"
+          ? t("proxyHeadersTrusted")
+          : runtimeCode("proxyHeaders") === "PROXY_HEADERS_UNTRUSTED_FALLBACK"
+            ? t("proxyHeadersFallback")
+            : t("proxyHeadersLocal"),
     },
     {
       key: "stores",

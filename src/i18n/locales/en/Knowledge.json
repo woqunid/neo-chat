@@ -1,5 +1,6 @@
 {
   "sourcesHeading": "Knowledge Base ({count} Sources)",
+  "ragQueryFailed": "Some knowledge base queries failed. Available sources are still shown.",
   "selectKnowledgeBase": "Select Knowledge Base",
   "closeSelection": "Close knowledge selection",
   "collectionsLabel": "Knowledge collections",

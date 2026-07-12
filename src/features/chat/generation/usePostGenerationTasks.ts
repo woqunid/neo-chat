@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import {
   createSessionPostGenerationSnapshot,
@@ -72,6 +72,7 @@ function queueMemory(
 function startSuggestedQuestions(
   options: PostGenerationOptions,
   context: PostGenerationContext,
+  signal: AbortSignal,
 ) {
   if (!options.shell.settings.system.enableRelatedQuestions) return;
   if (context.messages.length === 0 || !context.message) return;
@@ -81,7 +82,7 @@ function startSuggestedQuestions(
   };
   loadChatService()
     .then(({ generateRelatedQuestions }) =>
-      generateRelatedQuestions(context.messages),
+      generateRelatedQuestions(context.messages, signal),
     )
     .then((questions) => {
       const state = useChatStore.getState();
@@ -99,19 +100,27 @@ function startSuggestedQuestions(
         questions,
       );
     })
-    .catch((error) =>
-      logDevError("Related question generation failed:", error),
-    );
+    .catch((error) => {
+      if (
+        signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      )
+        return;
+      logDevError("Related question generation failed:", error);
+    });
 }
 
 function startAutoTitle(
   options: PostGenerationOptions,
   context: PostGenerationContext,
+  signal: AbortSignal,
 ) {
   if (!context.request.shouldAutoRename || context.messages.length === 0)
     return;
   loadChatService()
-    .then(({ generateChatTitle }) => generateChatTitle(context.messages))
+    .then(({ generateChatTitle }) =>
+      generateChatTitle(context.messages, signal),
+    )
     .then((title) => {
       const current = useChatStore
         .getState()
@@ -120,12 +129,20 @@ function startAutoTitle(
         return;
       options.shell.chat.updateSessionTitle(context.request.sessionId, title);
     })
-    .catch((error) => logDevError("Chat title generation failed:", error));
+    .catch((error) => {
+      if (
+        signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      )
+        return;
+      logDevError("Chat title generation failed:", error);
+    });
 }
 
 function startCompression(
   options: PostGenerationOptions,
   context: PostGenerationContext,
+  signal: AbortSignal,
 ) {
   if (!options.shell.settings.system.enableAutoCompression) return;
   if (!context.session || context.messages.length === 0) return;
@@ -135,6 +152,7 @@ function startCompression(
         context.messages,
         context.session?.compression,
         options.shell.chat.selectedModel,
+        signal,
       ),
     )
     .then((compression) => {
@@ -151,17 +169,32 @@ function startCompression(
         compression,
       );
     })
-    .catch((error) => logDevError("Context compression failed:", error));
+    .catch((error) => {
+      if (
+        signal.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      )
+        return;
+      logDevError("Context compression failed:", error);
+    });
 }
 
 export function usePostGenerationTasks(options: PostGenerationOptions) {
+  const controllerRef = useRef<AbortController | null>(null);
+  const currentSessionId = options.shell.chat.currentSessionId;
+  useEffect(() => {
+    return () => controllerRef.current?.abort();
+  }, [currentSessionId]);
   return useCallback(
     (request: PostGenerationRequest) => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
       const context = buildContext(request);
       queueMemory(options, context);
-      startSuggestedQuestions(options, context);
-      startAutoTitle(options, context);
-      startCompression(options, context);
+      startSuggestedQuestions(options, context, controller.signal);
+      startAutoTitle(options, context, controller.signal);
+      startCompression(options, context, controller.signal);
     },
     [options],
   );

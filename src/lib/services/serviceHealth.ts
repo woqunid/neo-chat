@@ -98,11 +98,34 @@ function accessPasswordHealth(hosted: boolean): ServiceHealthItem {
   if (env("ACCESS_PASSWORD")) {
     return item("accessPassword", "available", "ACCESS_PASSWORD_CONFIGURED");
   }
+  if (!hosted && process.env.NODE_ENV === "production") {
+    return envBool("ALLOW_INSECURE_LOCAL_PRODUCTION")
+      ? item(
+          "accessPassword",
+          "local_only",
+          "INSECURE_LOCAL_PRODUCTION_ALLOWED",
+        )
+      : item(
+          "accessPassword",
+          "policy_blocked",
+          "ACCESS_PASSWORD_REQUIRED_LOCAL_PRODUCTION",
+        );
+  }
   return item(
     "accessPassword",
     hosted ? "missing_key" : "local_only",
     hosted ? "ACCESS_PASSWORD_RECOMMENDED" : "ACCESS_PASSWORD_OPTIONAL",
   );
+}
+
+function proxyHeadersHealth(hosted: boolean): ServiceHealthItem {
+  if (!hosted) {
+    return item("proxyHeaders", "local_only", "PROXY_HEADERS_LOCAL_MODE");
+  }
+  if (envBool("TRUST_PROXY_HEADERS")) {
+    return item("proxyHeaders", "available", "PROXY_HEADERS_TRUSTED");
+  }
+  return item("proxyHeaders", "local_only", "PROXY_HEADERS_UNTRUSTED_FALLBACK");
 }
 
 function hasPublicSiteUrl(): boolean {
@@ -209,6 +232,7 @@ export async function getServiceHealthStatus(
       apiProof: apiProofHealth(),
       accessPassword: accessPasswordHealth(hosted),
       hostedMode: hostedModeHealth(hosted),
+      proxyHeaders: proxyHeadersHealth(hosted),
       rateLimitStore: storeHealth("rateLimitStore", "RATE_LIMIT_STORE", hosted),
       documentParseJobStore: storeHealth(
         "documentParseJobStore",

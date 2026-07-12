@@ -8,7 +8,7 @@ import React, {
   useId,
 } from "react";
 import { createPortal } from "react-dom";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useShallow } from "zustand/react/shallow";
 import type { Attachment, Message } from "@/types";
 import MarkdownRenderer from "../content/MarkdownRenderer";
@@ -107,6 +107,7 @@ interface MessageItemProps {
   onVersionChange?: (id: string, direction: "prev" | "next") => void;
   isLast: boolean;
   isTyping?: boolean;
+  actionsDisabled?: boolean;
 }
 
 const EMPTY_SEARCH_SOURCES: NonNullable<Message["searchSources"]> = [];
@@ -139,6 +140,7 @@ const actionButtonFocusClass =
 const markdownFileNamePattern = /\.(?:md|markdown)$/i;
 const MESSAGE_IMAGE_PROXY_PREFIX = "https://serveproxy.com/?url=";
 const DEFAULT_MESSAGE_IMAGE_EXPORT_WIDTH = 820;
+const MAX_RAG_ERROR_MESSAGE_CHARS = 500;
 const MESSAGE_IMAGE_EXPORT_PADDING_PX = 24;
 const MESSAGE_EXPORT_EXCLUDED_SELECTORS = [
   ".markdown-codeblock-header",
@@ -312,7 +314,16 @@ const UserMessageEditor = ({
 
   useEffect(() => {
     mountedRef.current = true;
+    const shouldFocus = window.matchMedia(
+      "(min-width: 1024px) and (pointer: fine)",
+    ).matches;
+    const frame = shouldFocus
+      ? requestAnimationFrame(() =>
+          textareaRef.current?.focus({ preventScroll: true }),
+        )
+      : null;
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
       mountedRef.current = false;
       polishRunRef.current += 1;
     };
@@ -392,7 +403,6 @@ const UserMessageEditor = ({
         }}
         className="max-h-72 min-h-28 w-full resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-ring"
         aria-label={t("editUserMessageAria")}
-        autoFocus
       />
       {polishError ? (
         <div className="px-3 pb-2 text-xs text-red-600 dark:text-red-300">
@@ -460,8 +470,21 @@ const MessageItem: React.FC<MessageItemProps> = ({
   onSubmitUserEdit,
   onVersionChange,
   isTyping = false,
+  actionsDisabled = false,
 }) => {
   const t = useTranslations("Message");
+  const tKnowledge = useTranslations("Knowledge");
+  const locale = useLocale();
+  const durationFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: "unit",
+        unit: "second",
+        unitDisplay: "short",
+        maximumFractionDigits: 1,
+      }),
+    [locale],
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [readerCopyStatus, setReaderCopyStatus] = useState<CopyStatus>("idle");
@@ -581,6 +604,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleDeleteClick = () => {
+    if (actionsDisabled) return;
     if (isDeleteConfirming) {
       resetDeleteConfirmation();
       setShowMoreMenu(false);
@@ -713,6 +737,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleEditClick = () => {
+    if (actionsDisabled) return;
     setIsEditing(true);
   };
 
@@ -937,7 +962,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
   const currentBranchIndex = branchInfo?.index ?? 0;
   const branchCount = branchInfo?.count ?? 1;
   const canEditCurrentUserMessage =
-    message.role === "user" && canEditUserMessage && !!onSubmitUserEdit;
+    !actionsDisabled &&
+    message.role === "user" &&
+    canEditUserMessage &&
+    !!onSubmitUserEdit;
 
   // --- Display Info Calculation ---
   const displayTimestamp = message.timestamp;
@@ -963,16 +991,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
       message.role === "model" && displayTiming?.endTime
         ? displayTiming.endTime
         : displayTimestamp;
-    return new Date(ts).toLocaleTimeString([], {
+    return new Intl.DateTimeFormat(locale, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-    });
+    }).format(new Date(ts));
   };
 
   const getDurationString = () => {
     if (message.role === "model" && displayTiming?.duration) {
-      return `${(displayTiming.duration / 1000).toFixed(1)}s`;
+      return durationFormatter.format(displayTiming.duration / 1000);
     }
     return null;
   };
@@ -995,6 +1023,11 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   // RAG Data
   const ragSources = message.ragSources ?? EMPTY_RAG_SOURCES;
+  const ragError = message.ragError
+    ? message.ragError.code === "RAG_QUERY_FAILED"
+      ? tKnowledge("ragQueryFailed")
+      : message.ragError.message.slice(0, MAX_RAG_ERROR_MESSAGE_CHARS)
+    : undefined;
 
   // Tool Data
   const skillInvocations = message.skillInvocations ?? EMPTY_SKILL_INVOCATIONS;
@@ -1390,7 +1423,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
           ) : (
             <>
               {/* RAG Block Component */}
-              <RAGBlock sources={ragSources} />
+              <RAGBlock sources={ragSources} error={ragError} />
 
               {skillInvocations.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-1.5">
@@ -1556,7 +1589,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         icon={<ChevronLeft size={13} />}
                         tooltip={t("previousVersion")}
                         onClick={() => onVersionChange(message.id, "prev")}
-                        disabled={currentBranchIndex === 0}
+                        disabled={actionsDisabled || currentBranchIndex === 0}
                         className={
                           currentBranchIndex === 0
                             ? "opacity-30 cursor-not-allowed"
@@ -1570,7 +1603,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         icon={<ChevronRight size={13} />}
                         tooltip={t("nextVersion")}
                         onClick={() => onVersionChange(message.id, "next")}
-                        disabled={currentBranchIndex === branchCount - 1}
+                        disabled={
+                          actionsDisabled ||
+                          currentBranchIndex === branchCount - 1
+                        }
                         className={
                           currentBranchIndex === branchCount - 1
                             ? "opacity-30 cursor-not-allowed"
@@ -1589,6 +1625,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         icon={<Undo2 size={13} />}
                         tooltip={t("retract")}
                         onClick={onRetract}
+                        disabled={actionsDisabled}
                       />
                     )}
                     {canEditCurrentUserMessage && (
@@ -1635,6 +1672,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       icon={<RefreshCw size={13} />}
                       tooltip={t("regenerate")}
                       onClick={onRegenerate}
+                      disabled={actionsDisabled}
                     />
                     <ActionButton
                       icon={<Edit2 size={13} />}
@@ -1742,6 +1780,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     isDeleteConfirming ? t("confirmDelete") : t("delete")
                   }
                   onClick={handleDeleteClick}
+                  disabled={actionsDisabled}
                   containerClass={
                     message.role === "user" ? "flex" : "hidden! md:flex!"
                   }
@@ -1783,6 +1822,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         className="w-48"
                       >
                         <DropdownMenuItem
+                          disabled={actionsDisabled}
                           onSelect={() => {
                             handleEditClick();
                             setShowMoreMenu(false);
@@ -1845,6 +1885,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"
+                          disabled={actionsDisabled}
                           onSelect={(event) => {
                             event.preventDefault();
                             handleDeleteClick();

@@ -24,6 +24,9 @@ export function useMessageSubmission(options: MessageSubmissionOptions) {
         key: event.key,
         shiftKey: event.shiftKey,
         isComposing: event.nativeEvent.isComposing,
+        requiresExplicitSend: window.matchMedia(
+          "(pointer: coarse), (max-width: 1023px)",
+        ).matches,
       });
       if (!shouldSubmit) return;
       event.preventDefault();

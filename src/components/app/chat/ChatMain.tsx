@@ -36,7 +36,7 @@ export default function ChatMain({
       {...model.navigation.mainInertProps}
       id="main-chat"
       tabIndex={-1}
-      className="flex-1 flex flex-col h-full relative z-0 min-w-0 overflow-hidden md:pl-16 lg:pl-0"
+      className="flex-1 flex flex-col h-full relative z-0 min-w-0 overflow-hidden lg:pl-0"
     >
       {model.actionError && <ActionError message={model.actionError} />}
       <ChatPanelRouter

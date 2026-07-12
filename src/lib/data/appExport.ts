@@ -3,14 +3,18 @@ import {
   STORAGE_KEYS,
   STORAGE_VERSION,
 } from "../../store/storage/storageConfig";
+import { flushSessionMessageWrites } from "../../store/sessionMessagePersistence";
 
-export const APP_EXPORT_VERSION = 1;
+export const APP_EXPORT_VERSION = 2;
+
+const SESSION_MESSAGES_PREFIX = "session_messages_";
 
 export interface AppExportInput {
   exportedAt?: string;
   coreSettings?: unknown;
   settings?: unknown;
   chat?: unknown;
+  sessionMessages?: Record<string, unknown>;
   knowledge?: unknown;
   memory?: unknown;
 }
@@ -19,10 +23,17 @@ export interface AppExportPayload {
   exportVersion: typeof APP_EXPORT_VERSION;
   storageVersion: typeof STORAGE_VERSION;
   exportedAt: string;
+  metadata: {
+    opfs: {
+      mode: "references-only";
+      includesBlobs: false;
+    };
+  };
   data: {
     coreSettings?: unknown;
     settings?: unknown;
     chat?: unknown;
+    sessionMessages: Record<string, unknown>;
     knowledge?: unknown;
     memory?: unknown;
   };
@@ -82,10 +93,17 @@ export function createAppExportPayload(
     exportVersion: APP_EXPORT_VERSION,
     storageVersion: STORAGE_VERSION,
     exportedAt: input.exportedAt || new Date().toISOString(),
+    metadata: {
+      opfs: {
+        mode: "references-only",
+        includesBlobs: false,
+      },
+    },
     data: {
       coreSettings: input.coreSettings,
       settings: input.settings,
       chat: input.chat,
+      sessionMessages: input.sessionMessages ?? {},
       knowledge: input.knowledge,
       memory: input.memory,
     },
@@ -93,12 +111,25 @@ export function createAppExportPayload(
 }
 
 export async function createBrowserAppExportPayload(): Promise<AppExportPayload> {
-  const [settings, chat, knowledge, memory] = await Promise.all([
+  await flushSessionMessageWrites();
+  const [settings, chat, knowledge, memory, keys] = await Promise.all([
     appDb.getItem<unknown>(STORAGE_KEYS.SETTINGS),
     appDb.getItem<unknown>(STORAGE_KEYS.CHAT),
     appDb.getItem<unknown>(STORAGE_KEYS.KNOWLEDGE),
     appDb.getItem<unknown>(STORAGE_KEYS.MEMORY),
+    appDb.keys(),
   ]);
+  const sessionMessageKeys = keys.filter((key) =>
+    key.startsWith(SESSION_MESSAGES_PREFIX),
+  );
+  const sessionMessages = Object.fromEntries(
+    await Promise.all(
+      sessionMessageKeys.map(async (key) => [
+        key.slice(SESSION_MESSAGES_PREFIX.length),
+        await appDb.getItem<unknown>(key),
+      ]),
+    ),
+  );
   const coreSettings =
     typeof window === "undefined"
       ? undefined
@@ -108,6 +139,7 @@ export async function createBrowserAppExportPayload(): Promise<AppExportPayload>
     coreSettings: parseStoredValue(coreSettings),
     settings: parseStoredValue(settings),
     chat: parseStoredValue(chat),
+    sessionMessages,
     knowledge: parseStoredValue(knowledge),
     memory: parseStoredValue(memory),
   });
@@ -115,10 +147,12 @@ export async function createBrowserAppExportPayload(): Promise<AppExportPayload>
 
 export function collectReferencedOpfsUrls(input: {
   chat?: unknown;
+  sessionMessages?: unknown;
   knowledge?: unknown;
 }): Set<string> {
   const urls = new Set<string>();
   collectKnownOpfsFields(input.chat, urls);
+  collectKnownOpfsFields(input.sessionMessages, urls);
   collectKnownOpfsFields(input.knowledge, urls);
   return urls;
 }

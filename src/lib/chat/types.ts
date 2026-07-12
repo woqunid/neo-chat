@@ -112,6 +112,11 @@ export interface Message {
   attachments?: Attachment[];
   toolCalls?: ToolCall[];
   skillInvocations?: AppliedSkillInvocation[];
+  memoryContext?: {
+    injectedMemoryIds: string[];
+    promptContext: string;
+    createdAt?: number;
+  };
   model?: string;
   generationStatus?: MessageGenerationStatus;
   generationError?: {
@@ -124,6 +129,10 @@ export interface Message {
   isSearching?: boolean;
   outputBlocks?: MessageOutputBlock[];
   ragSources?: Source[];
+  ragError?: {
+    code: string;
+    message: string;
+  };
   versions?: MessageVersion[];
   activeVersionId?: string;
   timing?: {
@@ -272,6 +281,7 @@ export interface Session {
   compression?: {
     compressedContent: string;
     lastCompressedMessageId: string;
+    includedMemoryIds?: string[];
   };
   memoryContext?: {
     injectedMemoryIds: string[];

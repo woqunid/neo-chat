@@ -202,6 +202,7 @@ describe("message preprocessing", () => {
   });
 
   it("uses RAG retrieval for indexed knowledge file attachments", async () => {
+    const controller = new AbortController();
     mocks.queryRAG.mockResolvedValue([
       {
         title: "notes.md",
@@ -254,16 +255,100 @@ describe("message preprocessing", () => {
           ],
         },
       ],
+      signal: controller.signal,
     });
 
+    expect(mocks.generateRAGSearchQueries).toHaveBeenCalledWith(
+      "Summarize notes",
+      controller.signal,
+    );
     expect(mocks.queryRAG).toHaveBeenCalledWith(
       "knowledge query",
       "collection_1",
+      controller.signal,
     );
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(result.finalText).toContain("Indexed notes content");
     expect(result.finalText).not.toContain("Other file content");
     expect(result.ragSources).toHaveLength(1);
+  });
+
+  it("returns a structured error when all RAG queries fail", async () => {
+    mocks.queryRAG.mockRejectedValue(new Error("vector store unavailable"));
+    const attachment = createKnowledgeCollectionAttachment({
+      collectionId: "collection_1",
+      collectionName: "Manual KB",
+    });
+
+    const result = await processMessageForSending({
+      text: "Use the docs",
+      attachments: [attachment],
+      selectedModel: "provider:model",
+      modelMetadata: { model: { attachment: false } },
+      customModelMetadata: {},
+      ragConfig: {
+        enabled: true,
+        useDefaultVectorStore: true,
+        serverVectorStoreAvailable: true,
+      },
+      knowledgeCollections: [
+        { id: "collection_1", name: "Manual KB", files: [] },
+      ],
+    });
+
+    expect(result.ragError).toMatchObject({ code: "RAG_QUERY_FAILED" });
+    expect(result.finalText).toContain("[Knowledge Base Error]");
+  });
+
+  it("limits RAG concurrency and preserves partial successful sources", async () => {
+    const collectionIds = Array.from(
+      { length: 6 },
+      (_, index) => `collection_${index + 1}`,
+    );
+    let activeQueries = 0;
+    let peakQueries = 0;
+    mocks.queryRAG.mockImplementation(
+      async (_query: string, collectionId: string) => {
+        activeQueries += 1;
+        peakQueries = Math.max(peakQueries, activeQueries);
+        await new Promise<void>((resolve) => queueMicrotask(resolve));
+        activeQueries -= 1;
+        if (collectionId === "collection_2") {
+          throw new Error("one collection unavailable");
+        }
+        return [
+          {
+            title: collectionId,
+            url: "#",
+            content: `Result from ${collectionId}`,
+            metadata: { collectionId },
+          },
+        ];
+      },
+    );
+
+    const result = await processMessageForSending({
+      text: "Use all docs",
+      attachments: collectionIds.map((collectionId) =>
+        createKnowledgeCollectionAttachment({
+          collectionId,
+          collectionName: collectionId,
+        }),
+      ),
+      selectedModel: "provider:model",
+      modelMetadata: { model: { attachment: false } },
+      customModelMetadata: {},
+      ragConfig: {
+        enabled: true,
+        useDefaultVectorStore: true,
+        serverVectorStoreAvailable: true,
+      },
+      knowledgeCollections: collectionIds.map((id) => ({ id, files: [] })),
+    });
+
+    expect(peakQueries).toBeLessThanOrEqual(4);
+    expect(result.ragSources).toHaveLength(5);
+    expect(result.ragError).toMatchObject({ code: "RAG_QUERY_FAILED" });
   });
 
   it("keeps unindexed knowledge file attachments on the local context path when RAG is enabled", async () => {

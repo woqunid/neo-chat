@@ -110,6 +110,7 @@ interface SelectTriggerProps {
   readonly disabled: boolean;
   readonly isOpen: boolean;
   readonly listboxId: string;
+  readonly activeOptionId?: string;
   readonly label: string;
   readonly ariaLabel?: string;
   readonly className?: string;
@@ -124,6 +125,7 @@ function SelectTrigger(props: SelectTriggerProps) {
     disabled,
     isOpen,
     listboxId,
+    activeOptionId,
     label,
     ariaLabel,
     className,
@@ -135,10 +137,12 @@ function SelectTrigger(props: SelectTriggerProps) {
       type="button"
       id={id}
       disabled={disabled}
+      role="combobox"
       aria-label={ariaLabel}
       aria-haspopup="listbox"
       aria-expanded={isOpen}
       aria-controls={isOpen ? listboxId : undefined}
+      aria-activedescendant={isOpen ? activeOptionId : undefined}
       onClick={onClick}
       onKeyDown={onKeyDown}
       className={className || DEFAULT_BUTTON_CLASS}
@@ -239,6 +243,11 @@ export function CustomSelect(props: CustomSelectProps) {
         disabled={!hasOptions}
         isOpen={menu.isOpen}
         listboxId={listboxId}
+        activeOptionId={
+          navigation.highlightedValue
+            ? navigation.getOptionId(navigation.highlightedValue)
+            : undefined
+        }
         label={label}
         ariaLabel={props.ariaLabel}
         className={props.selectButtonClassName}

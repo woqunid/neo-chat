@@ -1,5 +1,6 @@
 {
   "sourcesHeading": "知识库（{count} 个来源）",
+  "ragQueryFailed": "部分知识库查询失败，已保留并显示可用来源。",
   "selectKnowledgeBase": "选择知识库",
   "closeSelection": "关闭知识库选择",
   "collectionsLabel": "知识库合集",

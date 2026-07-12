@@ -59,6 +59,10 @@ describe("service health status", () => {
     expect(health.deploymentMode).toBe("hosted");
     expect(health.services.byok.status).toBe("available");
     expect(health.services.apiProof.status).toBe("available");
+    expect(health.services.proxyHeaders).toMatchObject({
+      status: "local_only",
+      code: "PROXY_HEADERS_UNTRUSTED_FALLBACK",
+    });
     expect(health.services.rateLimitStore.status).toBe("available");
     expect(health.services.pluginRegistry.status).toBe("available");
     expect(health.services.defaultModel.status).toBe("available");
@@ -166,6 +170,37 @@ describe("service health status", () => {
     expect(health.services.apiProof).toMatchObject({
       status: "missing_key",
       code: "API_PROOF_BYOK_MISSING",
+    });
+  });
+
+  it("marks production local mode without a password as policy blocked", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEPLOYMENT_MODE", "local");
+    vi.stubEnv("ACCESS_PASSWORD", "");
+    vi.stubEnv("ALLOW_INSECURE_LOCAL_PRODUCTION", "false");
+
+    const { getServiceHealthStatus } =
+      await import("../lib/services/serviceHealth");
+    const health = await getServiceHealthStatus();
+
+    expect(health.services.accessPassword).toMatchObject({
+      status: "policy_blocked",
+      code: "ACCESS_PASSWORD_REQUIRED_LOCAL_PRODUCTION",
+    });
+  });
+
+  it("reports the explicit insecure local production override", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEPLOYMENT_MODE", "local");
+    vi.stubEnv("ALLOW_INSECURE_LOCAL_PRODUCTION", "yes");
+
+    const { getServiceHealthStatus } =
+      await import("../lib/services/serviceHealth");
+    const health = await getServiceHealthStatus();
+
+    expect(health.services.accessPassword).toMatchObject({
+      status: "local_only",
+      code: "INSECURE_LOCAL_PRODUCTION_ALLOWED",
     });
   });
 });

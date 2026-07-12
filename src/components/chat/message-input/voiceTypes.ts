@@ -45,5 +45,4 @@ export interface VoiceRecorderState {
   readonly isTranscribing: boolean;
   readonly recordingSeconds: number;
   toggleRecording: () => void;
-  toggleAutoTranscribe: () => void;
 }

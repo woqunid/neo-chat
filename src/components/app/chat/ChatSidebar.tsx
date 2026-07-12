@@ -23,10 +23,12 @@ export default function ChatSidebar({ model }: ChatSidebarProps) {
       onRenameSession={sidebar.onRenameSession}
       onTogglePin={sidebar.onTogglePin}
       onDuplicate={sidebar.onDuplicate}
+      disableDuplicate={sidebar.isGenerating || sidebar.isSessionLoading}
       onSmartRename={sidebar.onSmartRename}
       isOpen={navigation.isSidebarOpen}
       toggleSidebar={() => navigation.setIsSidebarOpen((open) => !open)}
       isModal={navigation.isSidebarDrawerOpen}
+      isNonDesktopViewport={navigation.isNonDesktopViewport}
       onRequestClose={() => navigation.setIsSidebarOpen(false)}
       onOpenPluginMarket={() => openPanel({ panel: "plugins" })}
       isPluginMarketOpen={navigation.viewMode === "plugins"}

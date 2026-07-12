@@ -134,10 +134,6 @@ function VoiceButton({ voice }: { readonly voice: VoiceRecorderState }) {
           aria-pressed={voice.isRecording}
           className={`${ICON_BUTTON_BASE_CLASS} ${ICON_BUTTON_FOCUS_CLASS} transition-[background-color,color,box-shadow] ${voice.isRecording ? "bg-red-50 text-red-500 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-800" : INACTIVE_ICON_CLASS}`}
           onClick={voice.toggleRecording}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            voice.toggleAutoTranscribe();
-          }}
         >
           {voice.isRecording ? (
             <StopCircle size={16} aria-hidden="true" />

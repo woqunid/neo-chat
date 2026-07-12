@@ -55,4 +55,14 @@ describe("message input helpers", () => {
       }),
     ).toBe(false);
   });
+
+  it("requires the send button on coarse or narrow input surfaces", () => {
+    expect(
+      shouldSubmitOnEnter({
+        key: "Enter",
+        shiftKey: false,
+        requiresExplicitSend: true,
+      }),
+    ).toBe(false);
+  });
 });

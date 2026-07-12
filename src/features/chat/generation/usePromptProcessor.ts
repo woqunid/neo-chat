@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { resolveEffectiveChatContext } from "@/lib/chat/effectiveChatContext";
 import { processMessageForSending } from "@/lib/chat/messageProcessor";
 import { buildDirectMemoryPromptContext } from "@/lib/memory/entities";
+import { getSuppressedMemoryIds } from "@/lib/memory/compression";
 import { appendContextToChatInput } from "@/lib/utils/chatInput";
 import { useMemoryStore } from "@/store/core/memoryStore";
 
@@ -51,15 +52,20 @@ function buildEffectiveContext(
   });
 }
 
-function resolveMemoryContext(request: PromptRequest) {
+function resolveMemoryContext(
+  options: PromptProcessorOptions,
+  request: PromptRequest,
+) {
   const state = useMemoryStore.getState();
   if (!state._hasHydrated || !state.settings.enabled) return null;
   if (!state.settings.searchEnabled) return null;
   return buildDirectMemoryPromptContext({
     memories: state.memories,
     query: request.text,
-    alreadyInjectedMemoryIds:
-      request.session?.memoryContext?.injectedMemoryIds ?? [],
+    alreadyInjectedMemoryIds: getSuppressedMemoryIds(
+      request.session,
+      options.shell.chat.activeMessages,
+    ),
   });
 }
 
@@ -76,13 +82,25 @@ async function preparePrompt(
     modelMetadata: settings.modelMetadata,
     customModelMetadata: settings.customModelMetadata,
     ragConfig: settings.rag,
+    ragEnabled: chat.chatConfig.useRAG !== false,
     knowledgeCollections,
     workspaceKnowledgeCollectionIds:
       effectiveContext.workspaceKnowledgeCollectionIds,
+    signal: request.signal,
   });
-  const memory = resolveMemoryContext(request);
+  const memory = resolveMemoryContext(options, request);
+  const memoryContext = memory?.text
+    ? {
+        injectedMemoryIds: memory.injectedMemoryIds,
+        promptContext: memory.text,
+        createdAt: Date.now(),
+      }
+    : undefined;
   return {
     ...processed,
+    userMessage: memoryContext
+      ? { ...processed.userMessage, memoryContext }
+      : processed.userMessage,
     finalText: memory?.text
       ? appendContextToChatInput(processed.finalText, memory.text, {
           separator: "\n\n",

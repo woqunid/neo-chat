@@ -57,7 +57,7 @@ export default function ChatComposer({
           variant={composer.variant}
           onSend={composer.onSend}
           onStop={composer.isGenerating ? composer.onStop : undefined}
-          disabled={composer.availableModels.length === 0}
+          disabled={composer.availableModels.length === 0 || composer.disabled}
           isGenerating={composer.isGenerating}
           queuedMessageCount={composer.queuedMessageCount}
           availableModels={composer.availableModels}

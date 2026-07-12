@@ -39,6 +39,7 @@ function ToolbarTools({
           enabled={controller.props.isSearchEnabled ?? false}
           busy={controller.sessionConfigBusy}
           onChange={searchChange}
+          onUnavailable={controller.setError}
         />
       )}
     </div>

@@ -135,3 +135,11 @@ Official Registry metadata is re-fetched by the server during installation, so
 browser-submitted endpoints and static headers are not trusted as Registry
 configuration. This verifies discovery metadata, not the privacy or behavior of
 the remote MCP operator. Neo Chat does not launch local stdio MCP processes.
+
+The full application JSON export includes chat metadata and every persisted
+`session_messages_*` message tree, including orphan records retained for
+diagnosis and recovery. It is still a references-only archive: `opfs://`
+attachments, generated images, workspace files, and knowledge source files are
+referenced by URL, but their binary Blob contents are not embedded. Keep the
+JSON and the browser profile/OPFS data together when a self-contained backup is
+required.

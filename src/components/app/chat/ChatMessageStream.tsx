@@ -52,6 +52,7 @@ function MessageRow({ conversation, message, index }: MessageRowProps) {
           onRetract={isLastUser ? () => actions.onRetract(message) : undefined}
           isLast={isLast}
           isTyping={conversation.isGenerating && isLast}
+          actionsDisabled={conversation.actionsDisabled}
           onRegenerate={() => actions.onRegenerate(message.id)}
           onVersionChange={actions.onVersionChange}
         />

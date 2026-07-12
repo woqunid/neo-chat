@@ -69,7 +69,7 @@
   "keepHistory": "Keep History (Turns)",
   "dataManagement": "Data Management",
   "exportAllData": "Export All Data",
-  "exportAllDataDesc": "Download chats, settings, providers, plugins, assistants, and knowledge metadata as a local JSON backup.",
+  "exportAllDataDesc": "Download chats, complete local message trees, settings, providers, plugins, assistants, and knowledge metadata as JSON. OPFS attachments, images, and knowledge source files are referenced but their blobs are not included.",
   "exportData": "Export Data",
   "exporting": "Exporting…",
   "exportAria": "Export all local data",

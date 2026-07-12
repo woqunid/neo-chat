@@ -32,6 +32,7 @@ export interface SidebarModel {
   sessions: Session[];
   currentSessionId: string | null;
   isGenerating: boolean;
+  isSessionLoading: boolean;
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (id: string) => void | Promise<void>;
@@ -61,6 +62,7 @@ export interface ComposerModel {
   availableModels: ModelInfo[];
   selectedModel: string;
   isGenerating: boolean;
+  disabled: boolean;
   queuedMessageCount: number;
   isSearchEnabled: boolean;
   onSend: (text: string, attachments: Attachment[]) => void | Promise<void>;
@@ -74,6 +76,8 @@ export interface ConversationModel {
   messages: Message[];
   messageTree: SessionMessageTree;
   isGenerating: boolean;
+  actionsDisabled: boolean;
+  loadError: "session_load_failed" | null;
   lastUserMessageId?: string;
   welcomeState: WelcomeState;
   shouldShowTitle: boolean;

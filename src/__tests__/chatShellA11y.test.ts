@@ -39,7 +39,8 @@ it("isolates the main chat region while the non-desktop sidebar drawer is open",
   expect(chatApp).toContain("window.innerWidth < DESKTOP_SIDEBAR_BREAKPOINT");
   expect(chatApp).toContain("isSidebarDrawerOpen");
   expect(chatApp).toContain("state.isSidebarOpen && isNonDesktopViewport");
-  expect(chatApp).toContain("md:pl-16 lg:pl-0");
+  expect(chatApp).not.toContain("md:pl-16");
+  expect(chatApp).toContain("lg:pl-0");
   expect(chatApp).not.toContain("backdrop-blur-[1px]");
   expect(chatApp).toContain("mainInertProps");
   expect(chatApp).toContain("inert");

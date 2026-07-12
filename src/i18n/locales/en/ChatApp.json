@@ -4,6 +4,7 @@
   "errRegenerate": "Couldn't regenerate this reply. Previous prompt is missing.",
   "errDeleteMessage": "Couldn't delete the message. The chat was restored.",
   "errDeleteChat": "Couldn't delete the chat. Please try again.",
+  "errLoadChat": "Unable to load that chat. The current chat has been kept.",
   "errDuplicateChat": "Couldn't duplicate the chat. Please try again.",
   "errRetractMessage": "Couldn't retract the message. The chat was restored.",
   "errEditUserMessage": "Couldn't edit that message. Please try again.",

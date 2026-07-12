@@ -12,6 +12,7 @@ interface SearchButtonProps {
   readonly enabled: boolean;
   readonly busy: boolean;
   onChange: (enabled: boolean) => void;
+  onUnavailable: (message: string) => void;
 }
 
 export default function SearchButton(props: SearchButtonProps) {
@@ -40,9 +41,16 @@ export default function SearchButton(props: SearchButtonProps) {
         type="button"
         aria-label={ariaLabel}
         aria-pressed={props.enabled}
+        aria-disabled={props.busy || enableBlocked}
         className={`${ICON_BUTTON_BASE_CLASS} ${ICON_BUTTON_FOCUS_CLASS} transition-colors ${props.enabled ? activeClass : INACTIVE_ICON_CLASS}`}
-        onClick={() => props.onChange(!props.enabled)}
-        disabled={props.busy || enableBlocked}
+        onClick={() => {
+          if (enableBlocked) {
+            props.onUnavailable(t("searchUnavailableGrok"));
+            return;
+          }
+          props.onChange(!props.enabled);
+        }}
+        disabled={props.busy}
       >
         <Globe size={16} aria-hidden="true" />
       </button>

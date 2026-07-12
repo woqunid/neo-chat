@@ -9,6 +9,7 @@ import {
   isMutatingApiRouteMethod,
   type ApiRateLimitPolicy,
 } from "./apiRoutePolicy";
+import { getDeploymentMode } from "./deployment";
 import {
   enforceApiRequestProof,
   getRequestProofRateLimitIdentity,
@@ -18,6 +19,7 @@ import type { RateLimitResult } from "./rateLimitStore";
 export const REQUEST_GUARD_ERROR_CODES = {
   csrf: "CSRF_ORIGIN_BLOCKED",
   rateLimited: "RATE_LIMITED",
+  productionLocalOpen: "PRODUCTION_LOCAL_OPEN_API_BLOCKED",
 } as const;
 
 const MILLISECONDS_PER_SECOND = 1_000;
@@ -42,6 +44,15 @@ function envBool(name: string): boolean {
 
 function shouldTrustProxyHeaders(): boolean {
   return envBool("TRUST_PROXY_HEADERS");
+}
+
+function isProductionLocalOpenApiBlocked(): boolean {
+  return (
+    process.env.NODE_ENV === "production" &&
+    getDeploymentMode() === "local" &&
+    !process.env.ACCESS_PASSWORD?.trim() &&
+    !envBool("ALLOW_INSECURE_LOCAL_PRODUCTION")
+  );
 }
 
 export function getRateLimitClientIp(request: NextRequest): string {
@@ -169,6 +180,14 @@ export async function applyRequestGuards(
 ): Promise<NextResponse | null> {
   const originResponse = validateSameOriginRequest(request);
   if (originResponse) return originResponse;
+
+  if (isProductionLocalOpenApiBlocked()) {
+    return jsonError(503, {
+      error:
+        "Production local API access requires ACCESS_PASSWORD or ALLOW_INSECURE_LOCAL_PRODUCTION=true.",
+      code: REQUEST_GUARD_ERROR_CODES.productionLocalOpen,
+    });
+  }
 
   const proofResponse = await enforceApiRequestProof(request);
   if (proofResponse) return proofResponse;

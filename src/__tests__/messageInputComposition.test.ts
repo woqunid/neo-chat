@@ -127,7 +127,9 @@ it("keeps the composer editable while generation is queued", () => {
 
   expect(chatApp).toContain("queuedMessagesRef");
   expect(chatApp).toContain("enqueueChatMessage");
-  expect(chatApp).toContain("disabled={composer.availableModels.length === 0}");
+  expect(chatApp).toContain(
+    "disabled={composer.availableModels.length === 0 || composer.disabled}",
+  );
   expect(chatApp).toContain("isGenerating={composer.isGenerating}");
   expect(chatApp).toContain("queuedMessageCount={composer.queuedMessageCount}");
   expect(chatApp).not.toContain(

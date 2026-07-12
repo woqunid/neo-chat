@@ -84,7 +84,6 @@ export function useVoiceRecorder(
   options: VoiceRecorderOptions,
 ): VoiceRecorderState {
   const voice = useSettingsStore((state) => state.voice);
-  const updateVoice = useSettingsStore((state) => state.updateVoiceSettings);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const resources = useRecordingResources();
   const translate = useVoiceTranslator();
@@ -98,15 +97,11 @@ export function useVoiceRecorder(
     if (resources.isRecording) stopRecording(resources);
     else start();
   }, [resources, start]);
-  const toggleAutoTranscribe = useCallback(() => {
-    updateVoice({ autoTranscribe: !voice.autoTranscribe });
-  }, [updateVoice, voice.autoTranscribe]);
   return {
     voice,
     isRecording: resources.isRecording,
     isTranscribing,
     recordingSeconds: resources.seconds,
     toggleRecording,
-    toggleAutoTranscribe,
   };
 }

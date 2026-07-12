@@ -28,6 +28,7 @@ export interface SendMessageOptions {
     session?: Session | null;
     text: string;
     attachments: Attachment[];
+    signal?: AbortSignal;
   }) => Promise<PreparedChatPrompt>;
   commitMemory: (request: {
     sessionId: string;

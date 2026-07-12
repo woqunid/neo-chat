@@ -13,6 +13,7 @@ export interface PromptRequest {
   session?: Session | null;
   text: string;
   attachments: Attachment[];
+  signal?: AbortSignal;
 }
 
 export interface StreamResponseRequest {

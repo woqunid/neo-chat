@@ -206,6 +206,7 @@ describe("access password verification route", () => {
 describe("access password verification route", () => {
   it("keeps access failures server-side when the attempt cookie is cleared", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
+    vi.stubEnv("TRUST_PROXY_HEADERS", "true");
     const { POST } = await import("../app/api/access/verify/route");
 
     const headers = { "x-forwarded-for": "203.0.113.44" };
@@ -247,26 +248,25 @@ describe("access password verification route", () => {
 });
 
 describe("access password verification route", () => {
-  it("does not let spoofed forwarded IP headers bypass server-side access lockout", async () => {
+  it("does not share an unknown-IP lockout across signed attempt cookies", async () => {
     vi.stubEnv("ACCESS_PASSWORD", "secret");
     vi.stubEnv("TRUST_PROXY_HEADERS", "");
     const { POST } = await import("../app/api/access/verify/route");
 
-    let response: Response | null = null;
-    for (const ip of ["203.0.113.44", "203.0.113.45", "203.0.113.46"]) {
-      response = await POST(
-        new NextRequest("https://neo.test/api/access/verify", {
-          method: "POST",
-          headers: {
-            "x-forwarded-for": ip,
-          },
-          body: JSON.stringify({ password: "wrong" }),
-        }),
-      );
-    }
+    const clientA = await POST(makeVerifyRequest("wrong"));
+    const clientACookie = extractCookieValue(
+      clientA.headers.get("set-cookie") || "",
+      ACCESS_ATTEMPTS_COOKIE,
+    );
+    const clientASecond = await POST(
+      makeVerifyRequest("wrong", `${ACCESS_ATTEMPTS_COOKIE}=${clientACookie}`),
+    );
+    expect(clientASecond.status).toBe(401);
 
-    const data = await response?.json();
-    expect(response?.status).toBe(423);
-    expect(data.code).toBe(ACCESS_ERROR_CODES.locked);
+    const clientB = await POST(makeVerifyRequest("wrong"));
+    expect(clientB.status).toBe(401);
+    expect(await clientB.json()).toMatchObject({
+      remainingAttempts: ACCESS_MAX_ATTEMPTS - 1,
+    });
   });
 });

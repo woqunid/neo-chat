@@ -65,6 +65,7 @@ function useDuplicateSession(options: SessionActionsOptions) {
   const t = useTranslations("ChatApp");
   return useCallback(
     async (sessionId: string) => {
+      if (options.shell.chat.isActiveSessionLoading) return;
       try {
         await options.shell.chat.duplicateSession(sessionId);
       } catch (error) {

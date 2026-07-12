@@ -21,6 +21,7 @@ interface TaskRequestOptions {
   path: string;
   body: Record<string, unknown>;
   errorMessage: string;
+  signal?: AbortSignal;
 }
 
 function resolveTaskTarget(taskName: TaskName) {
@@ -43,10 +44,14 @@ async function requestTask<T>(options: TaskRequestOptions): Promise<T | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        provider: await buildProviderRuntimeConfig(target.provider),
+        provider: await buildProviderRuntimeConfig(
+          target.provider,
+          options.signal,
+        ),
         modelName: target.modelName,
         ...options.body,
       }),
+      signal: options.signal,
     }),
   );
   if (!response.ok) {
@@ -59,6 +64,7 @@ async function requestTask<T>(options: TaskRequestOptions): Promise<T | null> {
 
 export const generateChatTitle = async (
   history: Message[],
+  signal?: AbortSignal,
 ): Promise<string> => {
   const fallbackTitle = () =>
     normalizeSessionTitle(history.find((m) => m.role === "user")?.content);
@@ -68,9 +74,16 @@ export const generateChatTitle = async (
       path: "/api/chat/generate-title",
       body: { history },
       errorMessage: "Title generation failed",
+      signal,
     });
     return data ? normalizeSessionTitle(data.title) : fallbackTitle();
   } catch (error) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw error;
+    }
     logDevError("Title generation error:", error);
     return fallbackTitle();
   }
@@ -78,6 +91,7 @@ export const generateChatTitle = async (
 
 export const generateRelatedQuestions = async (
   history: Message[],
+  signal?: AbortSignal,
 ): Promise<string[]> => {
   try {
     const data = await requestTask<{ questions?: string[] }>({
@@ -85,9 +99,16 @@ export const generateRelatedQuestions = async (
       path: "/api/chat/related-questions",
       body: { history },
       errorMessage: "Related questions generation failed",
+      signal,
     });
     return data?.questions || [];
   } catch (error) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw error;
+    }
     logDevError("Related questions error:", error);
     return [];
   }
@@ -95,6 +116,7 @@ export const generateRelatedQuestions = async (
 
 export const generateRAGSearchQueries = async (
   userPrompt: string,
+  signal?: AbortSignal,
 ): Promise<string[]> => {
   try {
     const data = await requestTask<{ queries?: string[] }>({
@@ -102,9 +124,16 @@ export const generateRAGSearchQueries = async (
       path: "/api/chat/rag-queries",
       body: { userMessage: userPrompt },
       errorMessage: "RAG queries generation failed",
+      signal,
     });
     return data?.queries || [userPrompt];
   } catch (error) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw error;
+    }
     logDevError("RAG queries error:", error);
     return [userPrompt];
   }

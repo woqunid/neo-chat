@@ -76,10 +76,12 @@ interface SidebarProps {
   onRenameSession: (id: string, newTitle: string) => void;
   onTogglePin?: (id: string) => void;
   onDuplicate?: (id: string) => void | Promise<void>;
+  disableDuplicate?: boolean;
   onSmartRename?: (id: string) => void;
   isOpen: boolean;
   toggleSidebar: () => void;
   isModal?: boolean;
+  isNonDesktopViewport?: boolean;
   onRequestClose?: () => void;
   onOpenPluginMarket: () => void;
   isPluginMarketOpen: boolean;
@@ -145,10 +147,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRenameSession,
   onTogglePin,
   onDuplicate,
+  disableDuplicate = false,
   onSmartRename,
   isOpen,
   toggleSidebar,
   isModal = false,
+  isNonDesktopViewport = false,
   onRequestClose,
   onOpenPluginMarket,
   isPluginMarketOpen,
@@ -756,6 +760,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       ref={sidebarRef}
       role={isModal ? "dialog" : undefined}
       aria-modal={isModal || undefined}
+      aria-hidden={isNonDesktopViewport && !isOpen ? true : undefined}
+      inert={isNonDesktopViewport && !isOpen ? true : undefined}
       aria-label={isModal ? "Neo Chat" : undefined}
       tabIndex={isModal ? -1 : undefined}
       onKeyDown={handleSidebarKeyDown}
@@ -1420,6 +1426,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {hasMessages && (
                       <>
                         <DropdownMenuItem
+                          disabled={disableDuplicate}
                           onSelect={() => {
                             onTogglePin?.(session.id);
                             setContextMenu(null);

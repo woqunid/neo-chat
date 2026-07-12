@@ -18,11 +18,26 @@ import {
   isKnowledgeFileAttachment,
   parseKnowledgeFileAttachmentData,
 } from "./knowledgeAttachments";
+import { mapSettledWithConcurrency } from "./concurrency";
+
+const RAG_QUERY_CONCURRENCY = 4;
 
 type IndexedKnowledgeFileSelector = {
   collectionId: string;
   fileId: string;
 };
+
+export interface RagQueryError {
+  code: "RAG_QUERY_FAILED";
+  message: string;
+}
+
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return (
+    signal?.aborted === true ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
 
 /**
  * Citation instructions for Knowledge Base usage
@@ -132,14 +147,17 @@ export const processRAGAttachments = async (
   },
   supportAttachment: boolean,
   knowledgeCollections: any[] = [],
+  signal?: AbortSignal,
 ): Promise<{
   convertedContent: string;
   finalAttachments: Attachment[];
   ragSources: Source[];
+  ragError?: RagQueryError;
 }> => {
   let convertedContent = "";
   const finalAttachments: Attachment[] = [];
   let ragSources: Source[] = [];
+  let ragError: RagQueryError | undefined;
   const contextBudget = createPromptContextBudget();
 
   if (kbAttachments.length === 0) {
@@ -179,32 +197,70 @@ export const processRAGAttachments = async (
       }
 
       // 1. Generate search queries based on user input
-      const queries = await generateRAGSearchQueries(text);
+      const queries = await generateRAGSearchQueries(text, signal);
 
       if (queries && queries.length > 0) {
         // 2. Perform the search across all selected collections
         const collectionIds = Array.from(queryCollectionIds);
 
-        const searchPromises: Promise<Source[]>[] = [];
+        const searchRequests: Array<{ query: string; collectionId: string }> =
+          [];
         for (const query of queries) {
           for (const id of collectionIds) {
-            searchPromises.push(
-              queryRAG(query, id).then((sources) =>
-                sources.map((source) => ({
-                  ...source,
-                  metadata: {
-                    ...(source.metadata || {}),
-                    collectionId:
-                      getSourceMetadataString(source, "collectionId") || id,
-                  },
-                })),
-              ),
-            );
+            searchRequests.push({ query, collectionId: id });
           }
         }
 
-        const resultsParts = await Promise.all(searchPromises);
-        const allResults = resultsParts
+        const settledResults = await mapSettledWithConcurrency<
+          { query: string; collectionId: string },
+          Source[]
+        >(
+          searchRequests,
+          RAG_QUERY_CONCURRENCY,
+          async ({ query, collectionId }) => {
+            signal?.throwIfAborted();
+            const sources = await queryRAG(query, collectionId, signal);
+            return sources.map((source): Source => ({
+              ...source,
+              metadata: {
+                ...(source.metadata || {}),
+                collectionId:
+                  getSourceMetadataString(source, "collectionId") ||
+                  collectionId,
+              },
+            }));
+          },
+        );
+        signal?.throwIfAborted();
+        const successfulResults = settledResults.filter(
+          (result): result is PromiseFulfilledResult<Source[]> =>
+            result.status === "fulfilled",
+        );
+        const failedResults = settledResults.filter(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
+        );
+        const abortedResult = failedResults.find((result) =>
+          isAbortError(result.reason, signal),
+        );
+        if (abortedResult) throw abortedResult.reason;
+        failedResults.forEach((result) => {
+          logDevError(
+            "RAG query failed; preserving partial results",
+            result.reason,
+          );
+        });
+        if (failedResults.length > 0) {
+          ragError = {
+            code: "RAG_QUERY_FAILED",
+            message: "One or more knowledge base queries failed.",
+          };
+        }
+        if (successfulResults.length === 0 && failedResults.length > 0) {
+          throw failedResults[0].reason;
+        }
+        const allResults = successfulResults
+          .map((result) => result.value)
           .flat()
           .filter((source) =>
             sourceMatchesSelectedRagScope(
@@ -284,13 +340,18 @@ export const processRAGAttachments = async (
         }
       }
     } catch (e) {
+      if (isAbortError(e, signal)) throw e;
       logDevError("RAG Pre-flight failed:", e);
+      ragError = {
+        code: "RAG_QUERY_FAILED",
+        message: "The selected knowledge base could not be queried.",
+      };
       convertedContent +=
         "\n\n[Knowledge Base Error]\nThe selected knowledge base could not be queried. Continue with the available conversation context and tell the user the knowledge lookup failed.\n";
     }
   }
 
-  return { convertedContent, finalAttachments, ragSources };
+  return { convertedContent, finalAttachments, ragSources, ragError };
 };
 
 /**

@@ -48,6 +48,7 @@ async function prepareNewTurn(
     message: SendRequest;
     sessionId: string;
     session?: Session;
+    signal: AbortSignal;
   },
 ) {
   const sessionForProcessing =
@@ -59,6 +60,7 @@ async function prepareNewTurn(
     session: sessionForProcessing,
     text: request.message.text,
     attachments: request.message.attachments,
+    signal: request.signal,
   });
   return { prepared, sessionForProcessing };
 }
@@ -74,7 +76,10 @@ async function createPersistedTurn(
     onProgress: (progress: FailureProgress) => void;
   },
 ) {
-  const preparedTurn = await prepareNewTurn(options, request);
+  const preparedTurn = await prepareNewTurn(options, {
+    ...request,
+    signal: request.generation.controller.signal,
+  });
   if (!options.generation.isGenerationRunActive(request.generation))
     return null;
   options.commitMemory({
@@ -121,6 +126,7 @@ async function persistNewTurn(
   const modelMessage = createBotMessagePlaceholder(
     request.modelName,
     request.prepared.ragSources,
+    request.prepared.ragError,
   );
   request.onModelCreated(modelMessage);
   await options.shell.chat.addMessage(request.sessionId, modelMessage);

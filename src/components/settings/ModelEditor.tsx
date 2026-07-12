@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Check,
@@ -23,6 +24,10 @@ import {
   type TimedStatusResetController,
 } from "@/lib/utils/timedStatus";
 import AnchoredPortal from "@/components/ui/AnchoredPortal";
+import {
+  trapModalFocus,
+  useModalLifecycle,
+} from "@/components/ui/useModalLifecycle";
 
 type CopyStatus = "idle" | "copied" | "error";
 
@@ -104,7 +109,10 @@ const ModelEditor = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [idCopyStatus, setIdCopyStatus] = useState<CopyStatus>("idle");
   const [nameCopyStatus, setNameCopyStatus] = useState<CopyStatus>("idle");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const nameFieldRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const idCopyStatusReset = useMemo(
     () =>
       createTimedStatusResetController<CopyStatus>({
@@ -194,12 +202,37 @@ const ModelEditor = ({
     controller.set(copied ? "copied" : "error");
   };
 
-  return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/5 dark:bg-black/50 backdrop-blur-[2px] animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-gray-200 dark:border-border flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+  useModalLifecycle({
+    open: true,
+    dialogRef,
+    initialFocusRef: nameInputRef,
+  });
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center overscroll-contain bg-black/20 p-4 backdrop-blur-sm animate-in fade-in duration-200 dark:bg-black/60">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onClose();
+            return;
+          }
+          trapModalFocus(event, dialogRef.current);
+        }}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:border-border dark:bg-card"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-border bg-gray-50/50 dark:bg-muted/50">
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-foreground">
+          <h3
+            id={titleId}
+            className="text-sm font-semibold text-gray-800 dark:text-foreground"
+          >
             {t("editModel")}
           </h3>
           <button
@@ -212,7 +245,7 @@ const ModelEditor = ({
           </button>
         </div>
 
-        <div className="p-4 space-y-5">
+        <div className="space-y-5 overflow-y-auto overscroll-contain p-4">
           {/* ID Field */}
           <div className="space-y-1.5">
             <label
@@ -268,6 +301,7 @@ const ModelEditor = ({
             <div className="relative" ref={nameFieldRef}>
               <input
                 id="model-editor-name"
+                ref={nameInputRef}
                 type="text"
                 name="model-name"
                 autoComplete="off"
@@ -407,7 +441,8 @@ const ModelEditor = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

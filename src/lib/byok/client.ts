@@ -64,6 +64,26 @@ async function getPublicKey(): Promise<ByokPublicKeyResponse> {
   return publicKeyPromise;
 }
 
+async function waitForSignal<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (!signal) return promise;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      reject(
+        signal.reason ??
+          new DOMException("The operation was aborted", "AbortError"),
+      );
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", abort);
+    });
+  });
+}
+
 export function clearByokPublicKeyCache(): void {
   publicKeyPromise = null;
 }
@@ -105,11 +125,16 @@ export async function fetchWithByokRetry(
 export async function encryptSecret(
   secret: string | undefined,
   context: string,
+  signal?: AbortSignal,
 ): Promise<EncryptedSecretEnvelope | undefined> {
   const trimmed = secret?.trim();
   if (!trimmed) return undefined;
 
-  const { kid, alg, publicKeyJwk } = await getPublicKey();
+  const { kid, alg, publicKeyJwk } = await waitForSignal(
+    getPublicKey(),
+    signal,
+  );
+  signal?.throwIfAborted();
   if (alg !== BYOK_ALG) {
     throw new Error("Unsupported BYOK public key algorithm");
   }
@@ -126,6 +151,7 @@ export async function encryptSecret(
     true,
     ["encrypt"],
   );
+  signal?.throwIfAborted();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoder = new TextEncoder();
   const ciphertext = await crypto.subtle.encrypt(
@@ -137,6 +163,7 @@ export async function encryptSecret(
     aesKey,
     encoder.encode(trimmed),
   );
+  signal?.throwIfAborted();
   const wrappedKey = await crypto.subtle.wrapKey("raw", aesKey, publicKey, {
     name: "RSA-OAEP",
   });
@@ -152,7 +179,10 @@ export async function encryptSecret(
   };
 }
 
-export async function buildProviderRuntimeConfig(provider: ModelProvider) {
+export async function buildProviderRuntimeConfig(
+  provider: ModelProvider,
+  signal?: AbortSignal,
+) {
   if (provider.isServerDefault || provider.id === SERVER_DEFAULT_PROVIDER_ID) {
     if (provider.id.startsWith(SERVER_PROVIDER_ID_PREFIX)) {
       return {
@@ -178,6 +208,7 @@ export async function buildProviderRuntimeConfig(provider: ModelProvider) {
     apiKeySecret: await encryptSecret(
       apiKey,
       BYOK_CONTEXTS.provider(provider.type),
+      signal,
     ),
   };
 }

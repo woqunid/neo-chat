@@ -13,6 +13,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  trapModalFocus,
+  useModalLifecycle,
+} from "@/components/ui/useModalLifecycle";
 
 interface RemoteFileModalProps {
   onClose: () => void;
@@ -79,9 +83,10 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
         : t("typeText");
   const [url, setUrl] = useState("");
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
   const isMountedRef = useRef(true);
   const urlInputId = useId();
   const urlMessageId = useId();
@@ -120,49 +125,18 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
   }, [availableTypes, selectedType]);
 
   useEffect(() => {
-    // Auto focus
-    const timer = setTimeout(() => inputRef.current?.focus(), 100);
-    return () => clearTimeout(timer);
+    const media = window.matchMedia("(min-width: 1024px) and (pointer: fine)");
+    const syncAutoFocus = () => setShouldAutoFocus(media.matches);
+    syncAutoFocus();
+    media.addEventListener("change", syncAutoFocus);
+    return () => media.removeEventListener("change", syncAutoFocus);
   }, []);
 
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const focusableSelector =
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-
-      const focusable = Array.from(
-        dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ||
-          [],
-      ).filter((el) => !el.hasAttribute("disabled"));
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused?.focus?.();
-    };
-  }, [onClose]);
+  useModalLifecycle({
+    open: true,
+    dialogRef,
+    initialFocusRef: shouldAutoFocus ? inputRef : undefined,
+  });
 
   // Validation Logic
   const urlError = useMemo(() => {
@@ -214,7 +188,8 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
         ? t("placeholderAudio")
         : t("placeholderText");
 
-  const handleSubmit = async () => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!url.trim()) return;
     if (urlError) return;
 
@@ -237,17 +212,27 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/20 dark:bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-9999 flex items-center justify-center overflow-y-auto overscroll-contain bg-black/20 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm animate-in fade-in duration-200 dark:bg-black/60"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
+      <form
+        onSubmit={handleSubmit}
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="remote-file-title"
-        className="glass-popover w-full max-w-md rounded-2xl border flex flex-col transform transition-transform duration-200 scale-100"
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onClose();
+            return;
+          }
+          trapModalFocus(event, dialogRef.current);
+        }}
+        className="glass-popover flex max-h-[calc(100dvh-2rem)] w-full max-w-md scale-100 flex-col overflow-hidden overscroll-contain rounded-2xl border transform transition-transform duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200/50 dark:border-border">
@@ -348,7 +333,7 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
                 className="flex-1 px-3 py-3 bg-transparent border-none focus:outline-none focus:ring-0 text-sm placeholder-gray-400 text-gray-800 dark:text-foreground w-full"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                required
               />
             </div>
           </div>
@@ -384,15 +369,14 @@ const RemoteFileModal: React.FC<RemoteFileModalProps> = ({
             {t("cancel")}
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
+            type="submit"
             disabled={!url.trim() || !!urlError}
             className="px-6 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/20 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
           >
             <Check size={16} aria-hidden="true" /> {t("attach")}
           </button>
         </div>
-      </div>
+      </form>
     </div>,
     document.body,
   );

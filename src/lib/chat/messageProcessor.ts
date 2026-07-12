@@ -5,6 +5,7 @@ import {
   isIndexedKnowledgeFileAttachment,
   processRAGAttachments,
   processLocalKBAttachments,
+  type RagQueryError,
 } from "../utils/rag";
 import {
   separateKBAttachments,
@@ -34,14 +35,17 @@ export interface ProcessMessageOptions {
     useDefaultVectorStore?: boolean;
     serverVectorStoreAvailable?: boolean;
   };
+  ragEnabled?: boolean;
   knowledgeCollections: any[];
   workspaceKnowledgeCollectionIds?: string[];
+  signal?: AbortSignal;
 }
 
 export interface ProcessedMessageData {
   finalText: string;
   finalAttachments: Attachment[];
   ragSources: Source[];
+  ragError?: RagQueryError;
   userMessage: Message;
 }
 
@@ -58,13 +62,16 @@ export async function processMessageForSending(
     modelMetadata,
     customModelMetadata,
     ragConfig,
+    ragEnabled = true,
     knowledgeCollections,
     workspaceKnowledgeCollectionIds = [],
+    signal,
   } = options;
 
   let finalText = text;
   let convertedContent = "";
   let ragSources: Source[] = [];
+  let ragError: RagQueryError | undefined;
   const finalAttachments: Attachment[] = [];
 
   // Separate KB and other attachments
@@ -93,7 +100,12 @@ export async function processMessageForSending(
 
   // Process RAG attachments
   const hasKB = allKBAttachments.length > 0;
-  const isRagServiceEnabled = ragConfig.enabled && hasRagVectorStore(ragConfig);
+  const effectiveRagConfig = {
+    ...ragConfig,
+    enabled: ragConfig.enabled && ragEnabled,
+  };
+  const isRagServiceEnabled =
+    effectiveRagConfig.enabled && hasRagVectorStore(effectiveRagConfig);
 
   if (hasKB && isRagServiceEnabled) {
     const fileAttachments = allKBAttachments.filter(isKnowledgeFileAttachment);
@@ -101,13 +113,15 @@ export async function processMessageForSending(
     const ragResult = await processRAGAttachments(
       text,
       allKBAttachments,
-      ragConfig,
+      effectiveRagConfig,
       supportAttachment,
       knowledgeCollections,
+      signal,
     );
     convertedContent += ragResult.convertedContent;
     finalAttachments.push(...ragResult.finalAttachments);
     ragSources = ragResult.ragSources;
+    ragError = ragResult.ragError;
 
     const localFileAttachments = fileAttachments.filter(
       (attachment) =>
@@ -157,6 +171,7 @@ export async function processMessageForSending(
     finalText,
     finalAttachments,
     ragSources,
+    ragError,
     userMessage,
   };
 }
@@ -167,6 +182,7 @@ export async function processMessageForSending(
 export function createBotMessagePlaceholder(
   modelDisplayName: string,
   ragSources: Source[],
+  ragError?: RagQueryError,
 ): Message {
   const botMsgId = uuidv7();
   const startTime = Date.now();
@@ -180,6 +196,7 @@ export function createBotMessagePlaceholder(
     model: modelDisplayName,
     generationStatus: "pending",
     ragSources: ragSources.length > 0 ? ragSources : undefined,
+    ragError,
     isSearching: false,
   };
 }

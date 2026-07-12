@@ -1,6 +1,7 @@
 "use client";
 
 import AssistantHeader from "@/components/assistant/AssistantHeader";
+import { useTranslations } from "next-intl";
 
 import ChatMessageStream from "./ChatMessageStream";
 import type { ChatRenderProps, ConversationModel } from "./types";
@@ -51,6 +52,7 @@ export default function ChatMessageRegion({
   handleMessagesTouchMove,
   handleMessagesTouchEnd,
 }: ChatMessageRegionProps) {
+  const t = useTranslations("ChatApp");
   return (
     <div
       ref={messagesScrollRef}
@@ -65,6 +67,14 @@ export default function ChatMessageRegion({
     >
       <div className="w-full max-w-3xl mx-auto min-h-full flex flex-col">
         <SessionInstruction conversation={conversation} />
+        {conversation.loadError ? (
+          <div
+            role="alert"
+            className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100"
+          >
+            {t("errLoadChat")}
+          </div>
+        ) : null}
         {conversation.welcomeState !== "hidden" && (
           <div
             className={`emptyChatSurface flex-1 motion-safe:transition-[opacity,transform] motion-safe:duration-300 motion-safe:transform origin-center ${

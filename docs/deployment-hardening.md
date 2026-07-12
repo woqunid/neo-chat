@@ -13,12 +13,19 @@ Recommended settings:
 
 ```bash
 DEPLOYMENT_MODE=local
+ACCESS_PASSWORD=choose-a-strong-password
+ALLOW_INSECURE_LOCAL_PRODUCTION=false
 ALLOW_LOCAL_NETWORK_PROXY=
 TRUST_PROXY_HEADERS=false
 BYOK_ALLOW_EPHEMERAL_KEY=false
 BYOK_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 BYOK_KEY_ID=prod-2026-07
 ```
+
+Production `local` mode fails closed for API routes when `ACCESS_PASSWORD` is
+empty. `ALLOW_INSECURE_LOCAL_PRODUCTION=true` is an explicit risk acceptance
+for private deployments that already have another access boundary; it must not
+be enabled by default in Docker or production examples.
 
 If the deployment has more than one instance, use Upstash for shared request
 limits, document parse jobs, and server-registered plugins:
@@ -172,6 +179,9 @@ to hosted or multi-instance deployments.
 `/api/health` intentionally reports availability and policy state only. It must
 not expose access passwords, BYOK key material, provider keys, Upstash tokens,
 or internal Redis URLs.
+
+The health panel is a configuration-readiness check, not a live canary,
+external dependency probe, uptime monitor, or replacement for observability.
 
 ## Runtime Recovery
 

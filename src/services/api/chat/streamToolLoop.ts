@@ -5,6 +5,7 @@ import {
   GROK_WEB_SEARCH_TOOL_NAME,
 } from "../../../lib/search/grokTool";
 import { PLUGIN_EXECUTION_LIMITS } from "../../../config/limits";
+import { mapWithConcurrency } from "../../../lib/utils/concurrency";
 import { searchWithGrok } from "../grokSearchService";
 import { compactPluginImageResultForHistory } from "./pluginImageResults";
 import { executeMemorySearchTool, isInternalMemoryTool } from "./memoryTools";
@@ -61,6 +62,8 @@ async function executeOne(
   runtime: ChatStreamRuntime,
   toolCall: ToolCall,
 ): Promise<ToolCall> {
+  const signal = runtime.prepared.options.signal;
+  signal?.throwIfAborted();
   try {
     const completed = completedToolCall(
       toolCall,
@@ -69,6 +72,12 @@ async function executeOne(
     runtime.updateToolCall(completed);
     return completed;
   } catch (error) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      throw error;
+    }
     const failed: ToolCall = {
       ...toolCall,
       status: "error",
@@ -78,6 +87,33 @@ async function executeOne(
     runtime.updateToolCall(failed);
     return failed;
   }
+}
+
+function skippedForTotalBudget(toolCall: ToolCall): ToolCall {
+  return {
+    ...toolCall,
+    status: "skipped",
+    isError: true,
+    result:
+      "Tool execution skipped because the per-generation total tool-call budget was reached.",
+  };
+}
+
+async function executeWithinBudget(
+  runtime: ChatStreamRuntime,
+  pending: ToolCall[],
+  remainingBudget: number,
+): Promise<{ calls: ToolCall[]; attempted: number }> {
+  const executable = pending.slice(0, remainingBudget);
+  const skipped = pending.slice(remainingBudget).map(skippedForTotalBudget);
+  markRunning(runtime, executable);
+  skipped.forEach((toolCall) => runtime.updateToolCall(toolCall));
+  const executed = await mapWithConcurrency(
+    executable,
+    PLUGIN_EXECUTION_LIMITS.maxToolConcurrency,
+    (toolCall) => executeOne(runtime, toolCall),
+  );
+  return { calls: [...executed, ...skipped], attempted: executable.length };
 }
 
 function markRunning(runtime: ChatStreamRuntime, calls: ToolCall[]): void {
@@ -112,6 +148,7 @@ export async function runToolRounds(
   runtime: ChatStreamRuntime,
 ): Promise<string> {
   const limit = PLUGIN_EXECUTION_LIMITS.maxToolRounds;
+  let executedToolCallCount = 0;
   for (let round = 0; round <= limit; round += 1) {
     const result = await runChatRound(runtime);
     const pending = pendingToolCalls(result.toolCalls);
@@ -119,11 +156,17 @@ export async function runToolRounds(
     if (round === limit) {
       return stopAtRoundLimit(runtime, pending, result.content);
     }
-    markRunning(runtime, pending);
-    const executed = await Promise.all(
-      pending.map((toolCall) => executeOne(runtime, toolCall)),
+    const remainingBudget = Math.max(
+      0,
+      PLUGIN_EXECUTION_LIMITS.maxTotalToolCalls - executedToolCallCount,
     );
-    runtime.commitRound(result, executed);
+    const execution = await executeWithinBudget(
+      runtime,
+      pending,
+      remainingBudget,
+    );
+    executedToolCallCount += execution.attempted;
+    runtime.commitRound(result, execution.calls);
   }
   return runtime.committedContent;
 }

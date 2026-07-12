@@ -1,5 +1,6 @@
 {
   "sourcesHeading": "ナレッジベース ({count} 個のソース)",
+  "ragQueryFailed": "一部のナレッジベース検索に失敗しました。利用可能なソースは保持されています。",
   "selectKnowledgeBase": "ナレッジベースを選択",
   "closeSelection": "ナレッジ選択を閉じる",
   "collectionsLabel": "ナレッジコレクション",

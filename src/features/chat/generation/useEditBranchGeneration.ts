@@ -62,6 +62,7 @@ function createEditBranch(
       options.availableModels,
     ),
     request.prepared.ragSources,
+    request.prepared.ragError,
   );
   const ids = options.shell.chat.createEditedUserMessageBranch(
     request.source.sessionId,
@@ -187,6 +188,7 @@ async function prepareEditInputs(
     session: request.source.session,
     text: request.content,
     attachments: request.source.sourceMessage.attachments ?? [],
+    signal: request.generation.controller.signal,
   });
   if (!options.generation.isGenerationRunActive(request.generation))
     return null;

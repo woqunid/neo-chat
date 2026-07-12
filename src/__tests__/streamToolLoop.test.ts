@@ -1,0 +1,117 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ToolCall } from "../types";
+
+const mocks = vi.hoisted(() => ({
+  executePluginFunction: vi.fn(),
+  runChatRound: vi.fn(),
+}));
+
+vi.mock("@/utils/pluginUtils", () => ({
+  executePluginFunction: mocks.executePluginFunction,
+}));
+
+vi.mock("../services/api/chat/streamRound", () => ({
+  runChatRound: mocks.runChatRound,
+}));
+
+vi.mock("../services/api/chat/memoryTools", () => ({
+  executeMemorySearchTool: vi.fn(),
+  isInternalMemoryTool: vi.fn(() => false),
+}));
+
+vi.mock("../lib/search/grokTool", () => ({
+  executeGrokSearchTool: vi.fn(),
+  GROK_WEB_SEARCH_TOOL_NAME: "grok_web_search",
+}));
+
+vi.mock("../services/api/grokSearchService", () => ({
+  searchWithGrok: vi.fn(),
+}));
+
+const { runToolRounds } = await import("../services/api/chat/streamToolLoop");
+
+function toolCall(index: number): ToolCall {
+  return {
+    id: `tool-${index}`,
+    name: "plugin_tool",
+    args: {},
+    status: "pending",
+  };
+}
+
+function createRuntime() {
+  return {
+    prepared: {
+      options: { activePlugins: [], signal: new AbortController().signal },
+    },
+    committedContent: "",
+    updateToolCall: vi.fn(),
+    commitRound: vi.fn(),
+    trackGrokEvent: vi.fn(),
+  };
+}
+
+describe("stream tool loop budgets", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.executePluginFunction.mockResolvedValue({ ok: true });
+  });
+
+  it("attempts at most 100 calls and records the remainder as skipped", async () => {
+    const calls = Array.from({ length: 105 }, (_, index) => toolCall(index));
+    mocks.runChatRound
+      .mockResolvedValueOnce({ content: "", reasoning: "", toolCalls: calls })
+      .mockResolvedValueOnce({ content: "done", reasoning: "", toolCalls: [] });
+    const runtime = createRuntime();
+
+    await runToolRounds(runtime as never);
+
+    expect(mocks.executePluginFunction).toHaveBeenCalledTimes(100);
+    const committedCalls = runtime.commitRound.mock.calls[0][1] as ToolCall[];
+    expect(committedCalls).toHaveLength(105);
+    expect(committedCalls.slice(100)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "skipped", isError: true }),
+      ]),
+    );
+  });
+
+  it("limits peak plugin execution concurrency to four", async () => {
+    let active = 0;
+    let peak = 0;
+    mocks.executePluginFunction.mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+      active -= 1;
+      return { ok: true };
+    });
+    mocks.runChatRound
+      .mockResolvedValueOnce({
+        content: "",
+        reasoning: "",
+        toolCalls: Array.from({ length: 12 }, (_, index) => toolCall(index)),
+      })
+      .mockResolvedValueOnce({ content: "done", reasoning: "", toolCalls: [] });
+
+    await runToolRounds(createRuntime() as never);
+    expect(peak).toBe(4);
+  });
+
+  it("propagates cancellation without starting queued calls", async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException("Aborted", "AbortError"));
+    mocks.runChatRound.mockResolvedValueOnce({
+      content: "",
+      reasoning: "",
+      toolCalls: [toolCall(1), toolCall(2)],
+    });
+    const runtime = createRuntime();
+    runtime.prepared.options.signal = controller.signal;
+
+    await expect(runToolRounds(runtime as never)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(mocks.executePluginFunction).not.toHaveBeenCalled();
+  });
+});

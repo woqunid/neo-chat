@@ -35,6 +35,17 @@ const KnowledgeSelectionModal: React.FC<KnowledgeSelectionModalProps> = ({
   onSelect,
 }) => {
   const t = useTranslations("Knowledge");
+  const statusLabel = (status: string) => {
+    const key = {
+      uploading: "statusUploading",
+      parsing: "statusParsing",
+      indexing: "statusIndexing",
+      indexed: "statusIndexed",
+      saved: "statusSaved",
+      error: "statusError",
+    }[status];
+    return t(key || "statusUnknown");
+  };
   const { collections } = useKnowledgeStore();
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -237,7 +248,7 @@ const KnowledgeSelectionModal: React.FC<KnowledgeSelectionModalProps> = ({
                     {file.name}
                   </span>
                   <span className="block truncate text-xs text-gray-500 dark:text-muted-foreground">
-                    {file.status}
+                    {statusLabel(file.status)}
                   </span>
                 </span>
               </button>

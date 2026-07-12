@@ -36,10 +36,11 @@ the browser.
 
 ## Access Control
 
-| Variable              | Purpose                                                                           |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `ACCESS_PASSWORD`     | Optional deployment-level password gate. This is not an account or tenant system. |
-| `SUPERADMIN_PASSWORD` | Optional password protecting only `/superadmin` and `/api/superadmin/*`.          |
+| Variable                          | Purpose                                                                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACCESS_PASSWORD`                 | Deployment-level password gate. Required by default for production `local` mode. This is not an account or tenant system.                      |
+| `ALLOW_INSECURE_LOCAL_PRODUCTION` | Explicitly allows production `local` API access without `ACCESS_PASSWORD`. Defaults to false; use only behind another private access boundary. |
+| `SUPERADMIN_PASSWORD`             | Optional password protecting only `/superadmin` and `/api/superadmin/*`.                                                                       |
 
 ## BYOK Server Key
 
