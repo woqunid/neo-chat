@@ -1,17 +1,15 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  readPluginMarketComposition,
+  readProjectSource,
+} from "./helpers/pluginMarketComposition";
 
 describe("market hydration composition", () => {
   it("gates assistant and plugin market network loads on settings hydration", () => {
-    const assistantHub = readFileSync(
-      resolve(process.cwd(), "src/components/assistant/AssistantHub.tsx"),
-      "utf8",
+    const assistantHub = readProjectSource(
+      "src/components/assistant/AssistantHub.tsx",
     );
-    const pluginMarket = readFileSync(
-      resolve(process.cwd(), "src/components/plugin/PluginMarket.tsx"),
-      "utf8",
-    );
+    const pluginMarket = readPluginMarketComposition();
 
     expect(assistantHub).toContain("_hasHydrated");
     expect(assistantHub).toContain("getCachedAgentsForLocale");
@@ -22,10 +20,7 @@ describe("market hydration composition", () => {
   });
 
   it("keeps image plugin endpoint configuration user-controlled", () => {
-    const pluginMarket = readFileSync(
-      resolve(process.cwd(), "src/components/plugin/PluginMarket.tsx"),
-      "utf8",
-    );
+    const pluginMarket = readPluginMarketComposition();
 
     expect(pluginMarket).toContain("ENDPOINT_CONFIG_PLUGIN_IDS");
     expect(pluginMarket).toContain('"openai-image-generation"');

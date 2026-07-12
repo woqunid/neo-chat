@@ -1,13 +1,12 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  readPluginMarketComposition,
+  readPluginMarketModule,
+} from "./helpers/pluginMarketComposition";
 
 describe("PluginMarket MCP composition", () => {
   it("places Plugins and MCP as full-page source tabs above search", () => {
-    const pluginMarket = readFileSync(
-      resolve(process.cwd(), "src/components/plugin/PluginMarket.tsx"),
-      "utf8",
-    );
+    const pluginMarket = readPluginMarketComposition();
 
     expect(pluginMarket).toContain('MarketSource = "plugins" | "mcp"');
     expect(pluginMarket).toContain("fetchMcpServerPage");
@@ -25,18 +24,20 @@ describe("PluginMarket MCP composition", () => {
     expect(pluginMarket).toContain('t("mcp")');
     expect(pluginMarket).toContain('t("plugins")');
 
-    const sourceTabsIndex = pluginMarket.indexOf(
-      'aria-label={t("sourceTabsAria")}',
-    );
-    const searchIndex = pluginMarket.indexOf('name="plugin-search"');
-    const installedSectionIndex = pluginMarket.indexOf("{/* Installed Section");
-    const availableSectionIndex = pluginMarket.indexOf("{/* Available Section");
+    const toolbar = readPluginMarketModule("MarketToolbar.tsx");
+    const view = readPluginMarketModule("PluginMarketView.tsx");
+    const sourceTabsIndex = toolbar.indexOf('aria-label={t("sourceTabsAria")}');
+    const searchIndex = toolbar.indexOf('name="plugin-search"');
+    const toolbarIndex = view.indexOf("<MarketToolbar");
+    const installedSectionIndex = view.indexOf("{/* Installed Section");
+    const availableSectionIndex = view.indexOf("{/* Available Section");
     expect(sourceTabsIndex).toBeGreaterThan(-1);
     expect(searchIndex).toBeGreaterThan(-1);
     expect(installedSectionIndex).toBeGreaterThan(-1);
     expect(availableSectionIndex).toBeGreaterThan(-1);
     expect(sourceTabsIndex).toBeLessThan(searchIndex);
-    expect(sourceTabsIndex).toBeLessThan(installedSectionIndex);
-    expect(sourceTabsIndex).toBeLessThan(availableSectionIndex);
+    expect(toolbarIndex).toBeGreaterThan(-1);
+    expect(toolbarIndex).toBeLessThan(installedSectionIndex);
+    expect(toolbarIndex).toBeLessThan(availableSectionIndex);
   });
 });

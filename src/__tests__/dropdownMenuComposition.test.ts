@@ -1,9 +1,17 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  readPluginMarketComposition,
+  readProjectSource,
+} from "./helpers/pluginMarketComposition";
 
-const read = (path: string) =>
-  readFileSync(resolve(process.cwd(), path), "utf8");
+const read = readProjectSource;
+
+const readActionSource = (path: string) => {
+  if (path !== "src/components/plugin/PluginMarket.tsx") return read(path);
+  return readPluginMarketComposition();
+};
 
 describe("dropdown menu composition", () => {
   it("uses a local Radix dropdown-menu wrapper", () => {
@@ -42,7 +50,7 @@ describe("dropdown menu composition", () => {
     ];
 
     for (const file of actionMenuFiles) {
-      const source = read(file);
+      const source = readActionSource(file);
       expect(source, file).toContain("components/ui/dropdown-menu");
       expect(source, file).not.toContain('role="menu"');
       expect(source, file).not.toContain('role="menuitem"');
