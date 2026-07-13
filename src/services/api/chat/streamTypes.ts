@@ -84,4 +84,5 @@ export interface ChatRoundResult {
   content: string;
   reasoning: string;
   toolCalls: ToolCall[];
+  usage?: ChatUsagePayload;
 }

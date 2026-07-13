@@ -33,6 +33,13 @@ Handles chat generation workflows from the browser side:
 - Adds applied skill context and local memory context when enabled by the chat workflow.
 - Runs background context compression.
 - Updates tool-call status while streaming and while executing tools.
+- Runs web research with an explicit per-generation query budget, repeated-query
+  detection, and a no-new-source stop condition before the final synthesis
+  round. The centralized values live in `GROK_SEARCH_LIMITS`; changing those
+  values adjusts or effectively disables the research-specific boundaries.
+  Other plugin tools keep the shared tool-round budget.
+- Accumulates provider usage across model/tool rounds so message token totals do
+  not only reflect the final round.
 
 Image-capable chat models follow the same streaming path as text models when
 they can return text and images together. The client appends incoming image SSE

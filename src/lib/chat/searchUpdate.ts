@@ -1,4 +1,5 @@
 import type { ImageSource, Message, Source } from "@/types";
+import { getCanonicalSearchUrlKey } from "../search/urlKey";
 
 export function mergeSources(
   existing: Source[] = [],
@@ -8,7 +9,9 @@ export function mergeSources(
   const merged: Source[] = [];
 
   for (const source of [...existing, ...incoming]) {
-    const key = `${source.url}\n${source.title}\n${source.content}`;
+    const key =
+      getCanonicalSearchUrlKey(source.url) ||
+      `${source.url}\n${source.title}\n${source.content}`;
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(source);

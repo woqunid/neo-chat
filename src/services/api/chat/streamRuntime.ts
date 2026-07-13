@@ -1,12 +1,15 @@
 import { v7 as uuidv7 } from "uuid";
 import type { Attachment, ToolCall } from "@/types";
 import { createMessageOutputBlockBuilder } from "../../../lib/chat/messageOutputBlocks";
+import { accumulateChatUsage } from "../../../lib/chat/tokenUsage";
 import type { GrokSearchStatusEvent } from "../../../lib/search/grokTool";
 import type {
   ChatRoundResult,
+  ChatUsagePayload,
   PreparedChatRequest,
   SearchStatusResults,
 } from "./streamTypes";
+import type { SearchResearchPolicy } from "./searchResearchPolicy";
 
 export class ChatStreamRuntime {
   readonly output: ReturnType<typeof createMessageOutputBlockBuilder>;
@@ -17,9 +20,11 @@ export class ChatStreamRuntime {
   requestMessage: string;
   requestAttachments: Attachment[];
   requestConfig: PreparedChatRequest["requestConfig"];
+  private aggregatedUsage: ChatUsagePayload | undefined;
 
   constructor(
     readonly prepared: PreparedChatRequest,
+    readonly searchResearch: SearchResearchPolicy,
     output = createMessageOutputBlockBuilder(),
     private readonly onGrokStatus?: (event: GrokSearchStatusEvent) => void,
   ) {
@@ -68,6 +73,17 @@ export class ChatStreamRuntime {
     this.upsertToolCall(toolCall);
   }
 
+  requestTools(): PreparedChatRequest["tools"] {
+    return this.searchResearch.availableTools(this.prepared.tools);
+  }
+
+  commitUsage(usage?: ChatUsagePayload): void {
+    this.aggregatedUsage = accumulateChatUsage(this.aggregatedUsage, usage);
+    if (usage && this.aggregatedUsage) {
+      this.prepared.options.onUsage?.(this.aggregatedUsage);
+    }
+  }
+
   commitRound(result: ChatRoundResult, toolCalls: ToolCall[]): void {
     if (result.content) this.committedContent += `${result.content}\n\n`;
     if (result.reasoning) this.committedReasoning += `${result.reasoning}\n\n`;
@@ -89,8 +105,7 @@ export class ChatStreamRuntime {
         timestamp: Date.now(),
       },
     ];
-    this.requestMessage =
-      "Use the tool results above to answer the user's original request. Only call another tool if more external data is required.";
+    this.requestMessage = this.searchResearch.continuationInstruction();
     this.requestAttachments = [];
   }
 }

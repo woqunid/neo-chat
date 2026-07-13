@@ -4,6 +4,7 @@ import { prepareChatRequest } from "./streamSetup";
 import { ChatStreamRuntime } from "./streamRuntime";
 import { runDirectImageRequest } from "./streamDirectImage";
 import { runToolRounds } from "./streamToolLoop";
+import { createSearchResearchPolicy } from "./searchResearchPolicy";
 import type { StreamChatOptions, StreamChatResponseArgs } from "./streamTypes";
 
 function toOptions(args: StreamChatResponseArgs): StreamChatOptions {
@@ -57,7 +58,12 @@ export async function streamChatResponse(
     emitBlocks();
   });
   const prepared = await prepareChatRequest(options, tracker);
-  const runtime = new ChatStreamRuntime(prepared, output, tracker);
+  const runtime = new ChatStreamRuntime(
+    prepared,
+    createSearchResearchPolicy(),
+    output,
+    tracker,
+  );
   const directResult = await runDirectImageRequest(runtime);
   if (directResult !== null) return directResult;
   return runToolRounds(runtime);

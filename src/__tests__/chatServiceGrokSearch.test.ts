@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GROK_SEARCH_LIMITS } from "../config/limits";
 
 const mocks = vi.hoisted(() => ({
   executePluginFunction: vi.fn(),
@@ -254,5 +255,65 @@ describe("chat service Grok search tool", () => {
       result: "Grok upstream failed",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes Grok from the final synthesis request after the search budget", async () => {
+    mocks.searchWithGrok.mockImplementation(async (query: string) => ({
+      summary: `Summary for ${query}`,
+      sources: [
+        {
+          title: query,
+          url: `https://example.com/${encodeURIComponent(query)}`,
+          content: `Evidence for ${query}`,
+        },
+      ],
+      images: [],
+    }));
+    let round = 0;
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        const currentRound = round;
+        round += 1;
+        if (currentRound === GROK_SEARCH_LIMITS.maxToolCallsPerGeneration) {
+          return sseResponse([
+            { type: "content", content: "Combined answer." },
+            { type: "done" },
+          ]);
+        }
+        return sseResponse([
+          {
+            type: "tool_call",
+            toolCall: {
+              id: `search-${currentRound}`,
+              name: "grok_web_search",
+              args: { query: `query ${currentRound}` },
+              status: "pending",
+            },
+          },
+          { type: "done" },
+        ]);
+      });
+
+    await expect(runSearchChat("Research this topic")).resolves.toBe(
+      "Combined answer.",
+    );
+
+    expect(mocks.searchWithGrok).toHaveBeenCalledTimes(
+      GROK_SEARCH_LIMITS.maxToolCallsPerGeneration,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(
+      GROK_SEARCH_LIMITS.maxToolCallsPerGeneration + 1,
+    );
+    const finalBody = JSON.parse(
+      String(
+        fetchMock.mock.calls[GROK_SEARCH_LIMITS.maxToolCallsPerGeneration]?.[1]
+          ?.body,
+      ),
+    );
+    expect(
+      finalBody.tools.map((tool: any) => tool.function.name),
+    ).not.toContain("grok_web_search");
+    expect(finalBody.newMessage).toContain("explicit limit");
   });
 });

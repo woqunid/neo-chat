@@ -19,6 +19,7 @@ class RoundEventHandler {
   content = "";
   reasoning = "";
   readonly toolCalls: ToolCall[] = [];
+  private usage: ChatRoundResult["usage"];
 
   constructor(private readonly runtime: ChatStreamRuntime) {}
 
@@ -48,9 +49,8 @@ class RoundEventHandler {
 
   private handleUsage(parsed: any): void {
     const usage = parsed.usage || parsed.usageMetadata;
-    if (!usage || !this.runtime.prepared.options.onUsage) return;
-    if (parsed.usage) this.runtime.prepared.options.onUsage({ usage });
-    else this.runtime.prepared.options.onUsage({ usageMetadata: usage });
+    if (!usage) return;
+    this.usage = parsed.usage ? { usage } : { usageMetadata: usage };
   }
 
   private handleSimpleEvent(parsed: any): boolean {
@@ -95,6 +95,7 @@ class RoundEventHandler {
       content: this.content,
       reasoning: this.reasoning,
       toolCalls: this.toolCalls,
+      usage: this.usage,
     };
   }
 }
@@ -154,11 +155,12 @@ async function readRoundResponse(
 
 async function requestRound(runtime: ChatStreamRuntime): Promise<Response> {
   const prepared = runtime.prepared;
+  const tools = runtime.requestTools();
   const boundedRequestHistory = boundHistoryForRequest(runtime.requestHistory, {
     newMessage: runtime.requestMessage,
     attachments: runtime.requestAttachments,
     systemInstruction: prepared.options.userSystemInstruction,
-    tools: prepared.tools,
+    tools,
     modelInputTokenLimit: prepared.selectedModelMetadata?.limit?.context,
     reservedOutputTokens: prepared.selectedModelMetadata?.limit?.output,
   });
@@ -174,7 +176,7 @@ async function requestRound(runtime: ChatStreamRuntime): Promise<Response> {
         attachments: runtime.requestAttachments,
         config: runtime.requestConfig,
         systemInstruction: prepared.options.userSystemInstruction,
-        tools: prepared.tools,
+        tools,
         enableImageGeneration:
           supportsImageGeneration(prepared.selectedModelMetadata) &&
           (prepared.provider.type === "OpenAI" ||

@@ -34,6 +34,31 @@ describe("chat search updates", () => {
     });
   });
 
+  it("deduplicates source URLs after removing tracking parameters", () => {
+    const message = {
+      searchSources: [
+        {
+          title: "Original",
+          url: "https://example.com/report?utm_source=first",
+          content: "Original evidence",
+        },
+      ],
+    } as Message;
+
+    expect(
+      buildSearchUpdate(message, false, {
+        sources: [
+          {
+            title: "Updated",
+            url: "https://example.com/report?utm_source=second#details",
+            content: "Updated evidence",
+          },
+        ],
+        images: [],
+      }).searchSources,
+    ).toEqual(message.searchSources);
+  });
+
   it("keeps a failed search block visible with a sanitized error", () => {
     const builder = createMessageOutputBlockBuilder({
       createId: () => "search-1",

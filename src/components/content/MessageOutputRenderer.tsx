@@ -5,6 +5,7 @@ import { ImageOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Attachment, Message, MessageOutputBlock, Source } from "@/types";
 import { getMessageOutputBlocks } from "@/lib/chat/messageOutputBlocks";
+import { collapseResearchBlocksForDisplay } from "@/lib/chat/messageOutputPresentation";
 import type { MarkdownGeneratedFile } from "@/lib/utils/markdownFiles";
 import { useUIStore } from "@/store/core/uiStore";
 import { useAttachmentDisplayUrl } from "@/lib/utils/useAttachmentDisplayUrl";
@@ -140,7 +141,9 @@ const MessageOutputRenderer: React.FC<MessageOutputRendererProps> = ({
   const renderContent = isTyping ? renderMessage.content : displayedContent;
   const blocks = useMemo(() => {
     const orderedBlocks = getMessageOutputBlocks(renderMessage);
-    return trimTextBlocksForStreaming(orderedBlocks, renderContent, isTyping);
+    return collapseResearchBlocksForDisplay(
+      trimTextBlocksForStreaming(orderedBlocks, renderContent, isTyping),
+    );
   }, [isTyping, renderContent, renderMessage]);
 
   if (blocks.length === 0) return null;

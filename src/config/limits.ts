@@ -102,6 +102,8 @@ export const SEARCH_RESULT_LIMITS = {
 
 export const GROK_SEARCH_LIMITS = {
   maxQueryChars: 4_000,
+  maxToolCallsPerGeneration: 4,
+  maxNoProgressRounds: 2,
 } as const;
 
 export const MEMORY_LIMITS = {

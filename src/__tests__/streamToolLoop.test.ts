@@ -40,14 +40,20 @@ function toolCall(index: number): ToolCall {
 }
 
 function createRuntime() {
+  const searchResearch = {
+    reviewToolCall: (toolCall: ToolCall) => toolCall,
+    recordRound: vi.fn(),
+  };
   return {
     prepared: {
       options: { activePlugins: [], signal: new AbortController().signal },
     },
     committedContent: "",
+    commitUsage: vi.fn(),
     updateToolCall: vi.fn(),
     commitRound: vi.fn(),
     trackGrokEvent: vi.fn(),
+    searchResearch,
   };
 }
 
@@ -96,6 +102,32 @@ describe("stream tool loop budgets", () => {
 
     await runToolRounds(createRuntime() as never);
     expect(peak).toBe(4);
+  });
+
+  it("commits usage from every model round", async () => {
+    mocks.runChatRound
+      .mockResolvedValueOnce({
+        content: "",
+        reasoning: "",
+        toolCalls: [toolCall(1)],
+        usage: { usage: { total_tokens: 10 } },
+      })
+      .mockResolvedValueOnce({
+        content: "done",
+        reasoning: "",
+        toolCalls: [],
+        usage: { usage: { total_tokens: 20 } },
+      });
+    const runtime = createRuntime();
+
+    await runToolRounds(runtime as never);
+
+    expect(runtime.commitUsage).toHaveBeenNthCalledWith(1, {
+      usage: { total_tokens: 10 },
+    });
+    expect(runtime.commitUsage).toHaveBeenNthCalledWith(2, {
+      usage: { total_tokens: 20 },
+    });
   });
 
   it("propagates cancellation without starting queued calls", async () => {

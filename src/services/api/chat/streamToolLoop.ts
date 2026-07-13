@@ -99,13 +99,32 @@ function skippedForTotalBudget(toolCall: ToolCall): ToolCall {
   };
 }
 
+function reviewWithinBudget(
+  runtime: ChatStreamRuntime,
+  pending: ToolCall[],
+  remainingBudget: number,
+): ToolCall[] {
+  let executableCount = 0;
+  return pending.map((toolCall) => {
+    if (executableCount >= remainingBudget) {
+      return skippedForTotalBudget(toolCall);
+    }
+    const reviewed = runtime.searchResearch.reviewToolCall(toolCall);
+    if (reviewed.status !== "skipped") executableCount += 1;
+    return reviewed;
+  });
+}
+
 async function executeWithinBudget(
   runtime: ChatStreamRuntime,
   pending: ToolCall[],
   remainingBudget: number,
 ): Promise<{ calls: ToolCall[]; attempted: number }> {
-  const executable = pending.slice(0, remainingBudget);
-  const skipped = pending.slice(remainingBudget).map(skippedForTotalBudget);
+  const reviewed = reviewWithinBudget(runtime, pending, remainingBudget);
+  const executable = reviewed.filter(
+    (toolCall) => toolCall.status !== "skipped",
+  );
+  const skipped = reviewed.filter((toolCall) => toolCall.status === "skipped");
   markRunning(runtime, executable);
   skipped.forEach((toolCall) => runtime.updateToolCall(toolCall));
   const executed = await mapWithConcurrency(
@@ -113,7 +132,13 @@ async function executeWithinBudget(
     PLUGIN_EXECUTION_LIMITS.maxToolConcurrency,
     (toolCall) => executeOne(runtime, toolCall),
   );
-  return { calls: [...executed, ...skipped], attempted: executable.length };
+  const completed = new Map(
+    [...executed, ...skipped].map((toolCall) => [toolCall.id, toolCall]),
+  );
+  return {
+    calls: reviewed.map((toolCall) => completed.get(toolCall.id) || toolCall),
+    attempted: executable.length,
+  };
 }
 
 function markRunning(runtime: ChatStreamRuntime, calls: ToolCall[]): void {
@@ -151,6 +176,7 @@ export async function runToolRounds(
   let executedToolCallCount = 0;
   for (let round = 0; round <= limit; round += 1) {
     const result = await runChatRound(runtime);
+    runtime.commitUsage(result.usage);
     const pending = pendingToolCalls(result.toolCalls);
     if (pending.length === 0) return runtime.committedContent + result.content;
     if (round === limit) {
@@ -166,6 +192,7 @@ export async function runToolRounds(
       remainingBudget,
     );
     executedToolCallCount += execution.attempted;
+    runtime.searchResearch.recordRound(execution.calls);
     runtime.commitRound(result, execution.calls);
   }
   return runtime.committedContent;
