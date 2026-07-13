@@ -191,7 +191,7 @@ export async function resolveProviderRuntimeConfig(
 
   if (provider.source === "server-provider") {
     const serverProvider = await getServerModelProvider(provider.providerId);
-    if (!serverProvider || !serverProvider.enabled) return provider;
+    if (!serverProvider) return provider;
     return toModelProviderRuntime(serverProvider);
   }
 

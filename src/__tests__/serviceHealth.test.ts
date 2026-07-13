@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
     baseUrl: string;
     apiKey: string;
     model: string;
-    enabled: boolean;
     updatedAt: string;
   },
 }));
@@ -14,7 +13,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("../lib/search/grokRegistry", () => ({
   getServerGrokSearchConfig: vi.fn(async () => mocks.grokConfig),
   isGrokSearchReady: vi.fn((config) =>
-    Boolean(config?.enabled && config.baseUrl && config.apiKey && config.model),
+    Boolean(config?.baseUrl && config.apiKey && config.model),
   ),
 }));
 
@@ -47,7 +46,6 @@ describe("service health status", () => {
       baseUrl: "https://grok.internal/v1",
       apiKey: "grok-secret",
       model: "grok-4",
-      enabled: true,
       updatedAt: "2026-07-10T00:00:00.000Z",
     };
 

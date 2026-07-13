@@ -10,7 +10,6 @@ const EMPTY_CONFIG: AdminGrokSearchConfig = {
   baseUrl: "",
   apiKey: "",
   model: "",
-  enabled: false,
   hasApiKey: false,
 };
 
@@ -18,7 +17,6 @@ function buildPayload(config: AdminGrokSearchConfig) {
   return {
     baseUrl: config.baseUrl,
     model: config.model,
-    enabled: config.enabled,
     ...(config.apiKey?.trim() ? { apiKey: config.apiKey.trim() } : {}),
   };
 }

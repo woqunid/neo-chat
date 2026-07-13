@@ -39,38 +39,6 @@ export function AdminTextField({
   );
 }
 
-export function AdminToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
-      <span className="text-sm font-medium">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-label={label}
-        aria-checked={checked}
-        onClick={onChange}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-          checked ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-700"
-        }`}
-      >
-        <span
-          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
-
 export function AdminNoticeText({ notice }: { notice: AdminNotice | null }) {
   const color = getNoticeColor(notice);
   return (

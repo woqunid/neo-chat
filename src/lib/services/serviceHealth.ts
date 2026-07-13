@@ -170,10 +170,10 @@ async function searchHealth(): Promise<ServiceHealthItem> {
   if (isGrokSearchReady(config)) {
     return item("search", "available", "GROK_SEARCH_CONFIGURED");
   }
-  if (config?.enabled) {
+  if (config) {
     return item("search", "missing_key", "GROK_SEARCH_CONFIG_INCOMPLETE");
   }
-  return item("search", "unconfigured", "GROK_SEARCH_DISABLED");
+  return item("search", "unconfigured", "GROK_SEARCH_UNCONFIGURED");
 }
 
 function ragHealth(): ServiceHealthItem {

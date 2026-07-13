@@ -19,7 +19,6 @@ const AdminProviderSchema = z.object({
   type: z.enum(["Anthropic", "Gemini", "OpenAI", "OpenAI Compatible"]),
   baseUrl: z.string().max(PROVIDER_CONFIG_LIMITS.maxBaseUrlChars).default(""),
   apiKey: z.string().max(PROVIDER_CONFIG_LIMITS.maxApiKeyChars).optional(),
-  enabled: z.boolean().default(true),
   models: z.array(z.string()).max(200).default([]),
 });
 
@@ -43,7 +42,6 @@ function mergeProvider(
     baseUrl: input.baseUrl.trim(),
     apiKey:
       input.apiKey === undefined ? existing?.apiKey || "" : input.apiKey.trim(),
-    enabled: input.enabled,
     models: input.models.map((model) => model.trim()).filter(Boolean),
     updatedAt: now,
   };

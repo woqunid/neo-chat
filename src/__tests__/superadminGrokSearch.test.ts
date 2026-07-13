@@ -43,7 +43,6 @@ describe("superadmin Grok search route", () => {
       baseUrl: "https://old.example.com/v1",
       apiKey: "stored-secret",
       model: "grok-old",
-      enabled: false,
       updatedAt: "2026-07-10T00:00:00.000Z",
     });
     const { GET, PUT } =
@@ -53,7 +52,6 @@ describe("superadmin Grok search route", () => {
       makePutRequest({
         baseUrl: "https://proxy.example.com/v1",
         model: "grok-4-fast",
-        enabled: true,
       }),
     );
     const body = await response.json();
@@ -63,7 +61,6 @@ describe("superadmin Grok search route", () => {
     expect(body.config).toMatchObject({
       baseUrl: "https://proxy.example.com/v1",
       model: "grok-4-fast",
-      enabled: true,
       hasApiKey: true,
     });
     expect(body.config).not.toHaveProperty("apiKey");

@@ -52,18 +52,12 @@ export default function ProviderList({
                   : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
               }`}
             >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    provider.enabled ? "bg-emerald-500" : "bg-zinc-400"
-                  }`}
-                  aria-hidden="true"
-                />
+              <span className="flex items-center">
                 <span className="truncate text-sm font-medium">
                   {provider.name}
                 </span>
               </span>
-              <span className="mt-1 block truncate pl-3.5 text-[11px]">
+              <span className="mt-1 block truncate text-[11px]">
                 {provider.type} · {provider.models.length} models
               </span>
             </button>

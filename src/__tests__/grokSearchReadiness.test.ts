@@ -9,7 +9,6 @@ function makeConfig(
     baseUrl: "",
     apiKey: "",
     model: "",
-    enabled: false,
     hasApiKey: false,
     ...overrides,
   };

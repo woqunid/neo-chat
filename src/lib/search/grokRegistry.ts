@@ -13,14 +13,12 @@ export interface ServerGrokSearchConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
-  enabled: boolean;
   updatedAt: string;
 }
 
 export interface PublicGrokSearchConfig {
   baseUrl: string;
   model: string;
-  enabled: boolean;
   hasApiKey: boolean;
   updatedAt?: string;
 }
@@ -44,7 +42,6 @@ function normalizeConfig(value: unknown): ServerGrokSearchConfig | null {
     baseUrl: trimString(raw.baseUrl, PROVIDER_CONFIG_LIMITS.maxBaseUrlChars),
     apiKey: trimString(raw.apiKey, PROVIDER_CONFIG_LIMITS.maxApiKeyChars),
     model: trimString(raw.model, PROVIDER_MODEL_LIMITS.maxModelIdChars),
-    enabled: raw.enabled === true,
     updatedAt: trimString(raw.updatedAt, 80) || new Date().toISOString(),
   };
 }
@@ -76,10 +73,8 @@ function getStore(): ServerJsonStore<ServerGrokSearchConfig | null> {
 
 export function isGrokSearchReady(
   config: ServerGrokSearchConfig | null,
-): config is ServerGrokSearchConfig & { enabled: true } {
-  return Boolean(
-    config?.enabled && config.baseUrl && config.apiKey && config.model,
-  );
+): config is ServerGrokSearchConfig {
+  return Boolean(config?.baseUrl && config.apiKey && config.model);
 }
 
 export async function getServerGrokSearchConfig(): Promise<ServerGrokSearchConfig | null> {
@@ -102,7 +97,6 @@ export function toPublicGrokSearchConfig(
   return {
     baseUrl: config?.baseUrl || "",
     model: config?.model || "",
-    enabled: config?.enabled === true,
     hasApiKey: Boolean(config?.apiKey),
     ...(config?.updatedAt ? { updatedAt: config.updatedAt } : {}),
   };

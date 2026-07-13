@@ -13,7 +13,6 @@ function newProvider(): AdminProvider {
     type: "OpenAI Compatible",
     baseUrl: "https://api.openai.com",
     apiKey: "",
-    enabled: true,
     models: [],
   };
 }

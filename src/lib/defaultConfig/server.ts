@@ -623,7 +623,6 @@ export async function getPublicServerConfigWithManagedProviders(): Promise<Publi
     getServerGrokSearchConfig(),
   ]);
   const managedProviders = providerValues
-    .filter((provider) => provider.enabled)
     .map(toPublicModelProviderConfig)
     .filter((provider) => provider.available);
   const legacyProvider = getLegacyPublicModelProvider(config);

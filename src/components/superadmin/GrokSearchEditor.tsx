@@ -6,7 +6,6 @@ import {
   AdminActionButton,
   AdminNoticeText,
   AdminTextField,
-  AdminToggle,
 } from "./AdminFormControls";
 import type { AdminGrokSearchConfig, AdminNotice } from "./types";
 import { getGrokSearchReadiness } from "./grokSearchReadiness";
@@ -19,10 +18,7 @@ export default function GrokSearchEditor() {
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-background">
-      <GrokHeader
-        enabled={admin.config.enabled}
-        ready={readiness.canTestConnection}
-      />
+      <GrokHeader ready={readiness.canTestConnection} />
       <GrokFields
         config={admin.config}
         models={admin.models}
@@ -41,8 +37,8 @@ export default function GrokSearchEditor() {
   );
 }
 
-function GrokHeader({ enabled, ready }: { enabled: boolean; ready: boolean }) {
-  const status = enabled && ready ? "可用" : enabled ? "配置不完整" : "未启用";
+function GrokHeader({ ready }: { ready: boolean }) {
+  const status = ready ? "可用" : "配置不完整";
   return (
     <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3 md:px-6">
       <div>
@@ -54,7 +50,7 @@ function GrokHeader({ enabled, ready }: { enabled: boolean; ready: boolean }) {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span
           className={`h-2 w-2 rounded-full ${
-            enabled && ready ? "bg-emerald-500" : "bg-zinc-400"
+            ready ? "bg-emerald-500" : "bg-zinc-400"
           }`}
         />
         {status}
@@ -96,15 +92,6 @@ function GrokFields({
         models={models}
         onChange={(model) => onChange((current) => ({ ...current, model }))}
       />
-      <div className="md:col-span-2">
-        <AdminToggle
-          label="对所有用户启用"
-          checked={config.enabled}
-          onChange={() =>
-            onChange((current) => ({ ...current, enabled: !current.enabled }))
-          }
-        />
-      </div>
     </div>
   );
 }

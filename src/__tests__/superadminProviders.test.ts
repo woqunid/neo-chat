@@ -5,6 +5,7 @@ import {
   clearServerModelProvidersForTesting,
   listServerModelProviders,
   saveServerModelProviders,
+  toPublicModelProviderConfig,
 } from "../lib/providers/serverRegistry";
 
 vi.mock("server-only", () => ({}));
@@ -44,7 +45,6 @@ describe("superadmin provider route", () => {
         type: "OpenAI",
         baseUrl: "https://api.openai.com",
         apiKey: "secret",
-        enabled: true,
         models: ["gpt-5"],
         updatedAt: new Date().toISOString(),
       },
@@ -57,6 +57,25 @@ describe("superadmin provider route", () => {
     expect(response.status).toBe(200);
     expect(data.providers).toEqual([]);
     expect(await listServerModelProviders()).toEqual([]);
+  });
+
+  it("activates legacy providers regardless of their enabled flag", async () => {
+    const legacyProvider = {
+      id: `${SERVER_PROVIDER_ID_PREFIX}legacy`,
+      name: "Legacy",
+      type: "OpenAI" as const,
+      baseUrl: "https://api.openai.com",
+      apiKey: "secret",
+      enabled: false,
+      models: ["gpt-5"],
+      updatedAt: "2026-07-10T00:00:00.000Z",
+    };
+    globalThis.__neoChatServerModelProviders = [legacyProvider];
+
+    const [provider] = await listServerModelProviders();
+
+    expect(provider).not.toHaveProperty("enabled");
+    expect(toPublicModelProviderConfig(provider).available).toBe(true);
   });
 
   it("writes hosted provider config with the Upstash command protocol", async () => {

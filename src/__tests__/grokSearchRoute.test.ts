@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
     baseUrl: string;
     apiKey: string;
     model: string;
-    enabled: boolean;
     updatedAt: string;
   },
   runGrokSearchWithConfig: vi.fn(),
@@ -24,7 +23,7 @@ vi.mock("@/lib/search/grokClient", () => ({
 vi.mock("@/lib/search/grokRegistry", () => ({
   getServerGrokSearchConfig: vi.fn(async () => mocks.config),
   isGrokSearchReady: vi.fn((config) =>
-    Boolean(config?.enabled && config.baseUrl && config.apiKey && config.model),
+    Boolean(config?.baseUrl && config.apiKey && config.model),
   ),
 }));
 vi.mock("@/lib/utils/safeServerLog", () => ({ safeServerLogError: vi.fn() }));
@@ -43,7 +42,7 @@ describe("Grok search route", () => {
     mocks.runGrokSearchWithConfig.mockReset();
   });
 
-  it("returns 503 when Super Admin has not enabled Grok search", async () => {
+  it("returns 503 when Super Admin has not configured Grok search", async () => {
     const { POST } = await import("../app/api/grok-search/route");
     const response = await POST(makeRequest("latest release"));
 
@@ -59,7 +58,6 @@ describe("Grok search route", () => {
       baseUrl: "https://proxy.example.com/v1",
       apiKey: "grok-secret",
       model: "grok-4",
-      enabled: true,
       updatedAt: "2026-07-10T00:00:00.000Z",
     };
     mocks.runGrokSearchWithConfig.mockResolvedValue({

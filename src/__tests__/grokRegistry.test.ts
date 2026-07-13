@@ -14,7 +14,6 @@ const STORED_CONFIG = {
   baseUrl: "https://grok.example.com/v1",
   apiKey: "stored-secret",
   model: "grok-4",
-  enabled: true,
   updatedAt: "2026-07-10T00:00:00.000Z",
 };
 
@@ -44,7 +43,6 @@ describe("Grok search registry", () => {
     expect(toPublicGrokSearchConfig(saved)).toEqual({
       baseUrl: STORED_CONFIG.baseUrl,
       model: STORED_CONFIG.model,
-      enabled: true,
       hasApiKey: true,
       updatedAt: STORED_CONFIG.updatedAt,
     });
@@ -55,7 +53,6 @@ describe("Grok search registry", () => {
       {
         baseUrl: "https://proxy.example.com/v1",
         model: "grok-4-fast",
-        enabled: true,
       },
       STORED_CONFIG,
     );
@@ -65,9 +62,21 @@ describe("Grok search registry", () => {
     expect(merged.model).toBe("grok-4-fast");
   });
 
-  it("does not mark disabled or incomplete configuration as ready", () => {
-    expect(isGrokSearchReady({ ...STORED_CONFIG, enabled: false })).toBe(false);
+  it("does not mark incomplete configuration as ready", () => {
     expect(isGrokSearchReady({ ...STORED_CONFIG, apiKey: "" })).toBe(false);
     expect(isGrokSearchReady(null)).toBe(false);
+  });
+
+  it("activates legacy configuration regardless of its enabled flag", async () => {
+    const legacyConfig = {
+      ...STORED_CONFIG,
+      enabled: false,
+    };
+    globalThis.__neoChatGrokSearchConfig = legacyConfig;
+
+    const config = await getServerGrokSearchConfig();
+
+    expect(config).toEqual(STORED_CONFIG);
+    expect(isGrokSearchReady(config)).toBe(true);
   });
 });

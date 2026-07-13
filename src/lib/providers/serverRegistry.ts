@@ -19,7 +19,6 @@ export interface ServerModelProvider {
   type: ProviderType;
   baseUrl: string;
   apiKey: string;
-  enabled: boolean;
   models: string[];
   updatedAt: string;
 }
@@ -67,7 +66,6 @@ function normalizeServerProvider(value: unknown): ServerModelProvider | null {
       trimString(raw.name, PROVIDER_CONFIG_LIMITS.maxProviderNameChars) ||
       "Server Provider",
     baseUrl: trimString(raw.baseUrl, PROVIDER_CONFIG_LIMITS.maxBaseUrlChars),
-    enabled: raw.enabled !== false,
     models: normalizeModels(raw.models),
     updatedAt: trimString(raw.updatedAt, 80) || new Date().toISOString(),
   };
@@ -147,7 +145,7 @@ export function toPublicModelProviderConfig(
   provider: ServerModelProvider,
 ): PublicModelProviderConfig {
   return {
-    available: provider.enabled && provider.models.length > 0,
+    available: provider.models.length > 0,
     id: provider.id,
     name: provider.name,
     type: provider.type,
@@ -163,7 +161,6 @@ export function toPublicModelProvider(provider: ServerModelProvider) {
     name: provider.name,
     type: provider.type,
     baseUrl: provider.baseUrl,
-    enabled: provider.enabled,
     models: provider.models,
     hasApiKey: Boolean(provider.apiKey),
     updatedAt: provider.updatedAt,

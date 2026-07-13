@@ -12,7 +12,6 @@ export const AdminGrokSearchSchema = z
     baseUrl: z.string().max(PROVIDER_CONFIG_LIMITS.maxBaseUrlChars),
     apiKey: z.string().max(PROVIDER_CONFIG_LIMITS.maxApiKeyChars).optional(),
     model: z.string().max(PROVIDER_MODEL_LIMITS.maxModelIdChars),
-    enabled: z.boolean(),
   })
   .strict();
 
@@ -26,7 +25,6 @@ export function mergeAdminGrokSearchConfig(
     baseUrl: input.baseUrl.trim(),
     apiKey: input.apiKey?.trim() || existing?.apiKey || "",
     model: input.model.trim(),
-    enabled: input.enabled,
     updatedAt: new Date().toISOString(),
   };
 }

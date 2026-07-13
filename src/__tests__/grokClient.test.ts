@@ -39,7 +39,6 @@ describe("Grok search client", () => {
       baseUrl: "https://proxy.example.com/v1",
       apiKey: "test-key",
       model: "grok-4",
-      enabled: true,
       updatedAt: "2026-07-10T00:00:00.000Z",
     });
 
@@ -63,7 +62,6 @@ describe("Grok search client", () => {
         baseUrl: "https://proxy.example.com/v1",
         apiKey: "test-key",
         model: "grok-4",
-        enabled: true,
         updatedAt: "2026-07-10T00:00:00.000Z",
       },
       controller.signal,
@@ -90,7 +88,6 @@ describe("Grok search client", () => {
           baseUrl: "https://proxy.example.com/v1",
           apiKey: "test-key",
           model: "grok-4",
-          enabled: true,
           updatedAt: "2026-07-10T00:00:00.000Z",
         },
         controller.signal,

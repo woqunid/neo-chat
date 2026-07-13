@@ -6,7 +6,6 @@ export type AdminProvider = {
   type: ProviderType;
   baseUrl: string;
   apiKey?: string;
-  enabled: boolean;
   models: string[];
   hasApiKey?: boolean;
 };
@@ -15,7 +14,6 @@ export type AdminGrokSearchConfig = {
   baseUrl: string;
   apiKey?: string;
   model: string;
-  enabled: boolean;
   hasApiKey?: boolean;
   updatedAt?: string;
 };

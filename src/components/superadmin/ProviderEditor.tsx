@@ -6,7 +6,6 @@ import {
   AdminActionButton,
   AdminNoticeText,
   AdminTextField,
-  AdminToggle,
 } from "./AdminFormControls";
 import type { AdminNotice, AdminProvider } from "./types";
 
@@ -54,14 +53,9 @@ function ProviderHeader({ provider }: { provider: AdminProvider }) {
           {provider.baseUrl || "Base URL 未设置"}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-        <span
-          className={`h-2 w-2 rounded-full ${
-            provider.enabled ? "bg-emerald-500" : "bg-zinc-400"
-          }`}
-        />
-        {provider.enabled ? "已启用" : "未启用"}
-      </div>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {provider.id ? "全局默认" : "待保存"}
+      </span>
     </header>
   );
 }
@@ -96,13 +90,6 @@ function ProviderFields({
         monospace
         onChange={(apiKey) => onUpdate({ apiKey })}
       />
-      <div className="md:col-span-2">
-        <AdminToggle
-          label="对所有用户启用"
-          checked={provider.enabled}
-          onChange={() => onUpdate({ enabled: !provider.enabled })}
-        />
-      </div>
     </div>
   );
 }
