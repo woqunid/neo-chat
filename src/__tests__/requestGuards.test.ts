@@ -52,6 +52,20 @@ describe("request guard rate limiting", () => {
     }
   });
 
+  it("bounds proof-session creation without a client identity", async () => {
+    for (let index = 0; index < AGENT_RATE_LIMIT; index += 1) {
+      await expect(
+        enforceRateLimit(
+          new NextRequest("https://neo.test/api/request-proof/session"),
+        ),
+      ).resolves.toBeNull();
+    }
+    const response = await enforceRateLimit(
+      new NextRequest("https://neo.test/api/request-proof/session"),
+    );
+    expect(response?.status).toBe(429);
+  });
+
   it("uses a signed proof session when trusted IP headers are unavailable", async () => {
     vi.stubEnv("DEPLOYMENT_MODE", "hosted");
     vi.stubEnv("BYOK_PRIVATE_KEY_PEM", "stable-test-key");

@@ -29,6 +29,8 @@ const RATE_LIMITS = {
   rag: 30,
   superadmin: 30,
   voice: 20,
+  imageProxy: 30,
+  proofSession: 30,
 } as const;
 const ALL_METHODS: readonly ApiRouteMethod[] = [
   "GET",
@@ -60,6 +62,14 @@ const API_ROUTE_POLICIES: readonly ApiRoutePolicy[] = [
     rateLimit: rateLimit("/api/access/verify", RATE_LIMITS.access),
   },
   {
+    pattern: /^\/api\/request-proof\/session$/,
+    rateLimitMethods: GET_METHOD,
+    rateLimit: rateLimit(
+      "/api/request-proof/session",
+      RATE_LIMITS.proofSession,
+    ),
+  },
+  {
     pattern: /^\/api\/superadmin(?:\/|$)/,
     rateLimitMethods: MUTATING_METHODS,
     rateLimit: rateLimit("/api/superadmin", RATE_LIMITS.superadmin),
@@ -87,6 +97,12 @@ const API_ROUTE_POLICIES: readonly ApiRoutePolicy[] = [
     requestProofMethods: ALL_METHODS,
     rateLimitMethods: MUTATING_METHODS,
     rateLimit: rateLimit("/api/voice", RATE_LIMITS.voice),
+  },
+  {
+    pattern: /^\/api\/media\/image-proxy$/,
+    requestProofMethods: POST_METHOD,
+    rateLimitMethods: POST_METHOD,
+    rateLimit: rateLimit("/api/media/image-proxy", RATE_LIMITS.imageProxy),
   },
   {
     pattern: /^\/api\/doc-parse(?:\/|$)/,

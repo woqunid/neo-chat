@@ -42,4 +42,17 @@ describe("fork API route policy", () => {
     expect(first?.routeFamily).toBe("/api/agents");
     expect(second?.routeFamily).toBe("/api/agents");
   });
+
+  it("bounds image proxy and proof-session requests", () => {
+    expect(getApiRateLimitPolicy("/api/media/image-proxy", "POST")).toEqual({
+      routeFamily: "/api/media/image-proxy",
+      windowMs: 60_000,
+      maxRequests: 30,
+    });
+    expect(getApiRateLimitPolicy("/api/request-proof/session", "GET")).toEqual({
+      routeFamily: "/api/request-proof/session",
+      windowMs: 60_000,
+      maxRequests: 30,
+    });
+  });
 });

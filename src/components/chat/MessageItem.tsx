@@ -69,6 +69,7 @@ import {
   type MarkdownGeneratedFile,
 } from "@/lib/utils/markdownFiles";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
+import { signedApiFetch } from "@/lib/api/client";
 import {
   createSpeechSynthesisPoller,
   type DisposablePoller,
@@ -138,7 +139,7 @@ const actionButtonFocusClass =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-background";
 
 const markdownFileNamePattern = /\.(?:md|markdown)$/i;
-const MESSAGE_IMAGE_PROXY_PREFIX = "https://serveproxy.com/?url=";
+const MESSAGE_IMAGE_PROXY_PATH = "/api/media/image-proxy";
 const DEFAULT_MESSAGE_IMAGE_EXPORT_WIDTH = 820;
 const MAX_RAG_ERROR_MESSAGE_CHARS = 500;
 const MESSAGE_IMAGE_EXPORT_PADDING_PX = 24;
@@ -198,16 +199,14 @@ const getImageExportBackgroundColor = (element: HTMLElement) => {
     : "#ffffff";
 };
 
-const getProxiedMessageExportImageUrl = (src: string) => {
-  if (!src || src.startsWith(MESSAGE_IMAGE_PROXY_PREFIX)) return null;
+const getMessageExportImageSource = (src: string) => {
+  if (!src) return null;
 
   try {
     const url = new URL(src, window.location.href);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     if (url.origin === window.location.origin) return null;
-    if (url.hostname === "serveproxy.com") return null;
-
-    return `${MESSAGE_IMAGE_PROXY_PREFIX}${encodeURIComponent(url.href)}`;
+    return url.href;
   } catch {
     return null;
   }
@@ -243,22 +242,40 @@ const waitForMessageExportImages = async (root: HTMLElement) => {
   await Promise.all(images.map((image) => waitForImageElement(image)));
 };
 
-const proxyMessageExportImages = (root: HTMLElement) => {
-  let didProxy = false;
+const proxyMessageExportImages = async (
+  root: HTMLElement,
+  signal: AbortSignal,
+) => {
+  const objectUrls: string[] = [];
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img"));
 
-  for (const image of images) {
-    const src =
-      image.currentSrc || image.src || image.getAttribute("src") || "";
-    const proxiedUrl = getProxiedMessageExportImageUrl(src);
-    if (!proxiedUrl) continue;
-
-    image.crossOrigin = "anonymous";
-    image.src = proxiedUrl;
-    didProxy = true;
+  try {
+    for (const image of images) {
+      const src =
+        image.currentSrc || image.src || image.getAttribute("src") || "";
+      const imageSource = getMessageExportImageSource(src);
+      if (!imageSource) continue;
+      const response = await signedApiFetch(MESSAGE_IMAGE_PROXY_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: imageSource }),
+        signal,
+      });
+      if (!response.ok) {
+        throw new Error(`Image proxy request failed: ${response.status}`);
+      }
+      const objectUrl = URL.createObjectURL(await response.blob());
+      objectUrls.push(objectUrl);
+      image.srcset = "";
+      image.src = objectUrl;
+    }
+  } catch (error) {
+    objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    throw error;
   }
 
-  return didProxy;
+  return () =>
+    objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
 };
 
 const renderMessageVisualExport = async (
@@ -281,14 +298,14 @@ const renderMessageVisualExport = async (
 const runMessageVisualExport = async (
   job: MessageVisualExportJob,
   root: HTMLElement,
+  signal: AbortSignal,
 ) => {
-  await waitForMessageExportImages(root);
+  const cleanup = await proxyMessageExportImages(root, signal);
   try {
-    await renderMessageVisualExport(job, root);
-  } catch (firstError) {
-    if (!proxyMessageExportImages(root)) throw firstError;
     await waitForMessageExportImages(root);
     await renderMessageVisualExport(job, root);
+  } finally {
+    cleanup();
   }
 };
 
@@ -697,12 +714,17 @@ const MessageItem: React.FC<MessageItemProps> = ({
     let firstFrame: number | null = null;
     let secondFrame: number | null = null;
     let cancelled = false;
+    const proxyController = new AbortController();
 
     const runExport = async () => {
       try {
         const root = visualExportRootRef.current;
         if (!root) throw new Error("Message export root is unavailable.");
-        await runMessageVisualExport(visualExportJob, root);
+        await runMessageVisualExport(
+          visualExportJob,
+          root,
+          proxyController.signal,
+        );
       } catch (error) {
         if (cancelled) return;
         logMessageItemError("Failed to export message", error);
@@ -726,6 +748,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
     return () => {
       cancelled = true;
+      proxyController.abort();
       if (firstFrame !== null) cancelAnimationFrame(firstFrame);
       if (secondFrame !== null) cancelAnimationFrame(secondFrame);
     };

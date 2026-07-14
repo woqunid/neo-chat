@@ -43,6 +43,8 @@ describe("MessageItem composition", () => {
     expect(messageItem).not.toContain("<Split");
     expect(messageItem).not.toContain("getNextTypewriterFrame");
     expect(messageItem).not.toContain("useChatStore();");
+    expect(messageItem).toContain("signedApiFetch(MESSAGE_IMAGE_PROXY_PATH");
+    expect(messageItem).toContain('image.srcset = ""');
     expect(attachmentView).toContain("AudioPlayer");
     expect(attachmentView).toContain("resolveObjectUrlWithLifecycle");
   });
@@ -124,8 +126,10 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("forceExpandCodeBlocks");
     expect(messageItem).toContain("MessageOutputRenderer");
     expect(messageItem).toContain("proxyMessageExportImages");
-    expect(messageItem).toContain("https://serveproxy.com/?url=");
-    expect(messageItem).toContain("encodeURIComponent");
+    expect(messageItem).toContain(
+      'MESSAGE_IMAGE_PROXY_PATH = "/api/media/image-proxy"',
+    );
+    expect(messageItem).not.toContain("https://serveproxy.com/?url=");
     expect(messageItem).toContain("waitForMessageExportImages");
     expect(messageItem).toContain("DropdownMenuSub");
     expect(messageItem).toContain("DropdownMenuSubTrigger");

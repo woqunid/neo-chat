@@ -168,6 +168,11 @@ export async function assertResolvedOutboundUrlAllowed(
     assertResolvedAddressesAllowed(url, addresses, policy);
     return;
   }
+  if (policy.requireDnsResolution) {
+    throw new HostedProxyBlockedError(
+      "DNS validation is unavailable for this outbound request",
+    );
+  }
   if (url.protocol === "http:" && policy.allowLocalHttp && !policy.allowHttp) {
     throw policyError(
       policy,

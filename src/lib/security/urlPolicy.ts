@@ -21,6 +21,7 @@ export type OutboundContext =
   | "voice"
   | "agent"
   | "metadata"
+  | "image"
   | "sharedStore";
 
 export interface SafeUrlPolicy {
@@ -32,6 +33,7 @@ export interface SafeUrlPolicy {
   allowLocalHttp?: boolean;
   allowedHosts?: string[];
   maxRedirects?: number;
+  requireDnsResolution?: boolean;
   profile?: OutboundPolicyProfile;
   hostedProxyBlocked?: boolean;
 }
@@ -64,6 +66,7 @@ const LOCAL_PROXY_CONTEXTS = new Set<OutboundContext>([
   "provider",
   "rag",
   "search",
+  "image",
 ]);
 const ALLOWED_HOSTS_BY_CONTEXT: Partial<Record<OutboundContext, string[]>> = {
   docs: [
@@ -148,6 +151,7 @@ function createLocalProxyPolicy(
     allowLocalhost: allowed,
     allowPrivateNetwork: allowed,
     allowLocalHttp: allowed,
+    requireDnsResolution: profile.mode === "hosted" && !allowed,
     hostedProxyBlocked: profile.mode === "hosted" && !allowed,
     profile,
   };

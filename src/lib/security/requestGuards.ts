@@ -136,9 +136,12 @@ async function getRateLimitIdentity(
 ): Promise<string | null> {
   const { request, rule, now } = options;
   const clientIp = getRateLimitClientIp(request);
-  if (rule.routeFamily === "/api/access/verify") {
-    return clientIp === "unknown" ? "deployment" : clientIp;
-  }
+  const useDeploymentBucket =
+    clientIp === "unknown" &&
+    (getDeploymentMode() === "hosted" ||
+      rule.routeFamily === "/api/access/verify" ||
+      rule.routeFamily === "/api/request-proof/session");
+  if (useDeploymentBucket) return "deployment";
   if (clientIp !== "unknown") return clientIp;
   return getRequestProofRateLimitIdentity(request, now);
 }
