@@ -55,6 +55,7 @@
   "downloadMarkdown": "Markdown",
   "downloadPdf": "PDF",
   "downloadImage": "Image",
+  "downloadInProgress": "Downloading…",
   "downloadPdfFailed": "Couldn't export the PDF. Please try again.",
   "downloadImageFailed": "Couldn't export the image. Please try again.",
   "confirmDelete": "Confirm Delete",

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en";
+import ja from "../i18n/locales/ja";
 import zh from "../i18n/locales/zh";
 
 describe("MessageItem composition", () => {
@@ -105,6 +106,12 @@ describe("MessageItem composition", () => {
     expect(messageItem).toContain("handleDownloadMarkdown");
     expect(messageItem).toContain("handleDownloadPdf");
     expect(messageItem).toContain("handleDownloadImage");
+    expect(messageItem).toContain("beginDownload");
+    expect(messageItem).toContain("finishDownload");
+    expect(messageItem).toContain("downloadingFormat");
+    expect(messageItem).toContain('t("downloadInProgress")');
+    expect(messageItem).toContain("aria-busy={isDownloading}");
+    expect(messageItem).toContain("disabled={isDownloading}");
     expect(messageItem).toContain("visualExportError");
     expect(messageItem).toContain('"downloadImageFailed"');
     expect(messageItem).toContain('"downloadPdfFailed"');
@@ -180,10 +187,13 @@ describe("MessageItem composition", () => {
     expect(en.Message.downloadMarkdown).toBe("Markdown");
     expect(en.Message.downloadPdf).toBe("PDF");
     expect(en.Message.downloadImage).toBe("Image");
+    expect(en.Message.downloadInProgress).toBe("Downloading…");
     expect(en.Message.downloadFormat).toBe("Download format");
+    expect(ja.Message.downloadInProgress).toBe("ダウンロード中…");
     expect(zh.Message.downloadMarkdown).toBe("Markdown");
     expect(zh.Message.downloadPdf).toBe("PDF");
     expect(zh.Message.downloadImage).toBe("图片");
+    expect(zh.Message.downloadInProgress).toBe("下载中…");
     expect(zh.Message.downloadFormat).toBe("下载格式");
   });
 });
