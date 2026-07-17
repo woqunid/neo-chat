@@ -49,12 +49,17 @@ If risk is not provided by the plugin manifest, Neo Chat infers it from the HTTP
 method: `GET` is `read`, `DELETE` is `destructive`, and other non-GET methods are
 `write`.
 
-Runtime tool calls execute automatically once a plugin is enabled for the chat.
-There is no per-call confirmation modal. Plugin execution still goes through the
-server route, request schema validation, BYOK secret handling, outbound URL
-policy, response limits, and the configured tool-call round ceiling. Hosted
-deployments still require server-registered plugins; client-submitted legacy
-plugin definitions remain blocked.
+`write`、`destructive` 和 `external` 工具在执行前进入逐次确认状态。没有确认回调、
+用户拒绝或生成已失效时不会执行；明确标记为可信的 MCP 服务可以跳过逐次确认。
+确认所需的插件标识、标题、风险和信任状态在生成请求准备阶段固化，避免执行期间读取
+变化中的全局状态。插件执行仍经过服务端路由、MCP 输入/输出 Schema 校验、BYOK
+密钥处理、出站 URL 策略、响应大小限制、最多 64 个模型可见工具、单轮并发限制、
+总调用预算与工具轮次上限。托管部署仍要求服务端已注册插件，并阻止客户端提交完整
+旧版插件定义。
+
+状态化 MCP 连接按会话与插件隔离并在 90 秒空闲后终止。Resources、Prompts、Roots
+与服务器通知复用同一安全出站策略；工具或能力列表变化通知只触发受控后台刷新，
+不会直接执行新工具。
 
 Built-in plugin IDs are reserved. Custom or manifest-installed plugins cannot
 override them, and built-ins take precedence if a stale mutable registry entry

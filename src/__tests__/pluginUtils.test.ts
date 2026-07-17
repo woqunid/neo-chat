@@ -9,11 +9,20 @@ const mockStore = vi.hoisted(() => ({
     pluginConfigs: {},
   },
 }));
+const refreshMcpPluginMock = vi.hoisted(() => vi.fn());
+const upsertInstalledPluginMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../store/core/settingsStore", () => ({
   useSettingsStore: {
-    getState: () => mockStore.state,
+    getState: () => ({
+      ...mockStore.state,
+      upsertInstalledPlugin: upsertInstalledPluginMock,
+    }),
   },
+}));
+
+vi.mock("../services/api/pluginService", () => ({
+  refreshMcpPlugin: refreshMcpPluginMock,
 }));
 
 vi.mock("../lib/api/client", async () => {
@@ -47,6 +56,8 @@ const plugin: Plugin = {
 
 describe("plugin execution utility", () => {
   beforeEach(() => {
+    refreshMcpPluginMock.mockReset();
+    upsertInstalledPluginMock.mockReset();
     mockStore.state = {
       installedPlugins: [plugin],
       pluginConfigs: {},
@@ -136,6 +147,45 @@ describe("plugin execution utility", () => {
         },
       }),
     );
+  });
+
+  it("refreshes MCP capabilities after a list_changed notification", async () => {
+    const mcpPlugin: Plugin = {
+      ...plugin,
+      id: "mcp:test",
+      source: "mcp",
+      mcp: {
+        transport: "streamable-http",
+        serverUrl: "https://mcp.example.com/mcp",
+        serverName: "Test MCP",
+      },
+    };
+    mockStore.state = {
+      installedPlugins: [mcpPlugin],
+      pluginConfigs: {},
+    };
+    const refreshed = {
+      ...mcpPlugin,
+      functions: [{ ...mcpPlugin.functions[0], description: "Refreshed" }],
+    };
+    refreshMcpPluginMock.mockResolvedValue(refreshed);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        Response.json({
+          result: { ok: true },
+          events: [{ type: "tools_list_changed" }],
+        }),
+      ),
+    );
+
+    await expect(executePluginFunction("lookup", {})).resolves.toEqual({
+      ok: true,
+    });
+    await vi.waitFor(() => {
+      expect(refreshMcpPluginMock).toHaveBeenCalledWith(mcpPlugin);
+      expect(upsertInstalledPluginMock).toHaveBeenCalledWith(refreshed);
+    });
   });
 
   it("returns Agnes video creation tasks without polling for the final result", async () => {

@@ -128,13 +128,20 @@ Before offering Neo Chat as a public multi-user service, add:
 ## Remote MCP Data
 
 Enabled remote `streamable-http` MCP servers receive tool arguments,
-authentication headers, and the data needed to execute selected tools. Tool
-results return through the same server-side plugin route as OpenAPI plugins.
+authentication headers, configured Roots, resource URIs, prompt names and
+arguments, and the data needed to execute selected operations. Tool results,
+resource contents, prompt contents, progress/logging notifications, and
+multimodal result metadata return through server-side MCP routes. Marking an
+MCP server as trusted only skips per-call confirmation; it does not create a
+privacy or network isolation boundary.
 
 Official Registry metadata is re-fetched by the server during installation, so
 browser-submitted endpoints and static headers are not trusted as Registry
 configuration. This verifies discovery metadata, not the privacy or behavior of
-the remote MCP operator. Neo Chat does not launch local stdio MCP processes.
+the remote MCP operator. Custom MCP endpoints and static headers are explicitly
+user-provided configuration. OAuth currently accepts a manually supplied Access
+Token and does not perform a PKCE login flow. Neo Chat does not launch local
+stdio MCP processes.
 
 The full application JSON export includes chat metadata and every persisted
 `session_messages_*` message tree, including orphan records retained for

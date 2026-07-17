@@ -40,7 +40,10 @@ function createRequest(body: unknown, signal?: AbortSignal) {
   });
 }
 
-async function registerTestMcpPlugin(): Promise<void> {
+async function registerTestMcpPlugin(options?: {
+  parameters?: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}): Promise<void> {
   const { registerServerPlugin } = await import("../lib/plugin/serverRegistry");
   await registerServerPlugin({
     id: "mcp:io.github/context7:1.2.3",
@@ -54,7 +57,8 @@ async function registerTestMcpPlugin(): Promise<void> {
         name: "mcp_io_github_context7__resolve_library_id",
         mcpToolName: "resolve-library-id",
         description: "Resolve package docs.",
-        parameters: { type: "object", properties: {} },
+        parameters: options?.parameters || { type: "object", properties: {} },
+        outputSchema: options?.outputSchema,
         risk: "external",
       },
     ],
@@ -113,5 +117,108 @@ describe("MCP plugin execute route", () => {
     await expect(response.json()).resolves.toEqual({
       result: { structuredContent: { answer: "ok" } },
     });
+  });
+
+  it("rejects arguments that violate the MCP input schema", async () => {
+    await registerTestMcpPlugin({
+      parameters: {
+        type: "object",
+        required: ["libraryName"],
+        additionalProperties: false,
+        properties: { libraryName: { type: "string", minLength: 2 } },
+      },
+    });
+
+    const { POST } = await import("../app/api/plugins/execute/route");
+    const response = await POST(
+      createRequest({
+        pluginId: "mcp:io.github/context7:1.2.3",
+        functionName: "mcp_io_github_context7__resolve_library_id",
+        args: { libraryName: 1 },
+      }) as any,
+    );
+
+    expect(response.status).toBe(400);
+    expect(executeMcpToolRequestMock).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      code: "MCP_ARGUMENT_SCHEMA_INVALID",
+    });
+  });
+
+  it("forwards outputSchema and session roots to the MCP executor", async () => {
+    const outputSchema = {
+      type: "object",
+      required: ["answer"],
+      properties: { answer: { type: "string" } },
+    };
+    await registerTestMcpPlugin({ outputSchema });
+    executeMcpToolRequestMock.mockResolvedValue({
+      structuredContent: { answer: "ok" },
+    });
+
+    const { POST } = await import("../app/api/plugins/execute/route");
+    const response = await POST(
+      createRequest({
+        pluginId: "mcp:io.github/context7:1.2.3",
+        functionName: "mcp_io_github_context7__resolve_library_id",
+        args: {},
+        mcpSessionId: "chat-1",
+        mcpRoots: [{ uri: "file:///workspace", name: "Workspace" }],
+      }) as any,
+    );
+
+    expect(response.status).toBe(200);
+    expect(executeMcpToolRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputSchema,
+        roots: [{ uri: "file:///workspace", name: "Workspace" }],
+        sessionKey: "chat-1:mcp:io.github/context7:1.2.3",
+      }),
+    );
+  });
+
+  it("uses the MCP executor for the first legacy call after a service restart", async () => {
+    executeMcpToolRequestMock.mockResolvedValue({ content: [] });
+    const plugin = {
+      id: "mcp:restart-test",
+      title: "Restart Test",
+      description: "",
+      logoUrl: "",
+      manifestUrl: "",
+      source: "mcp",
+      functions: [
+        {
+          name: "mcp_restart_tool",
+          mcpToolName: "restart-tool",
+          description: "Restart tool",
+          parameters: { type: "object", properties: {} },
+          risk: "external",
+        },
+      ],
+      auth: { type: "none", required: false },
+      mcp: {
+        transport: "streamable-http",
+        serverUrl: "https://mcp.example.com/mcp",
+        serverName: "Restart Test",
+        toolNameMap: { mcp_restart_tool: "restart-tool" },
+      },
+    };
+
+    const { POST } = await import("../app/api/plugins/execute/route");
+    const response = await POST(
+      createRequest({
+        plugin,
+        functionDef: plugin.functions[0],
+        args: {},
+      }) as any,
+    );
+
+    expect(response.status).toBe(200);
+    expect(executeMcpToolRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serverUrl: "https://mcp.example.com/mcp",
+        toolName: "restart-tool",
+      }),
+    );
   });
 });

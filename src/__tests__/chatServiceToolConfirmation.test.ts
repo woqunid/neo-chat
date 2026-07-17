@@ -106,6 +106,10 @@ vi.mock("../services/api/grokSearchService", () => ({
   searchWithGrok: mocks.searchWithGrok,
 }));
 
+vi.mock("../lib/utils/generatedImages", () => ({
+  cacheGeneratedImageAttachments: vi.fn(async (images) => images),
+}));
+
 const encoder = new TextEncoder();
 
 function sseResponse(events: unknown[]) {
@@ -162,6 +166,30 @@ const imagePlugin: Plugin = {
       parameters: { type: "object", properties: {} },
     },
   ],
+};
+
+const trustedMcpPlugin: Plugin = {
+  id: "trusted-mcp",
+  title: "Trusted MCP",
+  description: "Trusted MCP tools",
+  logoUrl: "",
+  manifestUrl: "",
+  source: "mcp",
+  functions: [
+    {
+      name: "mcp_trusted_write",
+      mcpToolName: "write",
+      description: "Write through MCP",
+      parameters: { type: "object", properties: {} },
+      risk: "external",
+    },
+  ],
+  mcp: {
+    transport: "streamable-http",
+    serverUrl: "https://mcp.example.com/mcp",
+    serverName: "Trusted MCP",
+    toolNameMap: { mcp_trusted_write: "write" },
+  },
 };
 
 describe("chat service tool execution", () => {
@@ -348,7 +376,7 @@ describe("chat service tool execution", () => {
     );
   });
 
-  it("executes side-effectful tool calls without runtime confirmation", async () => {
+  it("executes side-effectful tool calls after runtime confirmation", async () => {
     mocks.executePluginFunction.mockResolvedValueOnce({ id: "record-1" });
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
@@ -373,6 +401,88 @@ describe("chat service tool execution", () => {
         ]),
       );
     const updates: ToolCall[][] = [];
+    const requestConfirmation = vi.fn(async () => true);
+
+    const { streamChatResponse } = await import("../services/api/chatService");
+    const result = await streamChatResponse(
+      "session-1",
+      "openai:gpt-4",
+      [],
+      "Create a record",
+      [],
+      {},
+      () => undefined,
+      undefined,
+      undefined,
+      (toolCalls) => updates.push(toolCalls),
+      undefined,
+      undefined,
+      undefined,
+      ["writer"],
+      undefined,
+      undefined,
+      requestConfirmation,
+    );
+
+    expect(result).toBe("Created record-1.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mocks.executePluginFunction).toHaveBeenCalledWith(
+      "create_record",
+      { title: "Draft" },
+      undefined,
+      ["writer"],
+      undefined,
+      "session-1",
+    );
+    expect(requestConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: "writer",
+        pluginTitle: "Writer",
+        risk: "write",
+        isMcp: false,
+      }),
+    );
+    expect(updates.flat()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "call_write",
+          status: "awaiting_confirmation",
+        }),
+        expect.objectContaining({
+          id: "call_write",
+          status: "success",
+          result: { id: "record-1" },
+        }),
+      ]),
+    );
+    expect(updates.flat()).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: "denied" })]),
+    );
+  });
+
+  it("denies side-effectful tool calls when confirmation is unavailable", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockImplementationOnce(async () =>
+        sseResponse([
+          {
+            type: "tool_call",
+            toolCall: {
+              id: "call_write",
+              name: "create_record",
+              args: { title: "Draft" },
+              status: "pending",
+            },
+          },
+          { type: "done" },
+        ]),
+      )
+      .mockImplementationOnce(async () =>
+        sseResponse([
+          { type: "content", content: "The request was denied." },
+          { type: "done" },
+        ]),
+      );
+    const updates: ToolCall[][] = [];
 
     const { streamChatResponse } = await import("../services/api/chatService");
     const result = await streamChatResponse(
@@ -392,33 +502,123 @@ describe("chat service tool execution", () => {
       ["writer"],
     );
 
-    expect(result).toBe("Created record-1.");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(mocks.executePluginFunction).toHaveBeenCalledWith(
-      "create_record",
-      { title: "Draft" },
-      undefined,
-      ["writer"],
-      undefined,
-    );
+    expect(result).toBe("The request was denied.");
+    expect(mocks.executePluginFunction).not.toHaveBeenCalled();
     expect(updates.flat()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "call_write",
-          status: "success",
-          result: { id: "record-1" },
+          status: "denied",
+          confirmation: expect.objectContaining({ state: "denied" }),
         }),
-      ]),
-    );
-    expect(updates.flat()).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ status: "awaiting_confirmation" }),
-        expect.objectContaining({ status: "denied" }),
       ]),
     );
   });
 
-  it("does not render image plugin results as visible output image blocks", async () => {
+  it("skips per-call confirmation for trusted MCP plugins", async () => {
+    mocks.settingsState = {
+      ...mocks.settingsState,
+      installedPlugins: [trustedMcpPlugin],
+      pluginConfigs: { "trusted-mcp": { mcp: { trusted: true } } },
+    };
+    mocks.executePluginFunction.mockResolvedValueOnce({ ok: true });
+    vi.spyOn(globalThis, "fetch")
+      .mockImplementationOnce(async () =>
+        sseResponse([
+          {
+            type: "tool_call",
+            toolCall: {
+              id: "call_mcp",
+              name: "mcp_trusted_write",
+              args: {},
+              status: "pending",
+            },
+          },
+          { type: "done" },
+        ]),
+      )
+      .mockImplementationOnce(async () =>
+        sseResponse([{ type: "content", content: "Done." }, { type: "done" }]),
+      );
+    const requestConfirmation = vi.fn(async () => false);
+
+    const { streamChatResponse } = await import("../services/api/chatService");
+    const result = await streamChatResponse(
+      "session-1",
+      "openai:gpt-4",
+      [],
+      "Run trusted MCP",
+      [],
+      {},
+      () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ["trusted-mcp"],
+      undefined,
+      undefined,
+      requestConfirmation,
+    );
+
+    expect(result).toBe("Done.");
+    expect(requestConfirmation).not.toHaveBeenCalled();
+    expect(mocks.executePluginFunction).toHaveBeenCalledTimes(1);
+  });
+
+  it("limits model-visible plugin tools to the centralized request budget", async () => {
+    mocks.settingsState = {
+      ...mocks.settingsState,
+      installedPlugins: Array.from({ length: 70 }, (_, index) => ({
+        ...writePlugin,
+        id: `plugin-${index}`,
+        title: `Plugin ${index}`,
+        functions: [
+          {
+            ...writePlugin.functions[0],
+            name: `tool_${index}`,
+            method: "GET",
+          },
+        ],
+      })),
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.tools).toHaveLength(64);
+        expect(body.tools.at(-1)?.function?.name).toBe("tool_63");
+        return sseResponse([
+          { type: "content", content: "Limited." },
+          { type: "done" },
+        ]);
+      });
+
+    const { streamChatResponse } = await import("../services/api/chatService");
+    const result = await streamChatResponse(
+      "session-1",
+      "openai:gpt-4",
+      [],
+      "List tools",
+      [],
+      {},
+      () => undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      Array.from({ length: 70 }, (_, index) => `plugin-${index}`),
+    );
+
+    expect(result).toBe("Limited.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders image plugin results while compacting follow-up history", async () => {
     mocks.settingsState = {
       ...mocks.settingsState,
       installedPlugins: [imagePlugin],
@@ -480,6 +680,7 @@ describe("chat service tool execution", () => {
       ["openai-image-generation"],
       undefined,
       (outputBlocks) => outputSnapshots.push(outputBlocks),
+      async () => true,
     );
 
     expect(result).toBe("Edited.");
@@ -496,7 +697,7 @@ describe("chat service tool execution", () => {
       ),
     ).toBe(true);
     expect(outputSnapshots.flat().some((block) => block.type === "image")).toBe(
-      false,
+      true,
     );
     const followUpBody = JSON.parse(
       String((fetchMock.mock.calls[1]?.[1] as RequestInit).body),
@@ -557,6 +758,7 @@ describe("chat service tool execution", () => {
       ["writer"],
       undefined,
       (blocks) => outputSnapshots.push(blocks),
+      async () => true,
     );
 
     const statuses = outputSnapshots
@@ -571,7 +773,13 @@ describe("chat service tool execution", () => {
 
     expect(result).toBe("The tool failed.");
     expect(mocks.executePluginFunction).toHaveBeenCalledTimes(1);
-    expect(statuses).toEqual(["pending", "running", "error"]);
+    expect(statuses).toEqual([
+      "pending",
+      "awaiting_confirmation",
+      "pending",
+      "running",
+      "error",
+    ]);
   });
 
   it("keeps streamed generated images in output blocks without duplicating them as attachments", async () => {

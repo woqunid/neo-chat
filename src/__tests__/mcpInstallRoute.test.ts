@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from "vitest";
 import {
   createMcpPlugin,
   createRegistryMcpResponse,
+  discoverMcpServerMock,
   listMcpToolsMock,
   postPluginInstall,
   registerServerPluginMock,
@@ -104,7 +105,7 @@ it("trusts registry metadata over client marketplace endpoint data", async () =>
   );
 });
 
-it("rejects marketplace MCP servers that do not expose tools", async () => {
+it("rejects marketplace MCP servers with no supported capabilities", async () => {
   listMcpToolsMock.mockResolvedValue([]);
   safeFetchJsonMock.mockResolvedValueOnce({
     response: new Response("{}", { status: 200 }),
@@ -126,7 +127,31 @@ it("rejects marketplace MCP servers that do not expose tools", async () => {
 
   expect(response.status).toBe(400);
   await expect(response.json()).resolves.toMatchObject({
-    error: "MCP server does not expose any supported tools",
+    error: "MCP server does not expose any supported capabilities",
+    code: "MCP_CAPABILITIES_EMPTY",
   });
   expect(registerServerPluginMock).not.toHaveBeenCalled();
+});
+
+it("installs resource-only MCP servers without requiring tools", async () => {
+  discoverMcpServerMock.mockResolvedValue({
+    tools: [],
+    resources: [{ uri: "file:///docs", name: "Docs" }],
+    resourceTemplates: [],
+    prompts: [],
+    capabilities: { resources: true },
+  });
+
+  const response = await postPluginInstall({ plugin: createMcpPlugin() });
+
+  expect(response.status).toBe(200);
+  expect(registerServerPluginMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      functions: [],
+      mcp: expect.objectContaining({
+        resources: [{ uri: "file:///docs", name: "Docs" }],
+        capabilities: { resources: true },
+      }),
+    }),
+  );
 });

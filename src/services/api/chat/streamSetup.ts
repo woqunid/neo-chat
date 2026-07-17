@@ -1,6 +1,7 @@
 import { getTaskModel, useSettingsStore } from "@/store/core/settingsStore";
 import { useCoreSettingsStore } from "@/store/core/coreSettingsStore";
 import { getEnabledPluginFunctions } from "@/lib/plugin/resolve";
+import { getPluginFunctionRisk } from "../../../lib/plugin/risk";
 import { parseModelString, supportsImageGeneration } from "@/lib/utils/model";
 import { appendContextToChatInput } from "@/lib/utils/chatInput";
 import {
@@ -22,14 +23,24 @@ import {
 import { streamGenerateContent } from "./generationService";
 import type { ChatToolDefinition } from "./types";
 import { CHAT_TOOL_LIMITS } from "../../../config/limits";
-import type { PreparedChatRequest, StreamChatOptions } from "./streamTypes";
+import type {
+  PreparedChatRequest,
+  StreamChatOptions,
+  ToolRuntimeMetadata,
+} from "./streamTypes";
+
+interface BuiltTools {
+  tools: ChatToolDefinition[];
+  runtimeMetadata: Record<string, ToolRuntimeMetadata>;
+}
 
 function buildTools(
   options: StreamChatOptions,
   directImageGeneration: boolean,
-): ChatToolDefinition[] {
+): BuiltTools {
   const { installedPlugins, pluginConfigs } = useSettingsStore.getState();
   const tools: ChatToolDefinition[] = [];
+  const runtimeMetadata: Record<string, ToolRuntimeMetadata> = {};
   const names = new Map<string, string>();
   const reserveName = (name: string, owner: string): boolean => {
     const existing = names.get(name);
@@ -68,10 +79,19 @@ function buildTools(
           parameters: fn.parameters,
         },
       });
+      runtimeMetadata[fn.name] = {
+        pluginId: plugin.id,
+        pluginTitle: plugin.title || plugin.id,
+        risk: getPluginFunctionRisk(fn),
+        isMcp: plugin.source === "mcp",
+        trusted:
+          plugin.source === "mcp" &&
+          pluginConfigs[plugin.id]?.mcp?.trusted === true,
+      };
     }
     if (tools.length >= CHAT_TOOL_LIMITS.maxToolsPerRequest) break;
   }
-  return tools;
+  return { tools, runtimeMetadata };
 }
 
 async function resolveSearchMessage(
@@ -159,7 +179,7 @@ export async function prepareChatRequest(
         separator: "\n\n",
       })
     : effectiveMessage;
-  const tools = buildTools(options, directImageGeneration);
+  const { tools, runtimeMetadata } = buildTools(options, directImageGeneration);
   const partial = { providers, selectedModelMetadata };
   return {
     options,
@@ -169,6 +189,7 @@ export async function prepareChatRequest(
     selectedModelMetadata,
     directImageGeneration,
     tools,
+    toolRuntimeMetadata: runtimeMetadata,
     requestHistory: await stripMessagesDisplayCacheForModel(options.history),
     requestMessage: appendDiagramRequestInstructions(
       appendHtmlVisualRequestInstructions(

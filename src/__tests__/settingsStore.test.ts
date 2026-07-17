@@ -43,6 +43,7 @@ const ACTION_KEYS = [
   "updateRAGConfig",
   "updateVoiceSettings",
   "addInstalledPlugin",
+  "upsertInstalledPlugin",
   "removeInstalledPlugin",
   "setActivePlugins",
   "togglePluginActive",
@@ -96,6 +97,52 @@ describe("settings store facade", () => {
   it("exposes every action after composing the split slices", async () => {
     const state = (await getSettingsStore()).getState();
     for (const key of ACTION_KEYS) expect(state[key]).toBeTypeOf("function");
+  });
+
+  it("更新同一 MCP 插件时保留单条记录并同步工具定义", async () => {
+    const store = await getSettingsStore();
+    const original = {
+      id: "mcp:test",
+      title: "Test MCP",
+      description: "Old",
+      logoUrl: "",
+      manifestUrl: "",
+      source: "mcp",
+      functions: [
+        {
+          name: "old_tool",
+          description: "Old tool",
+          parameters: { type: "object" },
+        },
+      ],
+    } as Plugin;
+    const refreshed = {
+      ...original,
+      description: "New",
+      functions: [
+        {
+          name: "new_tool",
+          description: "New tool",
+          parameters: { type: "object" },
+        },
+      ],
+    } as Plugin;
+
+    store.getState().upsertInstalledPlugin(original);
+    store.getState().updatePluginConfig(original.id, {
+      disabledFunctions: ["old_tool"],
+      mcp: { trusted: true },
+    });
+    store.getState().upsertInstalledPlugin(refreshed);
+
+    const installed = store
+      .getState()
+      .installedPlugins.filter((plugin) => plugin.id === original.id);
+    expect(installed).toEqual([refreshed]);
+    expect(store.getState().pluginConfigs[original.id]).toMatchObject({
+      disabledFunctions: [],
+      mcp: { trusted: true },
+    });
   });
 
   it("updates the MCP market cache and timestamp", async () => {

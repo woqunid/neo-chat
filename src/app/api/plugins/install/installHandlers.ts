@@ -267,8 +267,8 @@ async function installMcpPlugin(
     discovery.prompts.length === 0
   ) {
     return errorResponse(
-      "MCP server does not expose any supported tools",
-      "MCP_TOOLS_EMPTY",
+      "MCP server does not expose any supported capabilities",
+      "MCP_CAPABILITIES_EMPTY",
     );
   }
   const installed = createInstalledMcpPlugin(plugin, functions, discovery);

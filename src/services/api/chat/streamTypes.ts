@@ -29,6 +29,14 @@ export interface ToolConfirmationRequest {
   isMcp: boolean;
 }
 
+export interface ToolRuntimeMetadata {
+  pluginId: string;
+  pluginTitle: string;
+  risk: NonNullable<ToolCall["risk"]>;
+  isMcp: boolean;
+  trusted: boolean;
+}
+
 export type StreamChatResponseArgs = [
   sessionId: string,
   model: string,
@@ -86,6 +94,7 @@ export interface PreparedChatRequest {
   selectedModelMetadata?: ModelMetadata;
   directImageGeneration: boolean;
   tools: ChatToolDefinition[];
+  toolRuntimeMetadata: Record<string, ToolRuntimeMetadata>;
   requestHistory: Message[];
   requestMessage: string;
   requestAttachments: Attachment[];

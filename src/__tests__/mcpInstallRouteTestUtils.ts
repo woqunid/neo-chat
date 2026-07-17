@@ -2,6 +2,7 @@ import { vi } from "vitest";
 import type { Plugin, PluginMcpMetadata } from "../lib/plugin/types";
 
 const mocks = vi.hoisted(() => ({
+  discoverMcpServer: vi.fn(),
   listMcpTools: vi.fn(),
   registerServerPlugin: vi.fn(),
   decryptOptionalSecret: vi.fn(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 export const listMcpToolsMock = mocks.listMcpTools;
+export const discoverMcpServerMock = mocks.discoverMcpServer;
 export const registerServerPluginMock = mocks.registerServerPlugin;
 export const decryptOptionalSecretMock = mocks.decryptOptionalSecret;
 export const safeFetchJsonMock = mocks.safeFetchJson;
@@ -19,13 +21,7 @@ vi.mock("@/lib/api/middleware", async () =>
 );
 vi.mock("@/lib/api/schemas", async () => vi.importActual("../lib/api/schemas"));
 vi.mock("@/lib/mcp/client", () => ({
-  discoverMcpServer: async (options: unknown) => ({
-    tools: await mocks.listMcpTools(options),
-    resources: [],
-    resourceTemplates: [],
-    prompts: [],
-    capabilities: { tools: true },
-  }),
+  discoverMcpServer: mocks.discoverMcpServer,
 }));
 vi.mock("@/lib/plugin/serverRegistry", () => ({
   registerServerPlugin: mocks.registerServerPlugin,
@@ -109,11 +105,19 @@ export function createRegistryMcpResponse(
 
 export function resetMcpInstallRouteMocks(): void {
   vi.resetModules();
+  discoverMcpServerMock.mockReset();
   listMcpToolsMock.mockReset();
   registerServerPluginMock.mockReset();
   decryptOptionalSecretMock.mockReset();
   safeFetchJsonMock.mockReset();
   decryptOptionalSecretMock.mockResolvedValue(undefined);
+  discoverMcpServerMock.mockImplementation(async (options: unknown) => ({
+    tools: await listMcpToolsMock(options),
+    resources: [],
+    resourceTemplates: [],
+    prompts: [],
+    capabilities: { tools: true },
+  }));
   safeFetchJsonMock.mockResolvedValue({
     response: new Response("{}", { status: 200 }),
     data: createRegistryMcpResponse(),

@@ -49,4 +49,74 @@ describe("MCP executor", () => {
     expect(result).not.toMatchObject({ isError: true });
     expect(result).not.toHaveProperty("error");
   });
+
+  it("rejects structuredContent that violates outputSchema", async () => {
+    callMcpToolMock.mockResolvedValue({
+      structuredContent: { answer: 42 },
+    });
+
+    const { executeMcpToolRequest } = await import("../lib/mcp/executor");
+    const result = await executeMcpToolRequest({
+      serverUrl: "https://mcp.example.com/mcp",
+      toolName: "typed-result",
+      args: {},
+      outputSchema: {
+        type: "object",
+        required: ["answer"],
+        properties: { answer: { type: "string" } },
+      },
+    });
+
+    expect(result).toEqual({
+      error: expect.stringContaining("outputSchema"),
+    });
+  });
+
+  it("requires structuredContent when a tool declares outputSchema", async () => {
+    callMcpToolMock.mockResolvedValue({
+      content: [{ type: "text", text: "ok" }],
+    });
+
+    const { executeMcpToolRequest } = await import("../lib/mcp/executor");
+    const result = await executeMcpToolRequest({
+      serverUrl: "https://mcp.example.com/mcp",
+      toolName: "typed-result",
+      args: {},
+      outputSchema: { type: "object" },
+    });
+
+    expect(result).toEqual({
+      error: expect.stringContaining("缺少 structuredContent"),
+    });
+  });
+
+  it("extracts image, audio, and resource content for existing renderers", async () => {
+    callMcpToolMock.mockResolvedValue({
+      content: [
+        { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+        { type: "audio", data: "YXVkaW8=", mimeType: "audio/mpeg" },
+        { type: "resource_link", uri: "file:///report", name: "Report" },
+      ],
+    });
+
+    const { executeMcpToolRequest } = await import("../lib/mcp/executor");
+    const result = await executeMcpToolRequest({
+      serverUrl: "https://mcp.example.com/mcp",
+      toolName: "multimodal",
+      args: {},
+    });
+
+    expect(result).toMatchObject({
+      images: [{ imageBase64: "aW1hZ2U=", mimeType: "image/png" }],
+      audio: [{ audioBase64: "YXVkaW8=", mimeType: "audio/mpeg" }],
+      resources: [
+        { type: "resource_link", uri: "file:///report", name: "Report" },
+      ],
+      content: [
+        { type: "image", data: "[image extracted]" },
+        { type: "audio", data: "[audio extracted]" },
+        { type: "resource_link", uri: "file:///report" },
+      ],
+    });
+  });
 });

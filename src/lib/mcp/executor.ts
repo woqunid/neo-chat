@@ -139,7 +139,12 @@ export async function executeMcpToolRequest(
   });
 
   const structuredContent = getStructuredContent(result);
-  if (structuredContent !== undefined && options.outputSchema) {
+  if (options.outputSchema && structuredContent === undefined) {
+    return {
+      error: "MCP 工具声明了 outputSchema，但结果缺少 structuredContent。",
+    };
+  }
+  if (options.outputSchema) {
     const validationError = validateMcpSchemaValue(
       options.outputSchema,
       structuredContent,

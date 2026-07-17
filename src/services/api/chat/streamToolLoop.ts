@@ -1,8 +1,5 @@
 import type { ToolCall } from "@/types";
-import { useSettingsStore } from "../../../store/core/settingsStore";
 import { executePluginFunction } from "@/utils/pluginUtils";
-import { resolvePluginFunction } from "../../../lib/plugin/resolve";
-import { getPluginFunctionRisk } from "../../../lib/plugin/risk";
 import {
   executeGrokSearchTool,
   GROK_WEB_SEARCH_TOOL_NAME,
@@ -37,27 +34,14 @@ function getConfirmationRequest(
   ) {
     return null;
   }
-  const state = useSettingsStore.getState();
-  const resolved = resolvePluginFunction(
-    state.installedPlugins,
-    toolCall.name,
-    runtime.prepared.options.activePlugins,
-  );
-  if (!resolved) return null;
-  const risk = getPluginFunctionRisk(resolved.functionDef);
-  if (risk === "read") return null;
-  if (
-    resolved.plugin.source === "mcp" &&
-    state.pluginConfigs[resolved.plugin.id]?.mcp?.trusted
-  ) {
-    return null;
-  }
+  const metadata = runtime.prepared.toolRuntimeMetadata?.[toolCall.name];
+  if (!metadata || metadata.risk === "read" || metadata.trusted) return null;
   return {
-    toolCall: { ...toolCall, risk },
-    pluginId: resolved.plugin.id,
-    pluginTitle: resolved.plugin.title || resolved.plugin.id,
-    risk,
-    isMcp: resolved.plugin.source === "mcp",
+    toolCall: { ...toolCall, risk: metadata.risk },
+    pluginId: metadata.pluginId,
+    pluginTitle: metadata.pluginTitle,
+    risk: metadata.risk,
+    isMcp: metadata.isMcp,
   };
 }
 
