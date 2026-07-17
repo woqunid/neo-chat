@@ -18,7 +18,15 @@ vi.mock("@/lib/api/middleware", async () =>
   vi.importActual("../lib/api/middleware"),
 );
 vi.mock("@/lib/api/schemas", async () => vi.importActual("../lib/api/schemas"));
-vi.mock("@/lib/mcp/client", () => ({ listMcpTools: mocks.listMcpTools }));
+vi.mock("@/lib/mcp/client", () => ({
+  discoverMcpServer: async (options: unknown) => ({
+    tools: await mocks.listMcpTools(options),
+    resources: [],
+    resourceTemplates: [],
+    prompts: [],
+    capabilities: { tools: true },
+  }),
+}));
 vi.mock("@/lib/plugin/serverRegistry", () => ({
   registerServerPlugin: mocks.registerServerPlugin,
 }));

@@ -73,6 +73,12 @@ export class ChatStreamRuntime {
     this.upsertToolCall(toolCall);
   }
 
+  appendToolImages(images: Attachment[]): void {
+    images.forEach((image) => this.output.appendImage(image));
+    this.prepared.options.onImage?.(images);
+    this.emitBlocks();
+  }
+
   requestTools(): PreparedChatRequest["tools"] {
     return this.searchResearch.availableTools(this.prepared.tools);
   }

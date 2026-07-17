@@ -36,6 +36,13 @@ export type {
   PluginFunctionRisk,
   PluginMcpMetadata,
   PluginSource,
+  McpPromptArgumentDescriptor,
+  McpPromptDescriptor,
+  McpResourceDescriptor,
+  McpResourceTemplateDescriptor,
+  McpRootDescriptor,
+  McpServerCapabilitySummary,
+  McpToolAnnotations,
 } from "./lib/plugin/types";
 export type {
   AppliedSkill,

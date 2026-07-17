@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolCall } from "../types";
+import { PLUGIN_EXECUTION_LIMITS } from "../config/limits";
 
 const mocks = vi.hoisted(() => ({
   executePluginFunction: vi.fn(),
@@ -8,6 +9,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/utils/pluginUtils", () => ({
   executePluginFunction: mocks.executePluginFunction,
+}));
+
+vi.mock("../store/core/settingsStore", () => ({
+  useSettingsStore: {
+    getState: () => ({ installedPlugins: [], pluginConfigs: {} }),
+  },
 }));
 
 vi.mock("../services/api/chat/streamRound", () => ({
@@ -63,7 +70,7 @@ describe("stream tool loop budgets", () => {
     mocks.executePluginFunction.mockResolvedValue({ ok: true });
   });
 
-  it("attempts at most 100 calls and records the remainder as skipped", async () => {
+  it("enforces the configured total call budget", async () => {
     const calls = Array.from({ length: 105 }, (_, index) => toolCall(index));
     mocks.runChatRound
       .mockResolvedValueOnce({ content: "", reasoning: "", toolCalls: calls })
@@ -72,10 +79,14 @@ describe("stream tool loop budgets", () => {
 
     await runToolRounds(runtime as never);
 
-    expect(mocks.executePluginFunction).toHaveBeenCalledTimes(100);
+    expect(mocks.executePluginFunction).toHaveBeenCalledTimes(
+      PLUGIN_EXECUTION_LIMITS.maxTotalToolCalls,
+    );
     const committedCalls = runtime.commitRound.mock.calls[0][1] as ToolCall[];
     expect(committedCalls).toHaveLength(105);
-    expect(committedCalls.slice(100)).toEqual(
+    expect(
+      committedCalls.slice(PLUGIN_EXECUTION_LIMITS.maxTotalToolCalls),
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ status: "skipped", isError: true }),
       ]),

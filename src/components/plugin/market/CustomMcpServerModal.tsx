@@ -13,7 +13,11 @@ interface Props {
 interface FormState {
   name: string;
   serverUrl: string;
-  bearerToken: string;
+  credential: string;
+  authType: "none" | "bearer" | "apiKey" | "oauth2";
+  authKey: string;
+  authLocation: "header" | "query";
+  headersText: string;
 }
 
 const MCP_SERVER_NAME_MAX_CHARS = 120;
@@ -23,7 +27,11 @@ function useMcpInstall(props: Props) {
   const [form, setForm] = useState<FormState>({
     name: "",
     serverUrl: "",
-    bearerToken: "",
+    credential: "",
+    authType: "none",
+    authKey: "X-API-Key",
+    authLocation: "header",
+    headersText: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,14 +43,34 @@ function useMcpInstall(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const token = form.bearerToken.trim() || undefined;
+      const credential = form.credential.trim() || undefined;
+      const staticHeaders = Object.fromEntries(
+        form.headersText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const separator = line.indexOf(":");
+            if (separator <= 0) throw new Error("Invalid static header line");
+            const name = line.slice(0, separator).trim();
+            const value = line.slice(separator + 1).trim();
+            if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || !value) {
+              throw new Error("Invalid static header line");
+            }
+            return [name, value.slice(0, 4_096)];
+          }),
+      );
       const plugin = await installCustomMcpServer({
         name: form.name,
         serverUrl: form.serverUrl,
-        bearerToken: token,
+        authType: form.authType,
+        credential,
+        authKey: form.authKey,
+        authLocation: form.authLocation,
+        staticHeaders,
       });
       if (request !== requestRef.current) return;
-      await props.onInstall(plugin, token);
+      await props.onInstall(plugin, credential);
       if (request === requestRef.current) props.onClose();
     } catch (reason) {
       if (request === requestRef.current) setError(String(reason));
@@ -133,14 +161,69 @@ function McpFormFields({
         maxLength={PLUGIN_CONFIG_LIMITS.maxBaseUrlChars}
       />
       <McpField
-        id={`${id}-token`}
-        label={t("mcpBearerTokenLabel")}
-        value={state.form.bearerToken}
-        placeholder={t("mcpBearerTokenPlaceholder")}
-        hint={t("mcpBearerTokenHint")}
-        onChange={(value) => state.update("bearerToken", value)}
-        type="password"
-        maxLength={PLUGIN_CONFIG_LIMITS.maxAuthValueChars}
+        id={`${id}-auth-type`}
+        label={t("mcpAuthTypeLabel")}
+        value={state.form.authType}
+        onChange={(value) =>
+          state.update("authType", value as FormState["authType"])
+        }
+        maxLength={20}
+        options={[
+          { value: "none", label: t("mcpAuthNone") },
+          { value: "bearer", label: t("mcpAuthBearer") },
+          { value: "apiKey", label: t("mcpAuthApiKey") },
+          { value: "oauth2", label: t("mcpAuthOauthToken") },
+        ]}
+      />
+      {state.form.authType !== "none" && (
+        <>
+          <McpField
+            id={`${id}-credential`}
+            label={t("mcpCredentialLabel")}
+            value={state.form.credential}
+            placeholder={t("mcpBearerTokenPlaceholder")}
+            hint={t("mcpBearerTokenHint")}
+            onChange={(value) => state.update("credential", value)}
+            type="password"
+            maxLength={PLUGIN_CONFIG_LIMITS.maxAuthValueChars}
+          />
+          {state.form.authType === "apiKey" && (
+            <>
+              <McpField
+                id={`${id}-auth-key`}
+                label={t("mcpAuthKeyLabel")}
+                value={state.form.authKey}
+                placeholder="X-API-Key"
+                onChange={(value) => state.update("authKey", value)}
+                maxLength={PLUGIN_CONFIG_LIMITS.maxAuthKeyChars}
+              />
+              <McpField
+                id={`${id}-auth-location`}
+                label={t("mcpAuthLocationLabel")}
+                value={state.form.authLocation}
+                onChange={(value) =>
+                  state.update(
+                    "authLocation",
+                    value as FormState["authLocation"],
+                  )
+                }
+                maxLength={20}
+                options={[
+                  { value: "header", label: t("mcpAuthHeader") },
+                  { value: "query", label: t("mcpAuthQuery") },
+                ]}
+              />
+            </>
+          )}
+        </>
+      )}
+      <McpTextAreaField
+        id={`${id}-headers`}
+        label={t("mcpStaticHeadersLabel")}
+        value={state.form.headersText}
+        placeholder="X-Tenant: example"
+        hint={t("mcpStaticHeadersHint")}
+        onChange={(value) => state.update("headersText", value)}
       />
     </>
   );
@@ -183,11 +266,37 @@ interface FieldProps {
   id: string;
   label: string;
   value: string;
-  placeholder: string;
+  placeholder?: string;
   onChange(value: string): void;
   hint?: string;
   type?: string;
   maxLength: number;
+  options?: Array<{ value: string; label: string }>;
+}
+
+function McpTextAreaField(props: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  hint: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={props.id} className="text-sm font-medium">
+        {props.label}
+      </label>
+      <textarea
+        id={props.id}
+        value={props.value}
+        placeholder={props.placeholder}
+        onChange={(event) => props.onChange(event.target.value)}
+        className="min-h-20 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 font-mono text-xs dark:border-border dark:bg-muted"
+      />
+      <p className="text-[10px] text-gray-500">{props.hint}</p>
+    </div>
+  );
 }
 
 function McpField(props: FieldProps) {
@@ -196,16 +305,31 @@ function McpField(props: FieldProps) {
       <label htmlFor={props.id} className="text-sm font-medium">
         {props.label}
       </label>
-      <input
-        id={props.id}
-        type={props.type || "text"}
-        value={props.value}
-        maxLength={props.maxLength}
-        autoComplete="off"
-        placeholder={props.placeholder}
-        onChange={(event) => props.onChange(event.target.value)}
-        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-border dark:bg-muted"
-      />
+      {props.options ? (
+        <select
+          id={props.id}
+          value={props.value}
+          onChange={(event) => props.onChange(event.target.value)}
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-border dark:bg-muted"
+        >
+          {props.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          id={props.id}
+          type={props.type || "text"}
+          value={props.value}
+          maxLength={props.maxLength}
+          autoComplete="off"
+          placeholder={props.placeholder}
+          onChange={(event) => props.onChange(event.target.value)}
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-border dark:bg-muted"
+        />
+      )}
       {props.hint && <p className="text-[10px] text-gray-500">{props.hint}</p>}
     </div>
   );

@@ -9,6 +9,8 @@ import { DEFAULT_MCP_SERVER_LOGO_URL } from "../../../lib/mcp/defaults";
 import { logDevError } from "../../../lib/utils/devLogger";
 import type { Plugin } from "../../../types";
 import type { CustomMcpServerInstallInput } from "./types";
+import { useSettingsStore } from "@/store/core/settingsStore";
+import { resolvePluginAuthValue } from "../../../lib/security/localSecretResolvers";
 
 const CUSTOM_MCP_SLUG_MAX_LENGTH = 60;
 
@@ -43,7 +45,12 @@ function createCustomMcpPlugin(input: CustomMcpServerInstallInput): Plugin {
   const serverUrl = normalizeCustomMcpServerUrl(input.serverUrl);
   const url = new URL(serverUrl);
   const title = input.name.trim() || url.hostname;
-  const hasBearerToken = Boolean(input.bearerToken?.trim());
+  const credential = input.credential?.trim() || input.bearerToken?.trim();
+  const authType = input.authType || (credential ? "bearer" : "none");
+  const authKey =
+    input.authKey?.trim() ||
+    (authType === "apiKey" ? "X-API-Key" : "Authorization");
+  const authLocation = input.authLocation || "header";
   return {
     id: `custom-mcp-${slugifyCustomMcpName(title)}-${Date.now()}`,
     title,
@@ -55,14 +62,23 @@ function createCustomMcpPlugin(input: CustomMcpServerInstallInput): Plugin {
     categories: ["MCP"],
     added: new Date().toISOString(),
     functions: [],
-    auth: hasBearerToken
-      ? { type: "bearer", name: "Authorization", in: "header", required: true }
-      : { type: "none", required: false },
+    auth:
+      authType === "none"
+        ? { type: "none", required: false }
+        : {
+            type: authType,
+            name: authKey,
+            in: authLocation,
+            required: true,
+          },
     mcp: {
       transport: "streamable-http",
       serverUrl,
       serverName: title,
       serverVersion: "custom",
+      ...(input.staticHeaders && Object.keys(input.staticHeaders).length
+        ? { headers: input.staticHeaders }
+        : {}),
       toolNameMap: {},
     },
   };
@@ -87,13 +103,50 @@ async function requestInstalledPlugin(
   return data.plugin;
 }
 
-export async function installPlugin(plugin: Plugin): Promise<Plugin> {
+async function buildInstallAuthConfig(
+  plugin: Plugin,
+  value: string | undefined,
+): Promise<object | undefined> {
+  const secretValue = value?.trim();
+  if (!secretValue) return undefined;
+  return {
+    type:
+      plugin.auth?.type === "apiKey" || plugin.auth?.type === "oauth2"
+        ? plugin.auth.type
+        : "bearer",
+    key:
+      plugin.auth?.name ||
+      (plugin.auth?.type === "apiKey" ? "X-API-Key" : "Authorization"),
+    addTo: plugin.auth?.in || "header",
+    valueSecret: await encryptSecret(
+      secretValue,
+      BYOK_CONTEXTS.pluginAuth(plugin.id),
+    ),
+  };
+}
+
+export async function installPlugin(
+  plugin: Plugin,
+  credential?: string,
+): Promise<Plugin> {
   try {
-    return await requestInstalledPlugin({ plugin }, "Failed to install plugin");
+    const authConfig = await buildInstallAuthConfig(plugin, credential);
+    return await requestInstalledPlugin(
+      { plugin, ...(authConfig ? { authConfig } : {}) },
+      "Failed to install plugin",
+    );
   } catch (error) {
     logDevError(`Failed to install plugin ${plugin.id}:`, error);
     throw error;
   }
+}
+
+export async function refreshMcpPlugin(plugin: Plugin): Promise<Plugin> {
+  const config = useSettingsStore.getState().pluginConfigs[plugin.id];
+  const value = config?.auth
+    ? await resolvePluginAuthValue(plugin.id, config.auth)
+    : undefined;
+  return installPlugin(plugin, value);
 }
 
 export async function installCustomPlugin(input: string): Promise<Plugin> {
@@ -112,18 +165,21 @@ async function createCustomMcpPayload(
   input: CustomMcpServerInstallInput,
 ): Promise<object> {
   const plugin = createCustomMcpPlugin(input);
-  const token = input.bearerToken?.trim();
-  if (!token) return { plugin };
+  const credential = input.credential?.trim() || input.bearerToken?.trim();
+  if (!credential) return { plugin };
   const valueSecret = await encryptSecret(
-    token,
+    credential,
     BYOK_CONTEXTS.pluginAuth(plugin.id),
   );
   return {
     plugin,
     authConfig: {
-      type: "bearer",
-      key: "Authorization",
-      addTo: "header",
+      type:
+        plugin.auth?.type === "apiKey" || plugin.auth?.type === "oauth2"
+          ? plugin.auth.type
+          : "bearer",
+      key: plugin.auth?.name || "Authorization",
+      addTo: plugin.auth?.in || "header",
       valueSecret,
     },
   };
@@ -142,5 +198,18 @@ export async function installCustomMcpServer(
   } catch (error) {
     logDevError(`Failed to install custom MCP server ${plugin.id}:`, error);
     throw error;
+  }
+}
+
+export async function uninstallPlugin(pluginId: string): Promise<void> {
+  const response = await signedApiFetch("/api/plugins/uninstall", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pluginId }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await getResponseErrorMessage(response, "Failed to uninstall plugin"),
+    );
   }
 }

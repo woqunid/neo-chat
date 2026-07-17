@@ -9,9 +9,19 @@ export {
   fetchMcpServerPage,
 } from "./plugin/mcpServerService";
 export {
+  getMcpPromptContent,
+  completeMcpPromptValue,
+  listMcpPrompts,
+  listMcpResources,
+  readMcpResourceContent,
+  setMcpResourceSubscription,
+} from "./plugin/mcpCapabilityService";
+export {
   installCustomMcpServer,
   installCustomPlugin,
   installPlugin,
+  refreshMcpPlugin,
+  uninstallPlugin,
 } from "./plugin/pluginInstallService";
 export type {
   CustomMcpServerInstallInput,

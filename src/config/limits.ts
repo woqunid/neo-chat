@@ -319,8 +319,12 @@ export const PLUGIN_EXECUTION_LIMITS = {
   maxToolRounds: 20,
   maxStreamedToolCalls: 100,
   maxToolConcurrency: 4,
-  maxTotalToolCalls: 100,
+  maxTotalToolCalls: 30,
   maxToolCallIdChars: 200,
+} as const;
+
+export const CHAT_TOOL_LIMITS = {
+  maxToolsPerRequest: 64,
 } as const;
 
 export function formatBytes(bytes: number): string {

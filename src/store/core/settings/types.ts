@@ -55,6 +55,7 @@ export interface SettingsState {
   installedPlugins: Plugin[];
   pluginConfigs: Record<string, PluginConfig>;
   addInstalledPlugin: (plugin: Plugin) => void;
+  upsertInstalledPlugin: (plugin: Plugin) => void;
   removeInstalledPlugin: (pluginId: string) => void;
   setActivePlugins: (pluginIds: string[]) => void;
   togglePluginActive: (pluginId: string) => void;

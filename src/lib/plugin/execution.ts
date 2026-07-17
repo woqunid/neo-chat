@@ -1,6 +1,6 @@
 import { PLUGIN_EXECUTION_LIMITS } from "../../config/limits";
 import type { EncryptedSecretEnvelope } from "../byok/shared";
-import type { Plugin, PluginFunction } from "../../types";
+import type { McpRootDescriptor, Plugin, PluginFunction } from "../../types";
 
 export interface PluginExecutionAuthConfig {
   type?: "bearer" | "apiKey" | "none" | "oauth2";
@@ -17,6 +17,8 @@ export interface PluginExecutionPayload {
   functionDef: PluginFunction;
   args: Record<string, unknown>;
   authConfig?: PluginExecutionAuthConfig;
+  mcpSessionId?: string;
+  mcpRoots?: McpRootDescriptor[];
 }
 
 export interface PluginExecutionRequestPayload {
@@ -25,6 +27,8 @@ export interface PluginExecutionRequestPayload {
   args: Record<string, unknown>;
   authConfig?: PluginExecutionAuthConfig;
   callId?: string;
+  mcpSessionId?: string;
+  mcpRoots?: McpRootDescriptor[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

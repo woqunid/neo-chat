@@ -133,6 +133,21 @@ function createCallbacks(
     onOutputBlocks: (outputBlocks: import("@/types").MessageOutputBlock[]) => {
       if (isActive()) committer.enqueue({ outputBlocks });
     },
+    requestToolConfirmation: async (
+      confirmation: import("@/services/api/chat/streamTypes").ToolConfirmationRequest,
+    ) => {
+      if (!isActive()) return false;
+      const args = JSON.stringify(confirmation.toolCall.args ?? {}, null, 2);
+      return window.confirm(
+        [
+          `工具“${confirmation.toolCall.name}”请求执行。`,
+          `来源：${confirmation.pluginTitle}`,
+          `风险：${confirmation.risk}`,
+          `参数：\n${args.slice(0, 4_000)}`,
+          "\n是否允许本次执行？",
+        ].join("\n"),
+      );
+    },
   };
 }
 
@@ -201,6 +216,7 @@ async function runStream(
       request.prepared.effectiveContext.activePluginIds,
       request.skills.context,
       callbacks.onOutputBlocks,
+      callbacks.requestToolConfirmation,
     );
   } finally {
     callbacks.committer.flush();

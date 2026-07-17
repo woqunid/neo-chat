@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHAT_TOOL_LIMITS } from "../../config/limits";
 import {
   API_INPUT_LIMITS,
   ATTACHMENT_LIMITS,
@@ -132,7 +133,10 @@ export const ChatRequestSchema = z
       .string()
       .max(API_INPUT_LIMITS.maxSystemInstructionChars)
       .optional(),
-    tools: z.array(ToolSchema).max(64).optional(),
+    tools: z
+      .array(ToolSchema)
+      .max(CHAT_TOOL_LIMITS.maxToolsPerRequest)
+      .optional(),
     enableImageGeneration: z.boolean().optional(),
   })
   .strict()

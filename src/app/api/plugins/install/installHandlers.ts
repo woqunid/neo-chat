@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { PluginInstallSchema } from "@/lib/api/schemas";
 import { decryptOptionalSecret } from "../../../../lib/byok/server";
 import { BYOK_CONTEXTS } from "../../../../lib/byok/shared";
-import { listMcpTools } from "@/lib/mcp/client";
+import { discoverMcpServer } from "@/lib/mcp/client";
 import {
   MCP_REGISTRY_BASE_URL,
   normalizeMcpRegistryServer,
@@ -14,7 +14,14 @@ import { isPluginAuthRequired } from "../../../../lib/plugin/config";
 import { registerServerPlugin } from "@/lib/plugin/serverRegistry";
 import { safeFetchJson } from "@/lib/security/safeFetch";
 import { getSafeUrlPolicy } from "@/lib/security/urlPolicy";
-import type { Plugin, PluginFunction } from "@/types";
+import type {
+  McpPromptDescriptor,
+  McpResourceDescriptor,
+  McpResourceTemplateDescriptor,
+  Plugin,
+  PluginFunction,
+} from "@/types";
+import type { McpDiscoveryResult } from "@/lib/mcp/client";
 
 const MANIFEST_TIMEOUT_MS = 20_000;
 const MAX_MANIFEST_BYTES = 3 * 1024 * 1024;
@@ -140,6 +147,7 @@ function getAuthConfig(plugin: Plugin, auth: InstallAuth, value: string) {
 function createInstalledMcpPlugin(
   plugin: Plugin,
   functions: PluginFunction[],
+  discovery: McpDiscoveryResult,
 ): Plugin {
   const toolNameMap = Object.fromEntries(
     functions.map((item) => [item.name, item.mcpToolName || item.name]),
@@ -150,8 +158,74 @@ function createInstalledMcpPlugin(
     category: plugin.category || "MCP",
     categories: plugin.categories?.length ? plugin.categories : ["MCP"],
     functions,
-    mcp: { ...plugin.mcp!, toolNameMap },
+    mcp: {
+      ...plugin.mcp!,
+      toolNameMap,
+      capabilities: discovery.capabilities,
+      resources: normalizeResourceDescriptors(discovery.resources),
+      resourceTemplates: normalizeResourceTemplateDescriptors(
+        discovery.resourceTemplates,
+      ),
+      prompts: normalizePromptDescriptors(discovery.prompts),
+      lastSyncedAt: new Date().toISOString(),
+    },
   };
+}
+
+function normalizeResourceDescriptors(
+  resources: McpDiscoveryResult["resources"],
+): McpResourceDescriptor[] {
+  return resources.map((resource) => ({
+    uri: resource.uri.slice(0, 2_048),
+    name: resource.name.slice(0, 300),
+    ...(resource.title ? { title: resource.title.slice(0, 300) } : {}),
+    ...(resource.description
+      ? { description: resource.description.slice(0, 2_048) }
+      : {}),
+    ...(resource.mimeType ? { mimeType: resource.mimeType.slice(0, 200) } : {}),
+    ...(typeof resource.size === "number" && resource.size >= 0
+      ? { size: resource.size }
+      : {}),
+  }));
+}
+
+function normalizeResourceTemplateDescriptors(
+  templates: McpDiscoveryResult["resourceTemplates"],
+): McpResourceTemplateDescriptor[] {
+  return templates.map((template) => ({
+    uriTemplate: template.uriTemplate.slice(0, 2_048),
+    name: template.name.slice(0, 300),
+    ...(template.title ? { title: template.title.slice(0, 300) } : {}),
+    ...(template.description
+      ? { description: template.description.slice(0, 2_048) }
+      : {}),
+    ...(template.mimeType ? { mimeType: template.mimeType.slice(0, 200) } : {}),
+  }));
+}
+
+function normalizePromptDescriptors(
+  prompts: McpDiscoveryResult["prompts"],
+): McpPromptDescriptor[] {
+  return prompts.map((prompt) => ({
+    name: prompt.name.slice(0, 300),
+    ...(prompt.title ? { title: prompt.title.slice(0, 300) } : {}),
+    ...(prompt.description
+      ? { description: prompt.description.slice(0, 2_048) }
+      : {}),
+    ...(prompt.arguments?.length
+      ? {
+          arguments: prompt.arguments.slice(0, 50).map((argument) => ({
+            name: argument.name.slice(0, 300),
+            ...(argument.description
+              ? { description: argument.description.slice(0, 2_048) }
+              : {}),
+            ...(typeof argument.required === "boolean"
+              ? { required: argument.required }
+              : {}),
+          })),
+        }
+      : {}),
+  }));
 }
 
 async function installMcpPlugin(
@@ -175,21 +249,29 @@ async function installMcpPlugin(
       "MCP_AUTH_REQUIRED_FOR_INSTALL",
     );
   }
-  const tools = await listMcpTools({
+  const discovery = await discoverMcpServer({
     serverUrl: plugin.mcp.serverUrl,
     staticHeaders: plugin.mcp.headers,
     ...(authValue
       ? { authConfig: getAuthConfig(plugin, auth, authValue) }
       : {}),
   });
-  const functions = normalizeMcpToolFunctions(plugin.mcp.serverName, tools);
-  if (functions.length === 0) {
+  const functions = normalizeMcpToolFunctions(
+    plugin.mcp.serverName,
+    discovery.tools,
+  );
+  if (
+    functions.length === 0 &&
+    discovery.resources.length === 0 &&
+    discovery.resourceTemplates.length === 0 &&
+    discovery.prompts.length === 0
+  ) {
     return errorResponse(
       "MCP server does not expose any supported tools",
       "MCP_TOOLS_EMPTY",
     );
   }
-  const installed = createInstalledMcpPlugin(plugin, functions);
+  const installed = createInstalledMcpPlugin(plugin, functions, discovery);
   await registerServerPlugin(installed);
   return NextResponse.json({ plugin: installed });
 }

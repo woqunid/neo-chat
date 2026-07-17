@@ -59,6 +59,30 @@ function PluginToolRow(props: ToolRowProps) {
         <p className="line-clamp-2 text-xs text-gray-600 dark:text-muted-foreground">
           {props.pluginFunction.description}
         </p>
+        {props.pluginFunction.mcpAnnotations && (
+          <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+            {props.pluginFunction.mcpAnnotations.readOnlyHint && (
+              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-700">
+                {t("mcpReadOnlyHint")}
+              </span>
+            )}
+            {props.pluginFunction.mcpAnnotations.destructiveHint && (
+              <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-700">
+                {t("mcpDestructiveHint")}
+              </span>
+            )}
+            {props.pluginFunction.mcpAnnotations.idempotentHint && (
+              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700">
+                {t("mcpIdempotentHint")}
+              </span>
+            )}
+            {props.pluginFunction.mcpAnnotations.openWorldHint && (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700">
+                {t("mcpOpenWorldHint")}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <Switch
         checked={props.enabled}

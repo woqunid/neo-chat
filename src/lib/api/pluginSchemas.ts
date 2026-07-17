@@ -11,6 +11,76 @@ import {
 
 const MAX_CUSTOM_PLUGIN_INPUT_CHARS = 2_000_000;
 
+const McpToolAnnotationsSchema = z
+  .object({
+    title: z.string().max(256).optional(),
+    readOnlyHint: z.boolean().optional(),
+    destructiveHint: z.boolean().optional(),
+    idempotentHint: z.boolean().optional(),
+    openWorldHint: z.boolean().optional(),
+  })
+  .strict();
+
+const McpResourceSchema = z
+  .object({
+    uri: z.string().min(1).max(2_048),
+    name: z.string().min(1).max(300),
+    title: z.string().max(300).optional(),
+    description: z.string().max(2_048).optional(),
+    mimeType: z.string().max(200).optional(),
+    size: z.number().nonnegative().optional(),
+  })
+  .strict();
+
+const McpResourceTemplateSchema = z
+  .object({
+    uriTemplate: z.string().min(1).max(2_048),
+    name: z.string().min(1).max(300),
+    title: z.string().max(300).optional(),
+    description: z.string().max(2_048).optional(),
+    mimeType: z.string().max(200).optional(),
+  })
+  .strict();
+
+const McpPromptSchema = z
+  .object({
+    name: z.string().min(1).max(300),
+    title: z.string().max(300).optional(),
+    description: z.string().max(2_048).optional(),
+    arguments: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(300),
+            description: z.string().max(2_048).optional(),
+            required: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
+  })
+  .strict();
+
+const McpCapabilitySummarySchema = z
+  .object({
+    tools: z.boolean().optional(),
+    resources: z.boolean().optional(),
+    resourceSubscriptions: z.boolean().optional(),
+    resourceListChanged: z.boolean().optional(),
+    prompts: z.boolean().optional(),
+    promptListChanged: z.boolean().optional(),
+    logging: z.boolean().optional(),
+  })
+  .strict();
+
+const McpRootSchema = z
+  .object({
+    uri: z.string().min(1).max(2_048),
+    name: z.string().max(300).optional(),
+  })
+  .strict();
+
 const PluginFunctionSchema = z
   .object({
     name: z
@@ -26,6 +96,8 @@ const PluginFunctionSchema = z
       .or(z.enum(["get", "post", "put", "patch", "delete"]))
       .optional(),
     mcpToolName: z.string().min(1).max(256).optional(),
+    outputSchema: FunctionParametersSchema.optional(),
+    mcpAnnotations: McpToolAnnotationsSchema.optional(),
     risk: z.enum(["read", "write", "destructive", "external"]).optional(),
   })
   .strict()
@@ -66,6 +138,14 @@ const PluginSchema = z
         serverVersion: z.string().max(120).optional(),
         headers: PluginHeaderMapSchema.optional(),
         toolNameMap: z.record(z.string(), z.string()).optional(),
+        capabilities: McpCapabilitySummarySchema.optional(),
+        resources: z.array(McpResourceSchema).max(200).optional(),
+        resourceTemplates: z
+          .array(McpResourceTemplateSchema)
+          .max(200)
+          .optional(),
+        prompts: z.array(McpPromptSchema).max(200).optional(),
+        lastSyncedAt: z.string().max(120).optional(),
       })
       .strict()
       .optional(),
@@ -81,7 +161,7 @@ const PluginSchema = z
   })
   .strict();
 
-const PluginAuthConfigSchema = z
+export const PluginAuthConfigSchema = z
   .object({
     type: z.enum(["bearer", "apiKey", "none", "oauth2"]).optional(),
     value: z.unknown().optional(),
@@ -117,6 +197,8 @@ export const ToolExecutionSchema = z
     functionDef: PluginFunctionSchema,
     args: z.record(z.string(), JsonLikeSchema).default({}),
     authConfig: PluginAuthConfigSchema,
+    mcpSessionId: z.string().max(200).optional(),
+    mcpRoots: z.array(McpRootSchema).max(50).optional(),
   })
   .strict()
   .superRefine((request, context) => addArgsIssue(request.args, context));
@@ -128,6 +210,8 @@ export const PluginExecutionRequestSchema = z
     args: z.record(z.string(), JsonLikeSchema).default({}),
     authConfig: PluginAuthConfigSchema,
     callId: z.string().max(200).optional(),
+    mcpSessionId: z.string().max(200).optional(),
+    mcpRoots: z.array(McpRootSchema).max(50).optional(),
   })
   .strict()
   .superRefine((request, context) => addArgsIssue(request.args, context));

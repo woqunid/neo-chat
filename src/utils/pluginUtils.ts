@@ -15,7 +15,12 @@ import {
 } from "../lib/plugin/execution";
 import { encryptSecret, fetchWithByokRetry } from "../lib/byok/client";
 import { BYOK_CONTEXTS } from "../lib/byok/shared";
-import type { Plugin, PluginConfig, PluginFunction } from "../types";
+import type {
+  McpRootDescriptor,
+  Plugin,
+  PluginConfig,
+  PluginFunction,
+} from "../types";
 import {
   hasPluginAuthValue,
   resolvePluginAuthValue,
@@ -24,6 +29,7 @@ import {
 type PluginExecutionResponse = {
   error?: string;
   result?: any;
+  events?: Array<{ type?: string }>;
 };
 
 async function postPluginExecution(
@@ -91,6 +97,8 @@ async function executeBackendPluginFunction(
   args: Record<string, unknown>,
   authConfig: PluginExecutionAuthConfig | undefined,
   signal?: AbortSignal,
+  mcpSessionId?: string,
+  mcpRoots?: McpRootDescriptor[],
 ): Promise<any> {
   const response = await postPluginExecutionWithLegacyFallback(
     async () => ({
@@ -98,12 +106,16 @@ async function executeBackendPluginFunction(
       functionName: functionDef.name,
       args,
       authConfig,
+      mcpSessionId,
+      mcpRoots,
     }),
     async () => ({
       plugin,
       functionDef,
       args,
       authConfig,
+      mcpSessionId,
+      mcpRoots,
     }),
     signal,
   );
@@ -115,6 +127,24 @@ async function executeBackendPluginFunction(
 
   if (data.error) {
     return { error: data.error };
+  }
+
+  if (
+    plugin.source === "mcp" &&
+    data.events?.some((event) =>
+      [
+        "tools_list_changed",
+        "resources_list_changed",
+        "prompts_list_changed",
+      ].includes(event.type || ""),
+    )
+  ) {
+    void import("../services/api/pluginService")
+      .then(async ({ refreshMcpPlugin }) => {
+        const refreshed = await refreshMcpPlugin(plugin);
+        useSettingsStore.getState().upsertInstalledPlugin(refreshed);
+      })
+      .catch(() => undefined);
   }
 
   return data.result;
@@ -130,6 +160,7 @@ export const executePluginFunction = async (
   authOverride?: any,
   allowedPluginIds?: string[],
   signal?: AbortSignal,
+  mcpSessionId?: string,
 ): Promise<any> => {
   const functionNameError = getPluginExecutionFunctionNameError(functionName);
   if (functionNameError) {
@@ -250,6 +281,8 @@ export const executePluginFunction = async (
       executionArgs,
       authConfig,
       signal,
+      mcpSessionId,
+      config?.mcp?.roots,
     );
   } catch (e) {
     if (isAbortError(e)) throw e;

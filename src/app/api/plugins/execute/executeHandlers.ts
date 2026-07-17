@@ -7,6 +7,8 @@ import {
 import { decryptOptionalSecret } from "../../../../lib/byok/server";
 import { BYOK_CONTEXTS } from "../../../../lib/byok/shared";
 import { executeMcpToolRequest } from "../../../../lib/mcp/executor";
+import { validateMcpToolArguments } from "../../../../lib/mcp/schemaValidation";
+import { drainMcpSessionEvents } from "../../../../lib/mcp/client";
 import { isPluginAuthRequired } from "../../../../lib/plugin/config";
 import { executePluginFunctionRequest } from "../../../../lib/plugin/pluginExecutionExecutor";
 import {
@@ -103,6 +105,20 @@ async function executeMcpPlugin(options: {
       BAD_REQUEST_STATUS,
     );
   }
+  const argumentError = validateMcpToolArguments(
+    functionDef.parameters,
+    body.args,
+  );
+  if (argumentError) {
+    return errorResponse(
+      argumentError,
+      "MCP_ARGUMENT_SCHEMA_INVALID",
+      BAD_REQUEST_STATUS,
+    );
+  }
+  const sessionKey = body.mcpSessionId
+    ? `${body.mcpSessionId}:${plugin.id}`
+    : undefined;
   const result = await executeMcpToolRequest({
     serverUrl: metadata.serverUrl,
     toolName,
@@ -111,8 +127,14 @@ async function executeMcpPlugin(options: {
     authValue,
     authConfig: getMcpAuthConfig(plugin, body),
     signal,
+    sessionKey,
+    roots: body.mcpRoots,
+    outputSchema: functionDef.outputSchema,
   });
-  return NextResponse.json({ result });
+  return NextResponse.json({
+    result,
+    ...(sessionKey ? { events: drainMcpSessionEvents(sessionKey) } : {}),
+  });
 }
 
 function resolvePluginForExecution(
@@ -189,9 +211,25 @@ async function executeLegacy(
   const body = ToolExecutionSchema.parse(rawBody);
   const plugin = body.plugin as Plugin;
   await registerLegacyPlugin(plugin);
+  const functionDef = body.functionDef as PluginFunction;
+  if (plugin.source === "mcp") {
+    return executeMcpPlugin({
+      plugin,
+      functionDef,
+      body: {
+        pluginId: plugin.id,
+        functionName: functionDef.name,
+        args: body.args,
+        authConfig: body.authConfig,
+        mcpSessionId: body.mcpSessionId,
+        mcpRoots: body.mcpRoots,
+      },
+      signal,
+    });
+  }
   return executePluginFunctionRequest({
     plugin,
-    functionDef: body.functionDef as PluginFunction,
+    functionDef,
     args: body.args,
     authConfig: body.authConfig,
     decryptSecret: decryptOptionalSecret,

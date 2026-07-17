@@ -21,6 +21,14 @@ export type ChatUsagePayload = {
   usageMetadata?: unknown;
 };
 
+export interface ToolConfirmationRequest {
+  toolCall: ToolCall;
+  pluginId: string;
+  pluginTitle: string;
+  risk: NonNullable<ToolCall["risk"]>;
+  isMcp: boolean;
+}
+
 export type StreamChatResponseArgs = [
   sessionId: string,
   model: string,
@@ -45,6 +53,9 @@ export type StreamChatResponseArgs = [
   activePlugins?: string[],
   skillsContext?: string,
   onOutputBlocks?: (outputBlocks: MessageOutputBlock[]) => void,
+  requestToolConfirmation?: (
+    request: ToolConfirmationRequest,
+  ) => Promise<boolean>,
 ];
 
 export interface StreamChatOptions {
@@ -64,6 +75,7 @@ export interface StreamChatOptions {
   activePlugins?: string[];
   skillsContext?: string;
   onOutputBlocks?: StreamChatResponseArgs[15];
+  requestToolConfirmation?: StreamChatResponseArgs[16];
 }
 
 export interface PreparedChatRequest {

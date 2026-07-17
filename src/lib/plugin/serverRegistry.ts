@@ -10,6 +10,7 @@ declare global {
 interface ServerPluginRegistryStore {
   get(pluginId: string): Promise<Plugin | undefined>;
   set(plugin: Plugin): Promise<void>;
+  delete(pluginId: string): Promise<void>;
   clear?(): void;
 }
 
@@ -69,6 +70,17 @@ class UpstashServerPluginRegistryStore implements ServerPluginRegistryStore {
       );
     }
   }
+
+  async delete(pluginId: string): Promise<void> {
+    const { response } = await safeFetchSharedStoreJson(
+      this.endpoint(`del/${encodeURIComponent(this.key(pluginId))}`),
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Plugin registry store failed with status ${response.status}`,
+      );
+    }
+  }
 }
 
 let configuredStore: ServerPluginRegistryStore | null = null;
@@ -106,6 +118,9 @@ function createServerPluginRegistryStore(): ServerPluginRegistryStore {
     },
     async set(plugin) {
       getRegistry().set(plugin.id, plugin);
+    },
+    async delete(pluginId) {
+      getRegistry().delete(pluginId);
     },
     clear() {
       getRegistry().clear();
@@ -150,6 +165,18 @@ export async function getServerPlugin(
   } catch (error) {
     if (!canUseMemoryFallback()) throw error;
     return undefined;
+  }
+}
+
+export async function unregisterServerPlugin(pluginId: string): Promise<void> {
+  if (getBuiltInPlugin(pluginId)) {
+    throw new Error(`Plugin id ${pluginId} is a reserved built-in plugin id`);
+  }
+  getRegistry().delete(pluginId);
+  try {
+    await getServerPluginRegistryStore().delete(pluginId);
+  } catch (error) {
+    if (!canUseMemoryFallback()) throw error;
   }
 }
 

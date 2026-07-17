@@ -1,5 +1,8 @@
 import type { ToolCall } from "@/types";
+import { useSettingsStore } from "../../../store/core/settingsStore";
 import { executePluginFunction } from "@/utils/pluginUtils";
+import { resolvePluginFunction } from "../../../lib/plugin/resolve";
+import { getPluginFunctionRisk } from "../../../lib/plugin/risk";
 import {
   executeGrokSearchTool,
   GROK_WEB_SEARCH_TOOL_NAME,
@@ -8,6 +11,8 @@ import { PLUGIN_EXECUTION_LIMITS } from "../../../config/limits";
 import { mapWithConcurrency } from "../../../lib/utils/concurrency";
 import { searchWithGrok } from "../grokSearchService";
 import { compactPluginImageResultForHistory } from "./pluginImageResults";
+import { getPluginResultImageAttachments } from "./pluginImageResults";
+import { cacheGeneratedImageAttachments } from "../../../lib/utils/generatedImages";
 import { executeMemorySearchTool, isInternalMemoryTool } from "./memoryTools";
 import { runChatRound } from "./streamRound";
 import { ChatStreamRuntime } from "./streamRuntime";
@@ -20,6 +25,91 @@ function pendingToolCalls(toolCalls: ToolCall[]): ToolCall[] {
         toolCall.status === "running" ||
         toolCall.result === undefined),
   );
+}
+
+function getConfirmationRequest(
+  runtime: ChatStreamRuntime,
+  toolCall: ToolCall,
+) {
+  if (
+    isInternalMemoryTool(toolCall.name) ||
+    toolCall.name === GROK_WEB_SEARCH_TOOL_NAME
+  ) {
+    return null;
+  }
+  const state = useSettingsStore.getState();
+  const resolved = resolvePluginFunction(
+    state.installedPlugins,
+    toolCall.name,
+    runtime.prepared.options.activePlugins,
+  );
+  if (!resolved) return null;
+  const risk = getPluginFunctionRisk(resolved.functionDef);
+  if (risk === "read") return null;
+  if (
+    resolved.plugin.source === "mcp" &&
+    state.pluginConfigs[resolved.plugin.id]?.mcp?.trusted
+  ) {
+    return null;
+  }
+  return {
+    toolCall: { ...toolCall, risk },
+    pluginId: resolved.plugin.id,
+    pluginTitle: resolved.plugin.title || resolved.plugin.id,
+    risk,
+    isMcp: resolved.plugin.source === "mcp",
+  };
+}
+
+async function confirmToolCalls(
+  runtime: ChatStreamRuntime,
+  toolCalls: ToolCall[],
+): Promise<ToolCall[]> {
+  const confirmed: ToolCall[] = [];
+  for (const toolCall of toolCalls) {
+    const request = getConfirmationRequest(runtime, toolCall);
+    if (!request) {
+      confirmed.push(toolCall);
+      continue;
+    }
+    const awaiting: ToolCall = {
+      ...request.toolCall,
+      status: "awaiting_confirmation",
+      confirmation: { required: true, state: "pending" },
+    };
+    runtime.updateToolCall(awaiting);
+    const approved = runtime.prepared.options.requestToolConfirmation
+      ? await runtime.prepared.options.requestToolConfirmation(request)
+      : false;
+    if (!approved) {
+      const denied: ToolCall = {
+        ...awaiting,
+        status: "denied",
+        isError: true,
+        result: "用户拒绝了本次工具调用。",
+        confirmation: {
+          required: true,
+          state: "denied",
+          decidedAt: Date.now(),
+        },
+      };
+      runtime.updateToolCall(denied);
+      confirmed.push(denied);
+      continue;
+    }
+    const allowed: ToolCall = {
+      ...awaiting,
+      status: "pending",
+      confirmation: {
+        required: true,
+        state: "approved",
+        decidedAt: Date.now(),
+      },
+    };
+    runtime.updateToolCall(allowed);
+    confirmed.push(allowed);
+  }
+  return confirmed;
 }
 
 async function executeTool(
@@ -43,6 +133,7 @@ async function executeTool(
     toolCall.auth,
     runtime.prepared.options.activePlugins,
     runtime.prepared.options.signal,
+    runtime.prepared.options.sessionId,
   );
 }
 
@@ -65,10 +156,12 @@ async function executeOne(
   const signal = runtime.prepared.options.signal;
   signal?.throwIfAborted();
   try {
-    const completed = completedToolCall(
-      toolCall,
-      await executeTool(runtime, toolCall),
-    );
+    const result = await executeTool(runtime, toolCall);
+    const images = getPluginResultImageAttachments(result);
+    if (images.length) {
+      runtime.appendToolImages(await cacheGeneratedImageAttachments(images));
+    }
+    const completed = completedToolCall(toolCall, result);
     runtime.updateToolCall(completed);
     return completed;
   } catch (error) {
@@ -121,10 +214,13 @@ async function executeWithinBudget(
   remainingBudget: number,
 ): Promise<{ calls: ToolCall[]; attempted: number }> {
   const reviewed = reviewWithinBudget(runtime, pending, remainingBudget);
-  const executable = reviewed.filter(
-    (toolCall) => toolCall.status !== "skipped",
+  const confirmed = await confirmToolCalls(runtime, reviewed);
+  const executable = confirmed.filter(
+    (toolCall) => toolCall.status !== "skipped" && toolCall.status !== "denied",
   );
-  const skipped = reviewed.filter((toolCall) => toolCall.status === "skipped");
+  const skipped = confirmed.filter(
+    (toolCall) => toolCall.status === "skipped" || toolCall.status === "denied",
+  );
   markRunning(runtime, executable);
   skipped.forEach((toolCall) => runtime.updateToolCall(toolCall));
   const executed = await mapWithConcurrency(
@@ -136,7 +232,7 @@ async function executeWithinBudget(
     [...executed, ...skipped].map((toolCall) => [toolCall.id, toolCall]),
   );
   return {
-    calls: reviewed.map((toolCall) => completed.get(toolCall.id) || toolCall),
+    calls: confirmed.map((toolCall) => completed.get(toolCall.id) || toolCall),
     attempted: executable.length,
   };
 }

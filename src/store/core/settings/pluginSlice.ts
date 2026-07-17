@@ -20,9 +20,15 @@ const ACTIVE_OPTIONS = {
 };
 
 function addPlugin(state: SettingsState, plugin: Plugin) {
-  if (state.installedPlugins.some((item) => item.id === plugin.id))
-    return state;
-  const installedPlugins = [...state.installedPlugins, plugin];
+  const existingIndex = state.installedPlugins.findIndex(
+    (item) => item.id === plugin.id,
+  );
+  const installedPlugins =
+    existingIndex === -1
+      ? [...state.installedPlugins, plugin]
+      : state.installedPlugins.map((item, index) =>
+          index === existingIndex ? plugin : item,
+        );
   const config = normalizePluginConfig(
     state.pluginConfigs[plugin.id] || initPluginConfig(),
     plugin.functions?.map((item) => item.name),
@@ -34,9 +40,10 @@ function addPlugin(state: SettingsState, plugin: Plugin) {
   return {
     installedPlugins,
     activePlugins: normalizeActivePluginIds({
-      pluginIds: canAutoActivatePlugin(plugin, config)
-        ? [...state.activePlugins, plugin.id]
-        : state.activePlugins,
+      pluginIds:
+        existingIndex === -1 && canAutoActivatePlugin(plugin, config)
+          ? [...state.activePlugins, plugin.id]
+          : state.activePlugins,
       installedPlugins,
       pluginConfigs,
       ...ACTIVE_OPTIONS,
@@ -167,6 +174,7 @@ export const createPluginSlice: SettingsSlice = (set) => ({
   installedPlugins: [...BUILT_IN_PLUGINS],
   pluginConfigs: {},
   addInstalledPlugin: (plugin) => set((state) => addPlugin(state, plugin)),
+  upsertInstalledPlugin: (plugin) => set((state) => addPlugin(state, plugin)),
   removeInstalledPlugin: (id) => set((state) => removePlugin(state, id)),
   setActivePlugins: (ids) =>
     set((state) => ({

@@ -21,6 +21,7 @@ import {
 } from "./modelSelection";
 import { streamGenerateContent } from "./generationService";
 import type { ChatToolDefinition } from "./types";
+import { CHAT_TOOL_LIMITS } from "../../../config/limits";
 import type { PreparedChatRequest, StreamChatOptions } from "./streamTypes";
 
 function buildTools(
@@ -29,10 +30,26 @@ function buildTools(
 ): ChatToolDefinition[] {
   const { installedPlugins, pluginConfigs } = useSettingsStore.getState();
   const tools: ChatToolDefinition[] = [];
-  const names = new Set<string>();
-  addInternalMemoryTools(tools, names, options.newMessage);
+  const names = new Map<string, string>();
+  const reserveName = (name: string, owner: string): boolean => {
+    const existing = names.get(name);
+    if (existing && existing !== owner) {
+      throw new Error(
+        `工具名称冲突：${name} 同时由 ${existing} 和 ${owner} 提供。`,
+      );
+    }
+    if (existing) return false;
+    names.set(name, owner);
+    return true;
+  };
+  const internalNames = new Set<string>();
+  addInternalMemoryTools(tools, internalNames, options.newMessage);
+  internalNames.forEach((name) => names.set(name, "internal"));
   if (options.config.useSearch && !directImageGeneration) {
-    addGrokSearchTool(tools, names);
+    addGrokSearchTool(tools, internalNames);
+    internalNames.forEach((name) => {
+      if (!names.has(name)) names.set(name, "internal");
+    });
   }
   for (const pluginId of options.activePlugins || []) {
     const plugin = installedPlugins.find((item) => item.id === pluginId);
@@ -41,8 +58,8 @@ function buildTools(
       plugin,
       pluginConfigs[pluginId],
     )) {
-      if (names.has(fn.name)) continue;
-      names.add(fn.name);
+      if (!reserveName(fn.name, plugin.id)) continue;
+      if (tools.length >= CHAT_TOOL_LIMITS.maxToolsPerRequest) break;
       tools.push({
         type: "function",
         function: {
@@ -52,6 +69,7 @@ function buildTools(
         },
       });
     }
+    if (tools.length >= CHAT_TOOL_LIMITS.maxToolsPerRequest) break;
   }
   return tools;
 }

@@ -25,6 +25,7 @@ function toOptions(args: StreamChatResponseArgs): StreamChatOptions {
     activePlugins,
     skillsContext,
     onOutputBlocks,
+    requestToolConfirmation,
   ] = args;
   return {
     sessionId,
@@ -43,6 +44,7 @@ function toOptions(args: StreamChatResponseArgs): StreamChatOptions {
     activePlugins,
     skillsContext,
     onOutputBlocks,
+    requestToolConfirmation,
   };
 }
 

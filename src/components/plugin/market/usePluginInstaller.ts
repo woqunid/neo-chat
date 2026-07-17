@@ -20,7 +20,16 @@ function useMarketplaceInstall(store: SettingsStore, installFailed: string) {
       setInstallingIds(Array.from(pending.current));
       setInstallError(null);
       try {
-        store.addInstalledPlugin(await installPlugin(plugin));
+        const credential =
+          plugin.source === "mcp" &&
+          plugin.auth?.type !== "none" &&
+          plugin.auth?.required !== false
+            ? window.prompt(
+                `MCP 服务“${plugin.title}”需要在安装前完成鉴权，请输入访问凭据：`,
+              )
+            : undefined;
+        if (credential === null) return;
+        store.upsertInstalledPlugin(await installPlugin(plugin, credential));
       } catch (reason) {
         setInstallError(
           reason instanceof Error ? reason.message : installFailed,
@@ -37,23 +46,26 @@ function useMarketplaceInstall(store: SettingsStore, installFailed: string) {
 
 function useCustomMcpInstall(store: SettingsStore) {
   return useCallback(
-    async (plugin: Plugin, token?: string) => {
-      const value = token?.trim();
+    async (plugin: Plugin, credential?: string) => {
+      const value = credential?.trim();
       const secret = value
         ? await encryptLocalSecret(
             value,
             LOCAL_SECRET_CONTEXTS.pluginAuth(plugin.id),
           )
         : undefined;
-      store.addInstalledPlugin(plugin);
+      store.upsertInstalledPlugin(plugin);
       if (secret) {
         store.updatePluginConfig(plugin.id, {
           auth: {
-            type: "bearer",
+            type:
+              plugin.auth?.type === "apiKey" || plugin.auth?.type === "oauth2"
+                ? plugin.auth.type
+                : "bearer",
             value: "",
             localValueSecret: secret,
-            key: "Authorization",
-            addTo: "header",
+            key: plugin.auth?.name || "Authorization",
+            addTo: plugin.auth?.in || "header",
           },
         });
       }

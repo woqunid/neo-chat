@@ -1,6 +1,7 @@
 type PluginImageCandidate = {
   data?: unknown;
   url?: unknown;
+  mimeType?: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,8 +43,24 @@ function getPluginResultImageCandidates(
         ? item.imageUrl.trim()
         : "";
     if (!base64 && !url) return [];
-    return [{ data: base64?.data, url: base64 ? undefined : url }];
+    return [
+      {
+        data: base64?.data,
+        url: base64 ? undefined : url,
+        mimeType: base64?.mimeType || item.mimeType,
+      },
+    ];
   });
+}
+
+export function getPluginResultImageAttachments(resultData: unknown) {
+  return getPluginResultImageCandidates(resultData).map((image, index) => ({
+    id: crypto.randomUUID(),
+    mimeType: typeof image.mimeType === "string" ? image.mimeType : "image/png",
+    fileName: `mcp-tool-image-${index + 1}.png`,
+    ...(typeof image.data === "string" ? { data: image.data } : {}),
+    ...(typeof image.url === "string" ? { url: image.url } : {}),
+  }));
 }
 
 export function compactPluginImageResultForHistory(

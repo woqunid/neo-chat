@@ -8,6 +8,33 @@ export interface McpRegistryTool {
   name?: unknown;
   description?: unknown;
   inputSchema?: unknown;
+  outputSchema?: unknown;
+  annotations?: unknown;
+}
+
+function normalizeToolAnnotations(
+  value: unknown,
+): PluginFunction["mcpAnnotations"] {
+  if (!isRegistryRecord(value)) return undefined;
+  const title = trimRegistryString(value.title, 256);
+  const boolean = (key: string) =>
+    typeof value[key] === "boolean" ? (value[key] as boolean) : undefined;
+  const annotations = {
+    ...(title ? { title } : {}),
+    ...(boolean("readOnlyHint") !== undefined
+      ? { readOnlyHint: boolean("readOnlyHint") }
+      : {}),
+    ...(boolean("destructiveHint") !== undefined
+      ? { destructiveHint: boolean("destructiveHint") }
+      : {}),
+    ...(boolean("idempotentHint") !== undefined
+      ? { idempotentHint: boolean("idempotentHint") }
+      : {}),
+    ...(boolean("openWorldHint") !== undefined
+      ? { openWorldHint: boolean("openWorldHint") }
+      : {}),
+  };
+  return Object.keys(annotations).length ? annotations : undefined;
 }
 
 function shortHash(value: string): string {
@@ -88,6 +115,7 @@ function normalizeTool(options: NormalizeToolOptions): PluginFunction | null {
   if (!isRegistryRecord(tool)) return null;
   const mcpToolName = trimRegistryString(tool.name, 256);
   if (!mcpToolName) return null;
+  const annotations = normalizeToolAnnotations(tool.annotations);
   return {
     name: buildUniqueFunctionName({
       serverName,
@@ -102,6 +130,10 @@ function normalizeTool(options: NormalizeToolOptions): PluginFunction | null {
     parameters: isRegistryRecord(tool.inputSchema)
       ? { ...tool.inputSchema }
       : { type: "object", properties: {} },
+    ...(isRegistryRecord(tool.outputSchema)
+      ? { outputSchema: { ...tool.outputSchema } }
+      : {}),
+    ...(annotations ? { mcpAnnotations: annotations } : {}),
     risk: "external",
   };
 }

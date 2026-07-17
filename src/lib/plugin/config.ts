@@ -76,6 +76,29 @@ function normalizePluginAuth(value: unknown): PluginConfig["auth"] {
   };
 }
 
+function normalizeMcpConfig(value: unknown): PluginConfig["mcp"] {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as NonNullable<PluginConfig["mcp"]>;
+  const roots = Array.isArray(raw.roots)
+    ? raw.roots
+        .map((root) => {
+          if (!root || typeof root !== "object") return null;
+          const uri = trimString(
+            root.uri,
+            PLUGIN_CONFIG_LIMITS.maxBaseUrlChars,
+          );
+          const name = trimString(root.name, 300);
+          return uri ? { uri, ...(name ? { name } : {}) } : null;
+        })
+        .filter((root): root is NonNullable<typeof root> => Boolean(root))
+        .slice(0, 50)
+    : [];
+  return {
+    ...(raw.trusted === true ? { trusted: true } : {}),
+    ...(roots.length ? { roots } : {}),
+  };
+}
+
 function getOptionalPluginConfig(
   raw: Partial<PluginConfig>,
   allowed?: Set<string>,
@@ -84,11 +107,13 @@ function getOptionalPluginConfig(
   const model = trimString(raw.model, PLUGIN_CONFIG_LIMITS.maxModelNameChars);
   const enabledFunctions = normalizeFunctionRefs(raw.enabledFunctions, allowed);
   const auth = normalizePluginAuth(raw.auth);
+  const mcp = normalizeMcpConfig(raw.mcp);
   return {
     ...(baseUrl ? { baseUrl } : {}),
     ...(model ? { model } : {}),
     ...(enabledFunctions.length ? { enabledFunctions } : {}),
     ...(auth ? { auth } : {}),
+    ...(mcp && Object.keys(mcp).length ? { mcp } : {}),
   };
 }
 

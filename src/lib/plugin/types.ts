@@ -4,6 +4,59 @@ export type PluginFunctionRisk = "read" | "write" | "destructive" | "external";
 export type PluginSource = "builtin" | "openapi" | "mcp";
 export type McpTransport = "streamable-http";
 
+export interface McpToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+export interface McpResourceDescriptor {
+  uri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+  size?: number;
+}
+
+export interface McpResourceTemplateDescriptor {
+  uriTemplate: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpPromptArgumentDescriptor {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptDescriptor {
+  name: string;
+  title?: string;
+  description?: string;
+  arguments?: McpPromptArgumentDescriptor[];
+}
+
+export interface McpRootDescriptor {
+  uri: string;
+  name?: string;
+}
+
+export interface McpServerCapabilitySummary {
+  tools?: boolean;
+  resources?: boolean;
+  resourceSubscriptions?: boolean;
+  resourceListChanged?: boolean;
+  prompts?: boolean;
+  promptListChanged?: boolean;
+  logging?: boolean;
+}
+
 export interface PluginFunction {
   name: string;
   description: string;
@@ -11,6 +64,8 @@ export interface PluginFunction {
   path?: string;
   method?: string;
   mcpToolName?: string;
+  outputSchema?: Record<string, unknown>;
+  mcpAnnotations?: McpToolAnnotations;
   risk?: PluginFunctionRisk;
 }
 
@@ -21,6 +76,11 @@ export interface PluginMcpMetadata {
   serverVersion?: string;
   headers?: Record<string, string>;
   toolNameMap?: Record<string, string>;
+  capabilities?: McpServerCapabilitySummary;
+  resources?: McpResourceDescriptor[];
+  resourceTemplates?: McpResourceTemplateDescriptor[];
+  prompts?: McpPromptDescriptor[];
+  lastSyncedAt?: string;
 }
 
 export interface PluginAuth {
@@ -59,5 +119,9 @@ export interface PluginConfig {
     localValueSecret?: LocalEncryptedSecretEnvelope;
     key?: string;
     addTo?: "header" | "query";
+  };
+  mcp?: {
+    trusted?: boolean;
+    roots?: McpRootDescriptor[];
   };
 }

@@ -21,9 +21,11 @@ const RATE_LIMITS = {
   docParse: 10,
   grokSearch: 30,
   mcpServers: 30,
+  mcpCapabilities: 30,
   mutating: 120,
   pluginExecute: 30,
   pluginInstall: 20,
+  pluginUninstall: 20,
   pluginList: 15,
   providerModels: 30,
   rag: 30,
@@ -123,6 +125,12 @@ const API_ROUTE_POLICIES: readonly ApiRoutePolicy[] = [
     rateLimit: rateLimit("/api/plugins/install", RATE_LIMITS.pluginInstall),
   },
   {
+    pattern: /^\/api\/plugins\/uninstall$/,
+    requestProofMethods: POST_METHOD,
+    rateLimitMethods: POST_METHOD,
+    rateLimit: rateLimit("/api/plugins/uninstall", RATE_LIMITS.pluginUninstall),
+  },
+  {
     pattern: /^\/api\/plugins\/list$/,
     requestProofMethods: GET_METHOD,
     rateLimitMethods: GET_METHOD,
@@ -139,6 +147,12 @@ const API_ROUTE_POLICIES: readonly ApiRoutePolicy[] = [
     requestProofMethods: GET_METHOD,
     rateLimitMethods: GET_METHOD,
     rateLimit: rateLimit("/api/mcp/servers", RATE_LIMITS.mcpServers),
+  },
+  {
+    pattern: /^\/api\/mcp\/(?:resources|prompts)$/,
+    requestProofMethods: POST_METHOD,
+    rateLimitMethods: POST_METHOD,
+    rateLimit: rateLimit("/api/mcp/capabilities", RATE_LIMITS.mcpCapabilities),
   },
   {
     pattern: /^\/api\/agents(?:\/|$)/,
